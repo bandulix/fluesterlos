@@ -39,13 +39,19 @@ API also on http://localhost:3000 (`/api/health`).
 
 ### Option B — pull prebuilt GHCR images
 
-Uses published images `ghcr.io/bandulix/fluesterlos-api` and `ghcr.io/bandulix/fluesterlos-web` (same topology as source compose; no local build).
+Uses published images `ghcr.io/bandulix/fluesterlos-api` and `ghcr.io/bandulix/fluesterlos-web` (same topology as source compose; no local build). Public packages are preferred (no login).
 
 1. Copy env: `cp .env.example .env` and set a strong `BOOTSTRAP_TOKEN`
 2. Start stack: `docker compose -f docker-compose.ghcr.yml up`
 3. Continue from step 3 in Option A (Host UI at http://localhost:8080/host)
 
-Images are built and pushed to GHCR on pushes to `main`, version tags `v*`, and via workflow_dispatch (see `.github/workflows/ghcr.yml`).
+If packages are private:
+
+```bash
+echo $GITHUB_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+
+Images are built and pushed to GHCR on pushes to `main`, version tags `v*`, and via `workflow_dispatch` (see `.github/workflows/ghcr.yml`). PRs to `main` build for validation without pushing. Tags: commit SHA; `latest` on `main`.
 
 ### Host vs guest auth
 - **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie (not localStorage / Bearer). Guests stay name+email only and are a separate model — do not reuse guest rows for hosts.
@@ -65,6 +71,7 @@ Then register again at `/host` with the current `BOOTSTRAP_TOKEN`. (Alternativel
 - API: Node.js + Fastify + Postgres + SSE
 - Web: Vite + React + TypeScript PWA
 - Compose: `api` + `web` (nginx) + `db` (postgres:16)
+- Optional: prebuilt images via GHCR + `docker-compose.ghcr.yml`
 
 ## Out of MVP
 Gala suite (ticketing / tables / Fund-a-Need), native store apps, card checkout, multi-tenant SaaS, CRM, AI copy. Inviting additional hosts/roles is stubbed for later (owner-only today).
