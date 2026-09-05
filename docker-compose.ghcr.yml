@@ -1,9 +1,3 @@
-# Prebuilt images from GHCR (no local build).
-# Requires packages published by .github/workflows/ghcr.yml (after merge to main).
-#
-#   cp .env.example .env
-#   docker compose -f docker-compose.ghcr.yml up
-
 services:
   db:
     image: postgres:16-alpine
