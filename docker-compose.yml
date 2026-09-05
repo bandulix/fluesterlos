@@ -19,7 +19,7 @@ services:
       dockerfile: api/Dockerfile
     environment:
       DATABASE_URL: postgres://fluesterlos:fluesterlos@db:5432/fluesterlos
-      HOST_TOKEN: ${HOST_TOKEN:-dev-host-token-change-me}
+      BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-change-me-once}
       PORT: "3000"
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
       NODE_ENV: production
