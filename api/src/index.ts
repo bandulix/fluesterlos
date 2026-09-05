@@ -6,6 +6,7 @@ import { z } from "zod";
 import { pool, migrate } from "./db.js";
 import { auctionStatus, money } from "./auction.js";
 import { publish, subscribe } from "./sse.js";
+import { registerRestRoutes } from "./rest.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST_TOKEN = process.env.HOST_TOKEN ?? "dev-host-token-change-me";
@@ -196,3 +197,14 @@ app.post("/api/host/events", async (req, reply) => {
     client.release();
   }
 });
+
+registerRestRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
+
+app.setErrorHandler((err, _req, reply) => {
+  const status = (err as Error & { statusCode?: number }).statusCode ?? 500;
+  reply.code(status).send({ error: err.message || "Server error" });
+});
+
+await migrate();
+await app.listen({ port: PORT, host: "0.0.0.0" });
+app.log.info(`FluesterLos API on :${PORT}`);
