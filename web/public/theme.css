@@ -1,0 +1,200 @@
+/* FlüsterLos default theme — dark gala (ink/navy + gold/teal).
+   Override by mounting web/public/custom.css or replacing this file.
+   Tokens live on :root / [data-theme]; layout classes are in styles.css. */
+
+:root,
+[data-theme="gala"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #070b16;
+  --bg-glow: #1a1040;
+  --card: #10182a;
+  --card-nested: #0a1220;
+  --panel: #0c1424;
+  --engager-bg: #04060f;
+
+  /* Text */
+  --text: #f3e9d7;
+  --muted: #a8b0c8;
+  --text-strong: #fff8ec;
+
+  /* Accents — gold + teal */
+  --accent: #e8c547;
+  --accent-2: #14b8a6;
+  --accent-soft: #e8c54733;
+  --accent-glow: #e8c54766;
+  --teal-glow: #14b8a655;
+
+  /* Semantic */
+  --danger: #fb7185;
+  --success: #34d399;
+  --border: #2a3558;
+  --border-strong: #3d4a72;
+  --input-bg: #080e1a;
+  --input-border: #334155;
+  --banner-bg: #134e4a;
+  --button-text: #0b1220;
+  --button-secondary-bg: #1a2338;
+  --topbar-border: #1f2a44;
+
+  /* Status pills */
+  --status-open: #14532d;
+  --status-scheduled: #1e3a8a;
+  --status-closed: #7f1d1d;
+  --pill-bg: #1e293b;
+
+  /* Motion */
+  --ease-gala: cubic-bezier(0.22, 1, 0.36, 1);
+  --flash-duration: 900ms;
+  --pulse-duration: 2.2s;
+
+  /* Type */
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --engager-number-size: clamp(2.8rem, 7vw, 5.2rem);
+
+  font-family: var(--font);
+}
+
+/* Ambient body glow (host + guest UIs stay calmer via styles.css) */
+body {
+  background:
+    radial-gradient(900px 500px at 12% -8%, var(--bg-glow), transparent 55%),
+    radial-gradient(700px 400px at 90% 0%, var(--teal-glow), transparent 50%),
+    var(--bg);
+  color: var(--text);
+}
+
+/* —— Live / bid drama (engager + boards) —— */
+@keyframes fl-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow), inset 0 0 40px var(--accent-soft); }
+  50% { box-shadow: 0 0 28px 2px var(--accent-glow), inset 0 0 60px var(--teal-glow); }
+}
+
+@keyframes fl-bid-flash {
+  0% { background-color: var(--accent-soft); transform: scale(1); }
+  35% { background-color: color-mix(in srgb, var(--accent) 28%, transparent); transform: scale(1.01); }
+  100% { background-color: transparent; transform: scale(1); }
+}
+
+@keyframes fl-countdown-urgent {
+  0%, 100% { color: var(--text-strong); text-shadow: 0 0 12px var(--accent-glow); }
+  50% { color: var(--accent); text-shadow: 0 0 22px var(--accent-glow); }
+}
+
+@keyframes fl-glow-text {
+  0%, 100% { text-shadow: 0 0 8px var(--accent-soft); }
+  50% { text-shadow: 0 0 24px var(--accent-glow), 0 0 40px var(--teal-glow); }
+}
+
+.engager.is-live .panel.totals,
+.engager.is-live .panel.highlight {
+  animation: fl-live-pulse var(--pulse-duration) var(--ease-gala) infinite;
+}
+
+.engager.bid-flash .panel.totals .huge,
+.engager.bid-flash .panel.highlight .huge,
+.engager.bid-flash .feed li:first-child,
+.stats-page.bid-flash .stats-grid,
+.bid-board.bid-flash .banner,
+.card.item.bid-flash {
+  animation: fl-bid-flash var(--flash-duration) var(--ease-gala);
+}
+
+.engager .huge {
+  font-family: var(--font-display);
+  font-size: var(--engager-number-size);
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+  animation: fl-glow-text 3.5s var(--ease-gala) infinite;
+}
+
+.countdown.is-urgent strong {
+  animation: fl-countdown-urgent 1.1s var(--ease-gala) infinite;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.25em;
+}
+
+.countdown strong {
+  font-variant-numeric: tabular-nums;
+  transition: color 0.25s var(--ease-gala), text-shadow 0.25s var(--ease-gala);
+}
+
+.button {
+  transition: transform 0.2s var(--ease-gala), box-shadow 0.2s var(--ease-gala), filter 0.2s;
+}
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px var(--accent-soft);
+  filter: brightness(1.05);
+}
+
+.card, .panel {
+  transition: border-color 0.25s var(--ease-gala), box-shadow 0.25s var(--ease-gala);
+}
+
+.engager .panel {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 1px var(--accent-soft), 0 12px 40px #0008;
+}
+
+.pill.status-open {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--success) 40%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .engager.is-live .panel.totals,
+  .engager.is-live .panel.highlight,
+  .engager .huge,
+  .countdown.is-urgent strong {
+    animation: none !important;
+    box-shadow: none;
+    text-shadow: none;
+  }
+}
+
+
+/* Calmer host-friendly variant */
+[data-theme="calm"] {
+  --bg: #0b1220;
+  --bg-glow: #0f172a;
+  --card: #121a2b;
+  --text: #e8eefc;
+  --muted: #9aa8c7;
+  --accent: #14b8a6;
+  --accent-2: #0f766e;
+  --accent-soft: #14b8a633;
+  --accent-glow: #14b8a644;
+  --border: #243154;
+  --text-strong: #f8fafc;
+  --engager-bg: #020617;
+}
+
+.countdown-digits {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: var(--accent);
+  font-size: 1.15em;
+}
+.countdown.is-urgent .countdown-digits {
+  animation: fl-countdown-urgent 1.1s var(--ease-gala) infinite;
+}
+.live-badge::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.35em;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  vertical-align: middle;
+}

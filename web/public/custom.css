@@ -1,0 +1,20 @@
+/**
+ * FlüsterLos custom theme overrides
+ * ---------------------------------
+ * Loaded AFTER theme.css. Leave empty to use the default gala theme,
+ * or override CSS variables / classes for your event brand.
+ *
+ * Examples:
+ *   :root {
+ *     --accent: #ff6b9d;
+ *     --accent-2: #c084fc;
+ *     --bg: #0a0a12;
+ *   }
+ *
+ * Docker / self-host: mount or replace this file, e.g.
+ *   volumes:
+ *     - ./my-brand.css:/usr/share/nginx/html/custom.css:ro
+ *
+ * Or set <html data-theme="calm"> for the built-in calmer variant
+ * (add a [data-theme="calm"] block in theme.css / here).
+ */
