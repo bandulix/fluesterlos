@@ -8,7 +8,7 @@ export function BidPage() {
   const { code = "" } = useParams();
   const nav = useNavigate();
   const token = getGuestToken(code);
-  const { live, error, flashKey } = useLive(code);
+  const { live, error, flashKey, lastBid } = useLive(code);
   const [msg, setMsg] = useState<string | null>(null);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [flash, setFlash] = useState(false);
@@ -60,8 +60,9 @@ export function BidPage() {
       </div>
       {live.items.map((it) => {
         const minNext = it.bidCount === 0 ? it.startingBid : it.highBid + it.minIncrement;
+        const itemFlash = flash && lastBid?.itemId === it.id ? " bid-flash" : "";
         return (
-          <article className={`card item${flash ? " bid-flash" : ""}`} key={it.id}>
+          <article className={`card item${itemFlash}`} key={it.id}>
             {it.photoUrl && <img src={it.photoUrl} alt="" className="thumb" />}
             <h2>{it.title}</h2>
             <p>{it.description}</p>
