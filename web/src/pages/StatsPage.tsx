@@ -11,8 +11,8 @@ export function StatsPage() {
   useEffect(() => {
     if (!flashKey) return;
     setFlash(true);
-    const id = window.setTimeout(() => setFlash(false), 900);
-    return () => window.clearTimeout(id);
+    const t = setTimeout(() => setFlash(false), 900);
+    return () => clearTimeout(t);
   }, [flashKey]);
 
   if (!live) return <p className="muted">Loading stats… {error}</p>;
@@ -22,10 +22,10 @@ export function StatsPage() {
         <h1>Live stats — {live.event.title}</h1>
         <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
         <div className="stats-grid">
-          <div className="stat"><span className="muted">Total high bids</span><strong>{live.stats.totalHighBids.toFixed(2)}</strong></div>
-          <div className="stat"><span className="muted">Bids</span><strong>{live.stats.totalBids}</strong></div>
-          <div className="stat"><span className="muted">Guests</span><strong>{live.stats.guestCount}</strong></div>
-          <div className="stat"><span className="muted">Items</span><strong>{live.stats.itemCount}</strong></div>
+          <div><span className="muted">Total high bids</span><strong>{live.stats.totalHighBids.toFixed(2)}</strong></div>
+          <div><span className="muted">Bids</span><strong>{live.stats.totalBids}</strong></div>
+          <div><span className="muted">Guests</span><strong>{live.stats.guestCount}</strong></div>
+          <div><span className="muted">Items</span><strong>{live.stats.itemCount}</strong></div>
         </div>
         <p className="row"><Link to={`/e/${code}`}>Join</Link><Link to={`/e/${code}/engager`}>Engager</Link></p>
       </div>

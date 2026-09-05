@@ -12,23 +12,17 @@ export function BidPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [flash, setFlash] = useState(false);
-  const [flashTitle, setFlashTitle] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) nav(`/e/${code}`, { replace: true });
   }, [token, code, nav]);
 
   useEffect(() => {
-    if (!flashKey || !live) return;
-    const latest = live.recentBids[0];
-    setFlashTitle(latest?.itemTitle ?? null);
+    if (!flashKey) return;
     setFlash(true);
-    const id = window.setTimeout(() => {
-      setFlash(false);
-      setFlashTitle(null);
-    }, 900);
-    return () => window.clearTimeout(id);
-  }, [flashKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => setFlash(false), 900);
+    return () => clearTimeout(t);
+  }, [flashKey]);
 
   async function placeBid(itemId: string, minNext: number) {
     setMsg(null);
@@ -66,9 +60,8 @@ export function BidPage() {
       </div>
       {live.items.map((it) => {
         const minNext = it.bidCount === 0 ? it.startingBid : it.highBid + it.minIncrement;
-        const itemFlash = flashTitle === it.title ? " bid-flash" : "";
         return (
-          <article className={`card item${itemFlash}`} key={it.id}>
+          <article className={`card item${flash ? " bid-flash" : ""}`} key={it.id}>
             {it.photoUrl && <img src={it.photoUrl} alt="" className="thumb" />}
             <h2>{it.title}</h2>
             <p>{it.description}</p>

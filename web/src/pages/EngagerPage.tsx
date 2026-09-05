@@ -24,6 +24,7 @@ export function EngagerPage() {
   }, [items.length]);
 
   if (!live) return <div className="engager"><p>Loading engager… {error}</p></div>;
+
   const highlight = items[idx % Math.max(items.length, 1)];
   const joinUrl = live.event.joinUrl;
   const isLive = live.event.status === "open";
@@ -33,24 +34,24 @@ export function EngagerPage() {
       <header>
         <div>
           <h1>{live.event.title}</h1>
-          <span className="live-badge" aria-hidden={!flash}>Live</span>
+          <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
         </div>
-        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
+        <p className="muted">{live.stats.guestCount} guests · {live.stats.totalBids} bids</p>
       </header>
       <div className="engager-grid">
-        <section className={`panel totals${flash ? " bid-flash" : ""}`}>
+        <section className="panel totals">
           <p className="muted">Live total (sum of high bids)</p>
           <p className="huge">{live.stats.totalHighBids.toFixed(2)}</p>
-          <p className="muted">{live.stats.totalBids} bids · {live.stats.guestCount} guests · {live.stats.itemCount} items</p>
+          <p className="muted">{live.stats.itemCount} items</p>
         </section>
-        <section className={`panel highlight${flash ? " bid-flash" : ""}`}>
+        <section className="panel highlight">
           {highlight ? (
             <>
               <p className="muted">Now featuring</p>
               <h2>{highlight.title}</h2>
               {highlight.photoUrl && <img src={highlight.photoUrl} alt="" />}
               <p className="huge">{highlight.highBid.toFixed(2)}</p>
-              <p className="muted">{highlight.highBidder ? `High: ${highlight.highBidder}` : "Awaiting first bid"}</p>
+              <p>{highlight.highBidder ? `High bidder: ${highlight.highBidder}` : "Be the first!"}</p>
             </>
           ) : (
             <p className="muted">Add items to spotlight</p>
@@ -59,9 +60,9 @@ export function EngagerPage() {
         <section className="panel feed">
           <h3>Recent bids</h3>
           <ul>
-            {live.recentBids.map((b, i) => (
+            {live.recentBids.slice(0, 8).map((b, i) => (
               <li key={`${b.createdAt}-${i}`}>
-                <strong>{b.amount.toFixed(2)}</strong> · {b.itemTitle} · {b.guestName}
+                <strong>{b.guestName}</strong> → {b.itemTitle} · {b.amount.toFixed(2)}
               </li>
             ))}
           </ul>
