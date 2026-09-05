@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Link } from "react-router-dom";
 import { api, LivePayload } from "../lib/api";
@@ -13,6 +13,12 @@ type DraftItem = {
   buyNow: string;
 };
 
+type AuthStatus = {
+  needsBootstrap: boolean;
+  authenticated: boolean;
+  email?: string;
+};
+
 const emptyItem = (): DraftItem => ({
   title: "",
   description: "",
@@ -23,7 +29,10 @@ const emptyItem = (): DraftItem => ({
 });
 
 export function HostPage() {
-  const [token, setToken] = useState(() => localStorage.getItem("fl_host_token") || "dev-host-token-change-me");
+  const [auth, setAuth] = useState<AuthStatus | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [bootstrapToken, setBootstrapToken] = useState("");
   const [title, setTitle] = useState("Charity Silent Auction");
   const [startsAt, setStartsAt] = useState(() => new Date(Date.now() + 60_000).toISOString().slice(0, 16));
   const [endsAt, setEndsAt] = useState(() => new Date(Date.now() + 60 * 60_000).toISOString().slice(0, 16));
@@ -31,14 +40,77 @@ export function HostPage() {
   const [live, setLive] = useState<LivePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
 
   const joinUrl = live?.event.joinUrl;
+
+  async function refreshAuth() {
+    const status = await api<AuthStatus>("/api/host/auth/status");
+    setAuth(status);
+    return status;
+  }
+
+  useEffect(() => {
+    // Drop legacy localStorage host token from the HOST_TOKEN era.
+    localStorage.removeItem("fl_host_token");
+    refreshAuth().catch((err) => setError((err as Error).message));
+  }, []);
+
+  async function onRegister(e: FormEvent) {
+    e.preventDefault();
+    setAuthBusy(true);
+    setError(null);
+    try {
+      await api("/api/host/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ email, password, bootstrapToken }),
+      });
+      setPassword("");
+      setBootstrapToken("");
+      await refreshAuth();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function onLogin(e: FormEvent) {
+    e.preventDefault();
+    setAuthBusy(true);
+    setError(null);
+    try {
+      await api("/api/host/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      setPassword("");
+      await refreshAuth();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function onLogout() {
+    setAuthBusy(true);
+    setError(null);
+    try {
+      await api("/api/host/auth/logout", { method: "POST" });
+      setLive(null);
+      await refreshAuth();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    localStorage.setItem("fl_host_token", token);
     try {
       const body = {
         title,
@@ -57,7 +129,6 @@ export function HostPage() {
       };
       const res = await api<LivePayload>("/api/host/events", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
       setLive(res);
@@ -72,12 +143,65 @@ export function HostPage() {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   }
 
+  if (!auth) {
+    return (
+      <section className="stack">
+        <div className="card">
+          <h1>Host setup</h1>
+          <p className="muted">Checking host session…</p>
+          {error && <p className="error">{error}</p>}
+        </div>
+      </section>
+    );
+  }
+
+  if (auth.needsBootstrap) {
+    return (
+      <section className="stack">
+        <div className="card">
+          <h1>Create owner account</h1>
+          <p className="muted">
+            First registered host becomes the owner. Enter the one-time <code>BOOTSTRAP_TOKEN</code> from your server env.
+          </p>
+          <form className="stack" onSubmit={onRegister}>
+            <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" /></label>
+            <label>Password <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" /></label>
+            <label>Bootstrap token <input type="password" value={bootstrapToken} onChange={(e) => setBootstrapToken(e.target.value)} required autoComplete="off" /></label>
+            <button className="button" disabled={authBusy}>{authBusy ? "Registering…" : "Register owner"}</button>
+            {error && <p className="error">{error}</p>}
+          </form>
+        </div>
+      </section>
+    );
+  }
+
+  if (!auth.authenticated) {
+    return (
+      <section className="stack">
+        <div className="card">
+          <h1>Host login</h1>
+          <p className="muted">Sign in with your owner email and password. Open registration is closed after the first owner exists.</p>
+          <form className="stack" onSubmit={onLogin}>
+            <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" /></label>
+            <label>Password <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" /></label>
+            <button className="button" disabled={authBusy}>{authBusy ? "Signing in…" : "Log in"}</button>
+            {error && <p className="error">{error}</p>}
+          </form>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="stack">
       <div className="card">
-        <h1>Host setup</h1>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <h1>Host setup</h1>
+          <button type="button" className="button secondary" onClick={onLogout} disabled={authBusy}>
+            Log out ({auth.email})
+          </button>
+        </div>
         <p className="muted">Create an event, add items, share the QR / join link. Auction opens and closes from the schedule.</p>
-        <label>Host token <input value={token} onChange={(e) => setToken(e.target.value)} /></label>
         <form className="stack" onSubmit={onCreate}>
           <label>Event title <input value={title} onChange={(e) => setTitle(e.target.value)} required /></label>
           <div className="row">

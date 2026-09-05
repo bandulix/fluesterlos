@@ -50,7 +50,25 @@ export async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS host_users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'owner',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS host_sessions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      host_user_id UUID NOT NULL REFERENCES host_users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE INDEX IF NOT EXISTS bids_item_created_idx ON bids(item_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS items_event_sort_idx ON items(event_id, sort_order);
+    CREATE INDEX IF NOT EXISTS host_sessions_user_idx ON host_sessions(host_user_id);
+    CREATE INDEX IF NOT EXISTS host_sessions_expires_idx ON host_sessions(expires_at);
   `);
 }

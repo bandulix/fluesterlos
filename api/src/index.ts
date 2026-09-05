@@ -5,11 +5,19 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { pool, migrate } from "./db.js";
 import { auctionStatus, money } from "./auction.js";
-import { publish, subscribe } from "./sse.js";
 import { registerRestRoutes } from "./rest.js";
+import {
+  clearSession,
+  countHostUsers,
+  createSession,
+  hostFromRequest,
+  loginHost,
+  registerOwner,
+  requireHost,
+} from "./hostAuth.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
-const HOST_TOKEN = process.env.HOST_TOKEN ?? "dev-host-token-change-me";
+const BOOTSTRAP_TOKEN = process.env.BOOTSTRAP_TOKEN ?? "";
 const PUBLIC_URL = process.env.PUBLIC_URL ?? "http://localhost:8080";
 
 const app = Fastify({ logger: true });
@@ -19,18 +27,6 @@ await app.register(cors, {
   credentials: true,
 });
 await app.register(cookie);
-
-function requireHost(req: { headers: Record<string, unknown> }) {
-  const auth = String(req.headers.authorization ?? "");
-  const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
-  const header = String(req.headers["x-host-token"] ?? "");
-  const token = bearer || header;
-  if (token !== HOST_TOKEN) {
-    const err = new Error("Unauthorized");
-    (err as Error & { statusCode?: number }).statusCode = 401;
-    throw err;
-  }
-}
 
 function codeOf(raw: string) {
   return raw.trim().toLowerCase();
@@ -122,8 +118,86 @@ async function buildLivePayload(eventId: string, code: string) {
 
 app.get("/api/health", async () => ({ ok: true }));
 
+app.get("/api/host/auth/status", async (req) => {
+  const needsBootstrap = (await countHostUsers()) === 0;
+  const host = await hostFromRequest(req);
+  return {
+    needsBootstrap,
+    authenticated: !!host,
+    email: host?.email,
+  };
+});
+
+const registerSchema = z.object({
+  email: z.string().email().max(200),
+  password: z.string().min(8).max(200),
+  bootstrapToken: z.string().min(1).max(500),
+});
+
+app.post("/api/host/auth/register", async (req, reply) => {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return reply.code(400).send({ error: parsed.error.flatten() });
+  }
+  if (!BOOTSTRAP_TOKEN) {
+    return reply.code(503).send({
+      error: "BOOTSTRAP_TOKEN is not configured on the server",
+    });
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+  try {
+    const user = await registerOwner(
+      email,
+      parsed.data.password,
+      parsed.data.bootstrapToken,
+      BOOTSTRAP_TOKEN,
+    );
+    await createSession(user.id, reply, PUBLIC_URL);
+    return { user: { id: user.id, email: user.email, role: user.role } };
+  } catch (e) {
+    const status = (e as Error & { statusCode?: number }).statusCode ?? 500;
+    return reply.code(status).send({ error: (e as Error).message });
+  }
+});
+
+const loginSchema = z.object({
+  email: z.string().email().max(200),
+  password: z.string().min(1).max(200),
+});
+
+app.post("/api/host/auth/login", async (req, reply) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return reply.code(400).send({ error: parsed.error.flatten() });
+  }
+  try {
+    const user = await loginHost(
+      parsed.data.email.trim().toLowerCase(),
+      parsed.data.password,
+    );
+    await createSession(user.id, reply, PUBLIC_URL);
+    return { user: { id: user.id, email: user.email, role: user.role } };
+  } catch (e) {
+    const status = (e as Error & { statusCode?: number }).statusCode ?? 500;
+    return reply.code(status).send({ error: (e as Error).message });
+  }
+});
+
+app.post("/api/host/auth/logout", async (req, reply) => {
+  await clearSession(req, reply);
+  return { ok: true };
+});
+
+app.get("/api/host/me", async (req, reply) => {
+  const host = await hostFromRequest(req);
+  if (!host) return reply.code(401).send({ error: "Unauthorized" });
+  return { user: { id: host.id, email: host.email, role: host.role } };
+});
+
 app.get("/api/host/check", async (req, reply) => {
-  try { requireHost(req as never); } catch {
+  try {
+    await requireHost(req);
+  } catch {
     return reply.code(401).send({ error: "Unauthorized" });
   }
   return { ok: true };
@@ -148,7 +222,9 @@ const createEventSchema = z.object({
 });
 
 app.post("/api/host/events", async (req, reply) => {
-  try { requireHost(req as never); } catch {
+  try {
+    await requireHost(req);
+  } catch {
     return reply.code(401).send({ error: "Unauthorized" });
   }
   const parsed = createEventSchema.safeParse(req.body);
@@ -201,8 +277,9 @@ app.post("/api/host/events", async (req, reply) => {
 registerRestRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
 
 app.setErrorHandler((err, _req, reply) => {
-  const status = (err as Error & { statusCode?: number }).statusCode ?? 500;
-  reply.code(status).send({ error: err.message || "Server error" });
+  const e = err as Error & { statusCode?: number };
+  const status = e.statusCode ?? 500;
+  reply.code(status).send({ error: e.message || "Server error" });
 });
 
 await migrate();
