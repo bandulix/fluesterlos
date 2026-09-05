@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
-import { API_BASE, LivePayload } from "../lib/api";
+import { useEffect, useRef, useState } from "react";
+import { API_BASE, LivePayload } from "./api";
 
 export function useLive(code: string | undefined) {
   const [live, setLive] = useState<LivePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [flashKey, setFlashKey] = useState(0);
+  const prevBids = useRef<number | null>(null);
+
   useEffect(() => {
     if (!code) return;
     let es: EventSource | null = null;
@@ -13,9 +16,18 @@ export function useLive(code: string | undefined) {
       es = new EventSource(url, { withCredentials: true } as EventSourceInit);
       es.addEventListener("update", (ev) => {
         try {
-          setLive(JSON.parse((ev as MessageEvent).data));
+          const payload = JSON.parse((ev as MessageEvent).data) as LivePayload;
+          setLive(payload);
           setError(null);
+          const total = payload.stats.totalBids;
+          if (prevBids.current !== null && total > prevBids.current) {
+            setFlashKey((k) => k + 1);
+          }
+          prevBids.current = total;
         } catch { /* ignore */ }
+      });
+      es.addEventListener("bid", () => {
+        setFlashKey((k) => k + 1);
       });
       es.onerror = () => {
         if (!cancelled) setError("Live connection interrupted — retrying…");
@@ -28,5 +40,6 @@ export function useLive(code: string | undefined) {
       es?.close();
     };
   }, [code]);
-  return { live, error, setLive };
+
+  return { live, error, flashKey, setLive };
 }

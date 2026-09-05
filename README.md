@@ -55,6 +55,36 @@ Then register again at `/host` with the current `BOOTSTRAP_TOKEN`. (Alternativel
 ## Out of MVP
 Gala suite (ticketing / tables / Fund-a-Need), native store apps, card checkout, multi-tenant SaaS, CRM, AI copy. Inviting additional hosts/roles is stubbed for later (owner-only today).
 
+
+
+## Theming
+
+Restyle with **CSS only** — no React edits required.
+
+1. **Default:** [`web/public/theme.css`](web/public/theme.css) — CSS variables on `:root` / `[data-theme="gala"]`, engager motion, bid flash.
+2. **Overrides:** edit or replace [`web/public/custom.css`](web/public/custom.css) (loaded **after** `theme.css` in `web/index.html`).
+3. **Variants:** `data-theme="gala"` (default on `<html>`) or `data-theme="calm"` for a quieter host-friendly palette.
+
+Docker mount example:
+
+```yaml
+services:
+  web:
+    volumes:
+      - ./my-brand.css:/usr/share/nginx/html/custom.css:ro
+```
+
+```css
+/* my-brand.css */
+:root {
+  --accent: #ff6b9d;
+  --accent-2: #c084fc;
+  --bg: #0a0a12;
+}
+```
+
+Animations respect `prefers-reduced-motion: reduce`.
+
 ## Docs
 See [`docs/mvp-one-pager.md`](./docs/mvp-one-pager.md).
 

@@ -17,10 +17,21 @@ export function Countdown({ startsAt, endsAt, status }: { startsAt: string; ends
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
+  const urgent = status === "open" && ms > 0 && ms <= 60_000;
   return (
-    <div className="countdown">
+    <div className={`countdown${urgent ? " is-urgent" : ""`}>
       <span className="muted">{label}</span>
-      <strong>{status === "closed" ? "—" : `${pad(h)}:${pad(m)}:${pad(s)}`}</strong>
+      {status === "closed" ? (
+        <strong className="countdown-digits">—</strong>
+      ) : (
+        <strong className="countdown-digits" aria-live="polite">
+          <span className="countdown-digit">{pad(h)}</span>
+          <span className="countdown-sep">:</span>
+          <span className="countdown-digit">{pad(m)}</span>
+          <span className="countdown-sep">:</span>
+          <span className="countdown-digit">{pad(s)}</span>
+        </strong>
+      )}
       <span className={`pill status-${status}`}>{status}</span>
     </div>
   );
