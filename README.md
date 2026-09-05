@@ -23,6 +23,8 @@ Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloa
 
 ## Quickstart
 
+### A) Build from source
+
 1. Copy env: `cp .env.example .env` and set a strong `BOOTSTRAP_TOKEN` (used only for the first owner register)
 2. Optionally set `SMTP_*` so voucher emails work after payment confirm
 3. Start stack: `docker compose up --build`
@@ -36,6 +38,17 @@ Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloa
 9. Host reviews payslips on the event card and clicks **Payment correct & received** → guest gets voucher PDF(s) by email
 
 API also on http://localhost:3000 (`/api/health`).
+
+### B) Prebuilt GHCR images
+
+After images are published to GitHub Container Registry (Actions workflow on `main`):
+
+```bash
+cp .env.example .env   # set BOOTSTRAP_TOKEN (+ SMTP_* if needed)
+docker compose -f docker-compose.ghcr.yml up
+```
+
+Pulls `ghcr.io/bandulix/fluesterlos-api:latest` and `ghcr.io/bandulix/fluesterlos-web:latest` (no local build). Optional pin: `FLUESTERLOS_TAG=<sha>`. If packages are private, `docker login ghcr.io` with a PAT that has `read:packages`.
 
 ### Host vs guest auth
 - **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie. Guests stay name+email only.
@@ -58,6 +71,7 @@ Then register again at `/host` with the current `BOOTSTRAP_TOKEN`.
 - API: Node.js + Fastify + Postgres + SSE + multipart + nodemailer
 - Web: Vite + React + TypeScript PWA
 - Compose: `api` + `web` (nginx) + `db` (postgres:16) + `appdata` volume
+- Optional: prebuilt images via GHCR + `docker-compose.ghcr.yml`
 
 ## Out of MVP
 Gala suite, native store apps, card checkout, multi-tenant SaaS, CRM, AI copy. Extra host roles later (owner-only today).
