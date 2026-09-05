@@ -43,7 +43,7 @@ export function EngagerPage() {
           <p className="huge">{live.stats.totalHighBids.toFixed(2)}</p>
           <p className="muted">{live.stats.totalBids} bids · {live.stats.guestCount} guests</p>
         </section>
-        <section className={`panel highlight${flash ? " bid-flash" : ""}`}>
+        <section className={`panel highlight${flash ? " bid-flash" : ""`}>
           {highlight ? (
             <>
               <p className="muted">Now featuring</p>

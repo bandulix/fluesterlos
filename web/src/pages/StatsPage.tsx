@@ -17,7 +17,7 @@ export function StatsPage() {
 
   if (!live) return <p className="muted">Loading stats… {error}</p>;
   return (
-    <section className={`stack stats-page${flash ? " bid-flash" : ""}`}>
+    <section className={`stack stats-page${flash ? " bid-flash" : ""`}>
       <div className="card">
         <h1>Live stats — {live.event.title}</h1>
         <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
