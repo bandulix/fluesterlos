@@ -197,21 +197,15 @@ export function HostPage() {
       });
       let liveNext = res;
       for (const it of draft) {
-        liveNext = await api<LivePayload>(`/api/host/events/${res.event.code}/items`, {
-          method: "POST",
-          body: JSON.stringify({
-            title: it.title.trim(),
-            description: it.description.trim(),
-            photoUrl: it.photoUrl.trim() || null,
-            startingBid: Number(it.startingBid),
-            minIncrement: Number(it.minIncrement),
-            buyNow: it.buyNow.trim() ? Number(it.buyNow) : null,
-          }),
-        });
-        const created = liveNext.items[liveNext.items.length - 1];
         const form = new FormData();
-        form.append("file", it.voucher!);
-        await uploadForm(`/api/host/events/${res.event.code}/items/${created.id}/voucher`, form);
+        form.append("title", it.title.trim());
+        form.append("description", it.description.trim());
+        if (it.photoUrl.trim()) form.append("photoUrl", it.photoUrl.trim());
+        form.append("startingBid", String(Number(it.startingBid)));
+        form.append("minIncrement", String(Number(it.minIncrement)));
+        if (it.buyNow.trim()) form.append("buyNow", String(Number(it.buyNow)));
+        form.append("voucherPdf", it.voucher!);
+        liveNext = await uploadForm<LivePayload>(`/api/host/events/${res.event.code}/items`, form);
       }
       liveNext = await api<LivePayload>(`/api/events/${res.event.code}`);
       setLive(liveNext);
