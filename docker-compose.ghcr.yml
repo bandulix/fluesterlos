@@ -1,12 +1,8 @@
-# Pull prebuilt images from GHCR instead of building from source.
-# Usage: docker compose -f docker-compose.ghcr.yml up
+# Prebuilt images from GHCR (no local build).
+# Requires packages published by .github/workflows/ghcr.yml (after merge to main).
 #
-# Images (public packages preferred):
-#   ghcr.io/bandulix/fluesterlos-api:latest
-#   ghcr.io/bandulix/fluesterlos-web:latest
-#
-# If packages are private, authenticate first:
-#   echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+#   cp .env.example .env
+#   docker compose -f docker-compose.ghcr.yml up
 
 services:
   db:
@@ -24,7 +20,7 @@ services:
       retries: 20
 
   api:
-    image: ghcr.io/bandulix/fluesterlos-api:${FLUESTERLOS_TAG:-latest}
+    image: ghcr.io/bandulix/fluesterlos-api:latest
     environment:
       DATABASE_URL: postgres://fluesterlos:fluesterlos@db:5432/fluesterlos
       BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-change-me-once}
@@ -38,7 +34,7 @@ services:
       - "3000:3000"
 
   web:
-    image: ghcr.io/bandulix/fluesterlos-web:${FLUESTERLOS_TAG:-latest}
+    image: ghcr.io/bandulix/fluesterlos-web:latest
     depends_on:
       - api
     ports:
