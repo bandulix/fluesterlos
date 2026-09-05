@@ -5,7 +5,7 @@ Open-source, self-hosted **silent auction** for charity and event hosts.
 > QR → PWA → bid; everyone sees the live board — and the big screen keeps the room bidding.
 
 **License:** [AGPL-3.0](./LICENSE)
-**Status:** first vertical slice — create event, QR join, bid, live stats, engager + host bootstrap auth
+**Status:** vertical slice + vouchers / per-guest invoices / PromptPay payslip flow
 
 ## Why
 Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloat. FlüsterLos is Docker-first OSS you run yourself.
@@ -19,43 +19,48 @@ Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloa
 - Big-screen engager view for the event room
 - Single `docker compose up`
 - Host auth: first registered host is owner (email + bcrypt password, httpOnly session cookie); one-time `BOOTSTRAP_TOKEN` gates that first registration
+- **Vouchers + invoices:** one invoice per winning guest (sum of all wins); Thai PromptPay QR; payslip upload; host confirms → SMTP emails voucher PDF(s) (one attachment per won item). **No card/Stripe checkout.**
 
 ## Quickstart
 
 1. Copy env: `cp .env.example .env` and set a strong `BOOTSTRAP_TOKEN` (used only for the first owner register)
-2. Start stack: `docker compose up --build`
-3. Open **Host UI** at http://localhost:8080/host
-   - **Fresh install:** register with email, password, and `BOOTSTRAP_TOKEN` from `.env` — that account becomes the owner
-   - **Later visits:** log in with email + password (open registration is blocked once an owner exists)
-4. Create event + items, share QR / join link
-5. Guest joins at `/e/<code>` (name + email only), then bids at `/e/<code>/bid`
-6. Public stats: `/e/<code>/stats` — Engager big screen: `/e/<code>/engager`
+2. Optionally set `SMTP_*` so voucher emails work after payment confirm
+3. Start stack: `docker compose up --build`
+4. Open **Host UI** at http://localhost:8080/host
+   - **Fresh install:** register with email, password, and `BOOTSTRAP_TOKEN` from `.env`
+   - **Later visits:** log in with email + password
+5. Configure **Payment settings** (PromptPay ID and/or upload a static QR image)
+6. Create event, then **add items** — each item requires a voucher PDF (stored under `DATA_DIR`, volume `appdata:/data`)
+7. Guest joins at `/e/<code>`, bids at `/e/<code>/bid`
+8. After close, winners open `/e/<code>/invoice` — combined total, Thai QR, payslip upload
+9. Host reviews payslips on the event card and clicks **Payment correct & received** → guest gets voucher PDF(s) by email
 
 API also on http://localhost:3000 (`/api/health`).
 
 ### Host vs guest auth
-- **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie (not localStorage / Bearer). Guests stay name+email only and are a separate model — do not reuse guest rows for hosts.
-- Shared `HOST_TOKEN` pasting in the Host UI is removed.
+- **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie. Guests stay name+email only.
+
+### Payment / vouchers / SMTP
+- **Invoice model:** exactly **one invoice per winning guest** = sum of all their winning bids (not one invoice per item). Itemized lines are detail under that invoice.
+- **PromptPay:** set phone or 13-digit national ID in Host → Payment settings. Guests get an EMV PromptPay QR (amount filled). Optionally upload a static QR image instead/in addition.
+- **Payslip:** guest pays outside the app, uploads image/PDF in the invoice PWA view.
+- **Confirm:** host marks payment received once for the whole invoice; server emails **multiple PDF attachments** (one per won item) via SMTP.
+- **Env:** `DATA_DIR=/data`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (see `.env.example`). Compose mounts volume `appdata` at `/data` on the API.
 
 ### Break-glass (owner locked out)
-To re-open first-owner bootstrap (destroys host accounts/sessions):
-
 ```bash
 docker compose exec db psql -U fluesterlos -d fluesterlos -c \
   "DELETE FROM host_sessions; DELETE FROM host_users;"
 ```
+Then register again at `/host` with the current `BOOTSTRAP_TOKEN`.
 
-Then register again at `/host` with the current `BOOTSTRAP_TOKEN`. (Alternatively update `password_hash` in `host_users` with a new bcrypt hash if you only need a password reset.)
-
-## Stack (this slice)
-- API: Node.js + Fastify + Postgres + SSE
+## Stack
+- API: Node.js + Fastify + Postgres + SSE + multipart + nodemailer
 - Web: Vite + React + TypeScript PWA
-- Compose: `api` + `web` (nginx) + `db` (postgres:16)
+- Compose: `api` + `web` (nginx) + `db` (postgres:16) + `appdata` volume
 
 ## Out of MVP
-Gala suite (ticketing / tables / Fund-a-Need), native store apps, card checkout, multi-tenant SaaS, CRM, AI copy. Inviting additional hosts/roles is stubbed for later (owner-only today).
-
-
+Gala suite, native store apps, card checkout, multi-tenant SaaS, CRM, AI copy. Extra host roles later (owner-only today).
 
 ## Theming
 

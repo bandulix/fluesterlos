@@ -4,6 +4,7 @@ import { JoinPage } from "./pages/JoinPage";
 import { BidPage } from "./pages/BidPage";
 import { StatsPage } from "./pages/StatsPage";
 import { EngagerPage } from "./pages/EngagerPage";
+import { InvoicePage } from "./pages/InvoicePage";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/host" element={<HostPage />} />
           <Route path="/e/:code" element={<JoinPage />} />
           <Route path="/e/:code/bid" element={<BidPage />} />
+          <Route path="/e/:code/invoice" element={<InvoicePage />} />
           <Route path="/e/:code/stats" element={<StatsPage />} />
           <Route path="/e/:code/engager" element={<EngagerPage />} />
         </Routes>

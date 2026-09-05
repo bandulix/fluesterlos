@@ -58,9 +58,18 @@ export function BidPage() {
         <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
         <p className="row muted">
           <Link to={`/e/${code}/stats`}>Stats</Link>
+          {live.event.status === "closed" && (
+            <Link to={`/e/${code}/invoice`}>Your invoice / pay</Link>
+          )}
           <span>Guests {live.stats.guestCount}</span>
           <span>Total high {live.stats.totalHighBids.toFixed(2)}</span>
         </p>
+        {live.event.status === "closed" && (
+          <p className="banner">
+            Auction closed. Winners: open <Link to={`/e/${code}/invoice`}>your invoice</Link> for
+            the combined total, Thai QR, and payslip upload.
+          </p>
+        )}
         {msg && <p className="banner">{msg}</p>}
       </div>
       {live.items.map((it) => {

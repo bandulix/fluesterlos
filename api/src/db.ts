@@ -29,8 +29,11 @@ export async function migrate() {
       min_increment NUMERIC(12,2) NOT NULL,
       buy_now NUMERIC(12,2),
       sort_order INT NOT NULL DEFAULT 0,
+      voucher_pdf_path TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+
+    ALTER TABLE items ADD COLUMN IF NOT EXISTS voucher_pdf_path TEXT;
 
     CREATE TABLE IF NOT EXISTS guests (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -66,9 +69,41 @@ export async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS host_settings (
+      id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+      promptpay_id TEXT,
+      payee_name TEXT,
+      qr_image_path TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    INSERT INTO host_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS invoices (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      total NUMERIC(12,2) NOT NULL,
+      status TEXT NOT NULL DEFAULT 'unpaid'
+        CHECK (status IN ('unpaid', 'payslip_uploaded', 'paid')),
+      payslip_path TEXT,
+      paid_at TIMESTAMPTZ,
+      vouchers_emailed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (event_id, guest_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS invoice_lines (
+      invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+      amount NUMERIC(12,2) NOT NULL,
+      PRIMARY KEY (invoice_id, item_id)
+    );
+
     CREATE INDEX IF NOT EXISTS bids_item_created_idx ON bids(item_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS items_event_sort_idx ON items(event_id, sort_order);
     CREATE INDEX IF NOT EXISTS host_sessions_user_idx ON host_sessions(host_user_id);
     CREATE INDEX IF NOT EXISTS host_sessions_expires_idx ON host_sessions(expires_at);
+    CREATE INDEX IF NOT EXISTS invoices_event_idx ON invoices(event_id);
   `);
 }
