@@ -1,0 +1,59 @@
+# Prebuilt images from GHCR (no local build).
+# Mirrors main docker-compose.yml (incl. DATA_DIR / SMTP / appdata); pulls images instead of build.
+#
+#   cp .env.example .env
+#   docker compose -f docker-compose.ghcr.yml up
+#
+# Public packages preferred. If private:
+#   echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+#
+# Optional pin: FLUESTERLOS_TAG=<sha> (workflow tags sha without prefix)
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fluesterlos
+      POSTGRES_PASSWORD: fluesterlos
+      POSTGRES_DB: fluesterlos
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fluesterlos -d fluesterlos"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  api:
+    image: ghcr.io/bandulix/fluesterlos-api:${FLUESTERLOS_TAG:-latest}
+    environment:
+      DATABASE_URL: postgres://fluesterlos:fluesterlos@db:5432/fluesterlos
+      BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-change-me-once}
+      PORT: "3000"
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      DATA_DIR: /data
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      NODE_ENV: production
+    volumes:
+      - appdata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  web:
+    image: ghcr.io/bandulix/fluesterlos-web:${FLUESTERLOS_TAG:-latest}
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
+  appdata:
