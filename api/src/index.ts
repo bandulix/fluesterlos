@@ -1,11 +1,14 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
+import multipart from "@fastify/multipart";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { pool, migrate } from "./db.js";
 import { auctionStatus, money } from "./auction.js";
 import { registerRestRoutes } from "./rest.js";
+import { registerInvoiceRoutes } from "./invoiceRoutes.js";
+import { ensureDataDirs } from "./storage.js";
 import {
   clearSession,
   countHostUsers,
@@ -27,6 +30,9 @@ await app.register(cors, {
   credentials: true,
 });
 await app.register(cookie);
+await app.register(multipart, {
+  limits: { fileSize: 25 * 1024 * 1024, files: 2 },
+});
 
 function codeOf(raw: string) {
   return raw.trim().toLowerCase();
@@ -86,6 +92,7 @@ async function buildLivePayload(eventId: string, code: string) {
     highBid: money(row.high_bid),
     highBidder: row.high_bidder,
     bidCount: row.bid_count,
+    hasVoucher: Boolean(row.voucher_pdf_path),
   }));
   const totalHigh = items.reduce((sum, it) => sum + it.highBid, 0);
   const totalBids = items.reduce((sum, it) => sum + it.bidCount, 0);
@@ -264,8 +271,7 @@ app.post("/api/host/events", async (req, reply) => {
       );
     }
     await client.query("COMMIT");
-    const live = await buildLivePayload(event.id, event.code);
-    return live;
+    return buildLivePayload(event.id, event.code);
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
@@ -275,6 +281,7 @@ app.post("/api/host/events", async (req, reply) => {
 });
 
 registerRestRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
+registerInvoiceRoutes(app, { codeOf, getEventByCode, requireHost });
 
 app.setErrorHandler((err, _req, reply) => {
   const e = err as Error & { statusCode?: number };
@@ -283,5 +290,6 @@ app.setErrorHandler((err, _req, reply) => {
 });
 
 await migrate();
+await ensureDataDirs();
 await app.listen({ port: PORT, host: "0.0.0.0" });
 app.log.info(`FluesterLos API on :${PORT}`);
