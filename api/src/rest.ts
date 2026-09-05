@@ -14,7 +14,7 @@ export function registerRestRoutes(
     codeOf: (raw: string) => string;
     getEventByCode: (code: string) => Promise<EventRow | undefined>;
     buildLivePayload: LiveBuilder;
-    requireHost: (req: { headers: Record<string, unknown> }) => void;
+    requireHost: (req: import("fastify").FastifyRequest) => Promise<unknown>;
   },
 ) {
   const { codeOf, getEventByCode, buildLivePayload, requireHost } = deps;
@@ -29,7 +29,7 @@ const addItemSchema = z.object({
 });
 
 app.post("/api/host/events/:code/items", async (req, reply) => {
-  try { requireHost(req as never); } catch {
+  try { await requireHost(req); } catch {
     return reply.code(401).send({ error: "Unauthorized" });
   }
   const code = codeOf((req.params as { code: string }).code);
