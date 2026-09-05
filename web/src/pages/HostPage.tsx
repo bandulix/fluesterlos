@@ -1,1 +1,1 @@
-PLACEHOLDER_REPLACE
+export { HostPage } from "./HostPageVouchers";
