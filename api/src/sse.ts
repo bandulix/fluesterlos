@@ -13,7 +13,10 @@ export function subscribe(code: string, client: Client) {
 
 export function publish(code: string, event: string, data: unknown) {
   const key = code.toLowerCase();
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const payload = `event: ${event}
+data: ${JSON.stringify(data)}
+
+`;
   const set = channels.get(key);
   if (!set) return;
   for (const client of set) {
