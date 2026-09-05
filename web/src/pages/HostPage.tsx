@@ -145,7 +145,7 @@ export function HostPage() {
 
   if (!auth) {
     return (
-      <section className="stack">
+      <section className="stack host-page">
         <div className="card">
           <h1>Host setup</h1>
           <p className="muted">Checking host session…</p>
@@ -157,7 +157,7 @@ export function HostPage() {
 
   if (auth.needsBootstrap) {
     return (
-      <section className="stack">
+      <section className="stack host-page">
         <div className="card">
           <h1>Create owner account</h1>
           <p className="muted">
@@ -177,7 +177,7 @@ export function HostPage() {
 
   if (!auth.authenticated) {
     return (
-      <section className="stack">
+      <section className="stack host-page">
         <div className="card">
           <h1>Host login</h1>
           <p className="muted">Sign in with your owner email and password. Open registration is closed after the first owner exists.</p>
@@ -193,9 +193,9 @@ export function HostPage() {
   }
 
   return (
-    <section className="stack">
+    <section className="stack host-page">
       <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <div className="row between">
           <h1>Host setup</h1>
           <button type="button" className="button secondary" onClick={onLogout} disabled={authBusy}>
             Log out ({auth.email})
