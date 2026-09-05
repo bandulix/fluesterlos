@@ -19,7 +19,7 @@ export function Countdown({ startsAt, endsAt, status }: { startsAt: string; ends
   const s = totalSec % 60;
   const urgent = status === "open" && ms > 0 && ms <= 60_000;
   return (
-    <div className={`countdown${urgent ? " is-urgent" : ""`}>
+    <div className={`countdown${urgent ? " is-urgent" : ""}`}>
       <span className="muted">{label}</span>
       {status === "closed" ? (
         <strong className="countdown-digits">—</strong>
