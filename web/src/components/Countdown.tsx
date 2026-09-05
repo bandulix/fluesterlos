@@ -21,17 +21,7 @@ export function Countdown({ startsAt, endsAt, status }: { startsAt: string; ends
   return (
     <div className={`countdown${urgent ? " is-urgent" : ""}`}>
       <span className="muted">{label}</span>
-      {status === "closed" ? (
-        <strong className="countdown-digits">—</strong>
-      ) : (
-        <strong className="countdown-digits" aria-live="polite">
-          <span className="countdown-digit">{pad(h)}</span>
-          <span className="countdown-sep">:</span>
-          <span className="countdown-digit">{pad(m)}</span>
-          <span className="countdown-sep">:</span>
-          <span className="countdown-digit">{pad(s)}</span>
-        </strong>
-      )}
+      <strong className="countdown-digits">{status === "closed" ? "—" : `${pad(h)}:${pad(m)}:${pad(s)}`}</strong>
       <span className={`pill status-${status}`}>{status}</span>
     </div>
   );
