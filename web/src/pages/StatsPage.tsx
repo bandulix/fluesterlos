@@ -1,21 +1,31 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLive } from "../lib/useLive";
 import { Countdown } from "../components/Countdown";
 
 export function StatsPage() {
   const { code = "" } = useParams();
-  const { live, error } = useLive(code);
+  const { live, error, flashKey } = useLive(code);
+  const [flash, setFlash] = useState(false);
+
+  useEffect(() => {
+    if (!flashKey) return;
+    setFlash(true);
+    const id = window.setTimeout(() => setFlash(false), 900);
+    return () => window.clearTimeout(id);
+  }, [flashKey]);
+
   if (!live) return <p className="muted">Loading stats… {error}</p>;
   return (
-    <section className="stack">
+    <section className={`stack stats-page${flash ? " bid-flash" : ""}`}>
       <div className="card">
         <h1>Live stats — {live.event.title}</h1>
         <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
         <div className="stats-grid">
-          <div><span className="muted">Total high bids</span><strong>{live.stats.totalHighBids.toFixed(2)}</strong></div>
-          <div><span className="muted">Bids</span><strong>{live.stats.totalBids}</strong></div>
-          <div><span className="muted">Guests</span><strong>{live.stats.guestCount}</strong></div>
-          <div><span className="muted">Items</span><strong>{live.stats.itemCount}</strong></div>
+          <div className="stat"><span className="muted">Total high bids</span><strong>{live.stats.totalHighBids.toFixed(2)}</strong></div>
+          <div className="stat"><span className="muted">Bids</span><strong>{live.stats.totalBids}</strong></div>
+          <div className="stat"><span className="muted">Guests</span><strong>{live.stats.guestCount}</strong></div>
+          <div className="stat"><span className="muted">Items</span><strong>{live.stats.itemCount}</strong></div>
         </div>
         <p className="row"><Link to={`/e/${code}`}>Join</Link><Link to={`/e/${code}/engager`}>Engager</Link></p>
       </div>

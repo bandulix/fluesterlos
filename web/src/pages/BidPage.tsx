@@ -8,13 +8,27 @@ export function BidPage() {
   const { code = "" } = useParams();
   const nav = useNavigate();
   const token = getGuestToken(code);
-  const { live, error } = useLive(code);
+  const { live, error, flashKey } = useLive(code);
   const [msg, setMsg] = useState<string | null>(null);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [flash, setFlash] = useState(false);
+  const [flashTitle, setFlashTitle] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) nav(`/e/${code}`, { replace: true });
   }, [token, code, nav]);
+
+  useEffect(() => {
+    if (!flashKey || !live) return;
+    const latest = live.recentBids[0];
+    setFlashTitle(latest?.itemTitle ?? null);
+    setFlash(true);
+    const id = window.setTimeout(() => {
+      setFlash(false);
+      setFlashTitle(null);
+    }, 900);
+    return () => window.clearTimeout(id);
+  }, [flashKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function placeBid(itemId: string, minNext: number) {
     setMsg(null);
@@ -39,7 +53,7 @@ export function BidPage() {
   if (!live) return <p className="muted">Loading live board… {error}</p>;
 
   return (
-    <section className="stack">
+    <section className={`stack bid-board${flash ? " bid-flash" : ""}`}>
       <div className="card">
         <h1>{live.event.title}</h1>
         <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
@@ -52,12 +66,13 @@ export function BidPage() {
       </div>
       {live.items.map((it) => {
         const minNext = it.bidCount === 0 ? it.startingBid : it.highBid + it.minIncrement;
+        const itemFlash = flashTitle === it.title ? " bid-flash" : "";
         return (
-          <article className="card item" key={it.id}>
+          <article className={`card item${itemFlash}`} key={it.id}>
             {it.photoUrl && <img src={it.photoUrl} alt="" className="thumb" />}
             <h2>{it.title}</h2>
             <p>{it.description}</p>
-            <p><strong>High bid:</strong> {it.highBid.toFixed(2)} {it.highBidder ? `(${it.highBidder})` : ""}</p>
+            <p className="high-bid"><strong>High bid:</strong> {it.highBid.toFixed(2)} {it.highBidder ? `(${it.highBidder})` : ""}</p>
             <p className="muted">Min next {minNext.toFixed(2)} · +{it.minIncrement} {it.buyNow != null ? `· buy now ${it.buyNow}` : ""}</p>
             <div className="row">
               <input
