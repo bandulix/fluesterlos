@@ -1,8 +1,15 @@
 import { FormEvent, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Link } from "react-router-dom";
-import { api, LivePayload } from "../lib/api";
+import { api, LivePayload, uploadForm } from "../lib/api";
 import { Countdown } from "../components/Countdown";
+import {
+  HostInvoice,
+  HostSettings,
+  InvoicesCard,
+  PaymentSettingsCard,
+  uploadHostQr,
+} from "./HostPayments";
 
 type DraftItem = {
   title: string;
@@ -11,6 +18,7 @@ type DraftItem = {
   startingBid: string;
   minIncrement: string;
   buyNow: string;
+  voucher: File | null;
 };
 
 type AuthStatus = {
@@ -26,6 +34,7 @@ const emptyItem = (): DraftItem => ({
   startingBid: "10",
   minIncrement: "5",
   buyNow: "",
+  voucher: null,
 });
 
 export function HostPage() {
@@ -41,6 +50,11 @@ export function HostPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
+  const [settings, setSettings] = useState<HostSettings | null>(null);
+  const [promptpayId, setPromptpayId] = useState("");
+  const [payeeName, setPayeeName] = useState("");
+  const [invoices, setInvoices] = useState<HostInvoice[]>([]);
+  const [note, setNote] = useState<string | null>(null);
 
   const joinUrl = live?.event.joinUrl;
 
@@ -50,11 +64,31 @@ export function HostPage() {
     return status;
   }
 
+  async function loadSettings() {
+    const s = await api<HostSettings>("/api/host/settings");
+    setSettings(s);
+    setPromptpayId(s.promptpayId);
+    setPayeeName(s.payeeName);
+  }
+
+  async function loadInvoices(code: string) {
+    const res = await api<{ invoices: HostInvoice[] }>(`/api/host/events/${code}/invoices`);
+    setInvoices(res.invoices);
+  }
+
   useEffect(() => {
-    // Drop legacy localStorage host token from the HOST_TOKEN era.
     localStorage.removeItem("fl_host_token");
-    refreshAuth().catch((err) => setError((err as Error).message));
+    refreshAuth()
+      .then(async (s) => {
+        if (s.authenticated) await loadSettings().catch((err) => setError((err as Error).message));
+      })
+      .catch((err) => setError((err as Error).message));
   }, []);
+
+  useEffect(() => {
+    if (!live?.event.code || !auth?.authenticated) return;
+    loadInvoices(live.event.code).catch(() => undefined);
+  }, [live?.event.code, live?.event.status, auth?.authenticated]);
 
   async function onRegister(e: FormEvent) {
     e.preventDefault();
@@ -68,6 +102,7 @@ export function HostPage() {
       setPassword("");
       setBootstrapToken("");
       await refreshAuth();
+      await loadSettings();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -86,6 +121,7 @@ export function HostPage() {
       });
       setPassword("");
       await refreshAuth();
+      await loadSettings();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -99,6 +135,8 @@ export function HostPage() {
     try {
       await api("/api/host/auth/logout", { method: "POST" });
       setLive(null);
+      setInvoices([]);
+      setSettings(null);
       await refreshAuth();
     } catch (err) {
       setError((err as Error).message);
@@ -107,31 +145,97 @@ export function HostPage() {
     }
   }
 
+  async function onSaveSettings(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const s = await api<HostSettings>("/api/host/settings", {
+        method: "PUT",
+        body: JSON.stringify({ promptpayId, payeeName }),
+      });
+      setSettings(s);
+      setNote("Payment settings saved.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onQrUpload(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      await uploadHostQr(file);
+      await loadSettings();
+      setNote("Host QR image uploaded.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const body = {
-        title,
-        startsAt: new Date(startsAt).toISOString(),
-        endsAt: new Date(endsAt).toISOString(),
-        items: items
-          .filter((it) => it.title.trim())
-          .map((it) => ({
+      const draft = items.filter((it) => it.title.trim());
+      for (const it of draft) {
+        if (!it.voucher) throw new Error(`Voucher PDF required for "${it.title}"`);
+      }
+      const res = await api<LivePayload>("/api/host/events", {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          startsAt: new Date(startsAt).toISOString(),
+          endsAt: new Date(endsAt).toISOString(),
+        }),
+      });
+      let liveNext = res;
+      for (const it of draft) {
+        liveNext = await api<LivePayload>(`/api/host/events/${res.event.code}/items`, {
+          method: "POST",
+          body: JSON.stringify({
             title: it.title.trim(),
-            description: it.description,
+            description: it.description.trim(),
             photoUrl: it.photoUrl.trim() || null,
             startingBid: Number(it.startingBid),
             minIncrement: Number(it.minIncrement),
             buyNow: it.buyNow.trim() ? Number(it.buyNow) : null,
-          })),
-      };
-      const res = await api<LivePayload>("/api/host/events", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      setLive(res);
+          }),
+        });
+        const created = liveNext.items[liveNext.items.length - 1];
+        const form = new FormData();
+        form.append("file", it.voucher!);
+        await uploadForm(`/api/host/events/${res.event.code}/items/${created.id}/voucher`, form);
+      }
+      liveNext = await api<LivePayload>(`/api/events/${res.event.code}`);
+      setLive(liveNext);
+      setItems([emptyItem()]);
+      await loadInvoices(liveNext.event.code).catch(() => undefined);
+      setNote("Event created with voucher PDFs.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onConfirmPayment(invoiceId: string) {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const res = await api<{ ok: boolean; alreadyPaid?: boolean; emailed?: number }>(
+        `/api/host/invoices/${invoiceId}/confirm-payment`,
+        { method: "POST" },
+      );
+      setNote(res.alreadyPaid ? "Already paid." : `Paid — emailed ${res.emailed ?? 0} PDF(s).`);
+      if (live) await loadInvoices(live.event.code);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -161,7 +265,7 @@ export function HostPage() {
         <div className="card">
           <h1>Create owner account</h1>
           <p className="muted">
-            First registered host becomes the owner. Enter the one-time <code>BOOTSTRAP_TOKEN</code> from your server env.
+            First host is owner. Enter <code>BOOTSTRAP_TOKEN</code> from env.
           </p>
           <form className="stack" onSubmit={onRegister}>
             <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" /></label>
@@ -180,7 +284,7 @@ export function HostPage() {
       <section className="stack">
         <div className="card">
           <h1>Host login</h1>
-          <p className="muted">Sign in with your owner email and password. Open registration is closed after the first owner exists.</p>
+          <p className="muted">Email + password. Registration closes after first owner.</p>
           <form className="stack" onSubmit={onLogin}>
             <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" /></label>
             <label>Password <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" /></label>
@@ -195,24 +299,42 @@ export function HostPage() {
   return (
     <section className="stack">
       <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <div className="row">
           <h1>Host setup</h1>
           <button type="button" className="button secondary" onClick={onLogout} disabled={authBusy}>
             Log out ({auth.email})
           </button>
         </div>
-        <p className="muted">Create an event, add items, share the QR / join link. Auction opens and closes from the schedule.</p>
+        <p className="muted">Title + one-liner + voucher PDF required. After close: one invoice per winning guest.</p>
+        {note && <p className="banner">{note}</p>}
+        {error && <p className="error">{error}</p>}
+      </div>
+
+      <PaymentSettingsCard
+        promptpayId={promptpayId}
+        payeeName={payeeName}
+        settings={settings}
+        busy={busy}
+        setPromptpayId={setPromptpayId}
+        setPayeeName={setPayeeName}
+        onSave={onSaveSettings}
+        onQrUpload={onQrUpload}
+      />
+
+      <div className="card">
+        <h2>New event</h2>
         <form className="stack" onSubmit={onCreate}>
           <label>Event title <input value={title} onChange={(e) => setTitle(e.target.value)} required /></label>
           <div className="row">
             <label>Starts <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required /></label>
             <label>Ends <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} required /></label>
           </div>
-          <h2>Items</h2>
+          <h3>Items</h3>
           {items.map((it, idx) => (
             <div className="card nested" key={idx}>
               <label>Title <input value={it.title} onChange={(e) => updateItem(idx, { title: e.target.value })} /></label>
-              <label>Description <textarea value={it.description} onChange={(e) => updateItem(idx, { description: e.target.value })} /></label>
+              <label>One-liner <input value={it.description} onChange={(e) => updateItem(idx, { description: e.target.value })} placeholder="Short description" maxLength={500} /></label>
+              <label>Voucher PDF <input type="file" accept="application/pdf,.pdf" onChange={(e) => updateItem(idx, { voucher: e.target.files?.[0] ?? null })} required={idx === 0} /></label>
               <label>Photo URL <input value={it.photoUrl} onChange={(e) => updateItem(idx, { photoUrl: e.target.value })} placeholder="https://…" /></label>
               <div className="row">
                 <label>Starting <input type="number" step="0.01" value={it.startingBid} onChange={(e) => updateItem(idx, { startingBid: e.target.value })} /></label>
@@ -225,7 +347,6 @@ export function HostPage() {
             <button type="button" className="button secondary" onClick={() => setItems((p) => [...p, emptyItem()])}>Add item</button>
             <button className="button" disabled={busy}>{busy ? "Creating…" : "Create event"}</button>
           </div>
-          {error && <p className="error">{error}</p>}
         </form>
       </div>
 
@@ -243,16 +364,31 @@ export function HostPage() {
                   <Link to={`/e/${live.event.code}/bid`}>Guest bid</Link>
                   <Link to={`/e/${live.event.code}/stats`}>Stats</Link>
                   <Link to={`/e/${live.event.code}/engager`}>Engager</Link>
+                  <Link to={`/e/${live.event.code}/invoice`}>Invoice</Link>
                 </p>
               </div>
             </div>
           )}
-          <ul>
+          <h3>Items + voucher PDFs</h3>
+          <ul className="stack">
             {live.items.map((it) => (
-              <li key={it.id}>{it.title} — high {it.highBid}</li>
+              <li key={it.id}>
+                {it.title} — high {it.highBid}
+                {it.hasVoucher ? " · voucher ✓" : " · voucher missing"}
+              </li>
             ))}
           </ul>
+
         </div>
+      )}
+
+      {live && (
+        <InvoicesCard
+          invoices={invoices}
+          busy={busy}
+          onRefresh={() => loadInvoices(live.event.code).catch((err) => setError((err as Error).message))}
+          onConfirm={onConfirmPayment}
+        />
       )}
     </section>
   );
