@@ -31,7 +31,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       NODE_ENV: production
     volumes:
-      - appdata:/data
+      - fl_data:/data
     depends_on:
       db:
         condition: service_healthy
@@ -51,4 +51,4 @@ services:
 
 volumes:
   pgdata:
-  appdata:
+  fl_data:
