@@ -52,7 +52,7 @@ export function BidPage() {
   if (!live) return <p className="muted">Loading live board… {error}</p>;
 
   return (
-    <section className={`stack bid-board${flash ? " bid-flash" : ""`}>
+    <section className={`stack bid-board${flash ? " bid-flash" : ""}`}>
       <div className="card">
         <h1>{live.event.title}</h1>
         <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
