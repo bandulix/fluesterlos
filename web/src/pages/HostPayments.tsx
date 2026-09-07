@@ -1,5 +1,6 @@
 import { FormEvent } from "react";
 import { API_BASE, uploadForm } from "../lib/api";
+import { formatMoney, parseCurrency } from "../lib/money";
 
 export type HostSettings = {
   promptpayId: string;
@@ -93,10 +94,12 @@ export function PaymentSettingsCard(props: {
 export function InvoicesCard(props: {
   invoices: HostInvoice[];
   busy: boolean;
+  currency?: string;
   onRefresh: () => void;
   onConfirm: (id: string) => void;
 }) {
   const { invoices, busy, onRefresh, onConfirm } = props;
+  const ccy = parseCurrency(props.currency);
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -110,13 +113,13 @@ export function InvoicesCard(props: {
         <div className="card nested" key={inv.id}>
           <p>
             <strong>{inv.guestName}</strong> ({inv.guestEmail}) —{" "}
-            <strong>{inv.total.toFixed(2)}</strong> — {inv.status}
+            <strong>{formatMoney(inv.total, ccy)}</strong> — {inv.status}
             {inv.hasPayslip ? " · payslip uploaded" : ""}
           </p>
           <ul>
             {inv.lines.map((l) => (
               <li key={l.itemId}>
-                {l.title} — {l.amount.toFixed(2)}
+                {l.title} — {formatMoney(l.amount, ccy)}
               </li>
             ))}
           </ul>

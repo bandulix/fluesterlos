@@ -9,6 +9,7 @@ export type LivePayload = {
     startsAt: string;
     endsAt: string;
     status: "scheduled" | "open" | "closed";
+    currency: "USD" | "EUR" | "THB";
     joinUrl: string;
   };
   items: Array<{
@@ -38,6 +39,35 @@ export type LivePayload = {
     guestName: string;
   }>;
   serverNow: string;
+};
+
+export type HostGuest = {
+  id: string;
+  name: string;
+  email: string;
+  bidCount: number;
+  createdAt: string;
+};
+
+export type HostAccount = {
+  id: string;
+  email: string;
+  role: string;
+  createdAt: string;
+};
+
+export type HostEventSummary = {
+  id: string;
+  code: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  createdAt: string;
+  status: "scheduled" | "open" | "closed";
+  currency: "USD" | "EUR" | "THB";
+  itemCount: number;
+  guestCount: number;
+  joinUrl: string;
 };
 
 export type InvoiceDto = {

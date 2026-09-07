@@ -12,7 +12,7 @@ import {
   saveUpload,
 } from "./storage.js";
 
-type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date };
+type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date; currency?: string };
 
 async function readMultipartFile(req: import("fastify").FastifyRequest) {
   const file = await req.file();

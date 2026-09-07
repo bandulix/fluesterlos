@@ -1,13 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { nanoid } from "nanoid";
 import { z } from "zod";
 import { pool } from "./db.js";
 import { auctionStatus, money } from "./auction.js";
 import { publish, subscribe } from "./sse.js";
-import { saveUpload } from "./storage.js";
-import { guestFromRequest } from "./guestAuth.js";
+import { contentTypeFor, readDataFile, saveUpload } from "./storage.js";
+import { guestFromRequest, upsertGuest } from "./guestAuth.js";
 
-type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date };
+type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date; currency?: string };
 type LiveBuilder = (eventId: string, code: string) => Promise<unknown>;
 
 async function readParts(req: import("fastify").FastifyRequest) {
@@ -26,6 +25,14 @@ async function readParts(req: import("fastify").FastifyRequest) {
     }
   }
   return { fields, files };
+}
+
+const IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+function isImageUpload(file: { filename: string; mimetype: string }) {
+  const mime = (file.mimetype || "").toLowerCase();
+  if (IMAGE_MIME.has(mime)) return true;
+  return /\.(jpe?g|png|webp|gif)$/i.test(file.filename || "");
 }
 
 export function registerRestRoutes(
@@ -57,7 +64,6 @@ export function registerRestRoutes(
     const { fields, files } = await readParts(req);
     const title = (fields.title || "").trim();
     const description = fields.description || "";
-    const photoUrl = (fields.photoUrl || "").trim() || null;
     const startingBid = Number(fields.startingBid);
     const minIncrement = Number(fields.minIncrement);
     const buyNow = fields.buyNow?.trim() ? Number(fields.buyNow) : null;
@@ -67,11 +73,17 @@ export function registerRestRoutes(
         f.mimetype === "application/pdf" ||
         f.filename.toLowerCase().endsWith(".pdf"),
     );
+    const photo = files.find(
+      (f) => f !== pdf && (f.fieldname === "photo" || isImageUpload(f)),
+    );
     if (!title || !(startingBid > 0) || !(minIncrement > 0)) {
       return reply.code(400).send({ error: "title, startingBid, and minIncrement are required" });
     }
     if (!pdf) {
       return reply.code(400).send({ error: "voucher PDF is required (field voucherPdf)" });
+    }
+    if (photo && !isImageUpload(photo)) {
+      return reply.code(400).send({ error: "photo must be jpg, png, webp, or gif" });
     }
 
     const sortRes = await pool.query(
@@ -82,14 +94,41 @@ export function registerRestRoutes(
       `INSERT INTO items
         (event_id, title, description, photo_url, starting_bid, min_increment, buy_now, sort_order)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [event.id, title, description, photoUrl, startingBid, minIncrement, buyNow, sortRes.rows[0].n],
+      [event.id, title, description, null, startingBid, minIncrement, buyNow, sortRes.rows[0].n],
     );
     const itemId = ins.rows[0].id as string;
     const voucherPath = await saveUpload("vouchers", pdf.filename, pdf.buffer, itemId);
-    await pool.query("UPDATE items SET voucher_pdf_path = $1 WHERE id = $2", [voucherPath, itemId]);
+    let photoPath: string | null = null;
+    if (photo) {
+      photoPath = await saveUpload("photos", photo.filename, photo.buffer, itemId);
+    }
+    await pool.query(
+      "UPDATE items SET voucher_pdf_path = $1, photo_url = $2 WHERE id = $3",
+      [voucherPath, photoPath, itemId],
+    );
     const live = await buildLivePayload(event.id, event.code);
     publish(event.code, "update", live);
     return live;
+  });
+
+  app.get("/api/events/:code/items/:itemId/photo", async (req, reply) => {
+    const { code, itemId } = req.params as { code: string; itemId: string };
+    const event = await getEventByCode(codeOf(code));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const itemRes = await pool.query(
+      "SELECT photo_url FROM items WHERE id = $1 AND event_id = $2",
+      [itemId, event.id],
+    );
+    const stored = itemRes.rows[0]?.photo_url as string | null | undefined;
+    if (!stored) return reply.code(404).send({ error: "No photo" });
+    if (/^https?:\/\//i.test(stored)) {
+      return reply.redirect(stored);
+    }
+    const buf = await readDataFile(stored);
+    return reply
+      .header("Cache-Control", "public, max-age=86400")
+      .type(contentTypeFor(stored))
+      .send(buf);
   });
 
   app.get("/api/events/:code", async (req, reply) => {
@@ -99,9 +138,59 @@ export function registerRestRoutes(
     return buildLivePayload(event.id, event.code);
   });
 
-  const joinSchema = z.object({
-    name: z.string().min(1).max(120),
+  app.get("/api/host/events/:code/guests", async (req, reply) => {
+    try {
+      await requireHost(req);
+    } catch {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    const code = codeOf((req.params as { code: string }).code);
+    const event = await getEventByCode(code);
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const { rows } = await pool.query(
+      `SELECT g.id, g.name, g.email, g.created_at,
+        (SELECT COUNT(*)::int FROM bids b WHERE b.guest_id = g.id) AS bid_count
+       FROM guests g
+       WHERE g.event_id = $1
+       ORDER BY lower(g.email)`,
+      [event.id],
+    );
+    return {
+      guests: rows.map((g) => ({
+        id: g.id,
+        name: g.name,
+        email: g.email,
+        bidCount: g.bid_count,
+        createdAt: new Date(g.created_at).toISOString(),
+      })),
+    };
+  });
+
+  const addGuestSchema = z.object({
     email: z.string().email().max(200),
+    name: z.string().max(120).optional().default(""),
+  });
+
+  app.post("/api/host/events/:code/guests", async (req, reply) => {
+    try {
+      await requireHost(req);
+    } catch {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    const code = codeOf((req.params as { code: string }).code);
+    const event = await getEventByCode(code);
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const parsed = addGuestSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+    const guest = await upsertGuest(event.id, parsed.data.email, parsed.data.name);
+    const live = await buildLivePayload(event.id, event.code);
+    publish(event.code, "update", live);
+    return { guest: { id: guest.id, name: guest.name, email: guest.email }, live };
+  });
+
+  const joinSchema = z.object({
+    email: z.string().email().max(200),
+    name: z.string().max(120).optional().default(""),
   });
 
   app.post("/api/events/:code/join", async (req, reply) => {
@@ -110,24 +199,7 @@ export function registerRestRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const parsed = joinSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
-    const email = parsed.data.email.trim().toLowerCase();
-    const name = parsed.data.name.trim();
-    const existing = await pool.query(
-      "SELECT * FROM guests WHERE event_id = $1 AND lower(email) = $2",
-      [event.id, email],
-    );
-    let guest = existing.rows[0];
-    if (guest) {
-      await pool.query("UPDATE guests SET name = $1 WHERE id = $2", [name, guest.id]);
-      guest = { ...guest, name };
-    } else {
-      const token = nanoid(24);
-      const ins = await pool.query(
-        `INSERT INTO guests (event_id, name, email, token) VALUES ($1,$2,$3,$4) RETURNING *`,
-        [event.id, name, email, token],
-      );
-      guest = ins.rows[0];
-    }
+    const guest = await upsertGuest(event.id, parsed.data.email, parsed.data.name);
     reply.setCookie("fl_guest", guest.token, {
       path: "/",
       httpOnly: true,

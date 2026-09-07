@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api, getGuestToken, setGuestToken } from "../lib/api";
 
 export function JoinPage() {
@@ -35,18 +35,13 @@ export function JoinPage() {
 
   return (
     <section className="card narrow">
-      <h1>Join {title || "event"}</h1>
-      <p className="muted">Name + email only. No OTP. Your session sticks on this device.</p>
+      <h1>{title || "Join"}</h1>
       <form className="stack" onSubmit={onSubmit}>
-        <label>Name <input value={name} onChange={(e) => setName(e.target.value)} required /></label>
-        <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-        <button className="button">Continue to bidding</button>
+        <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
+        <label>Name (on the board) <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Optional" /></label>
+        <button className="button">Bid</button>
         {error && <p className="error">{String(error)}</p>}
       </form>
-      <p className="row muted">
-        <Link to={`/e/${code}/stats`}>Public stats</Link>
-        <Link to={`/e/${code}/engager`}>Engager</Link>
-      </p>
     </section>
   );
 }

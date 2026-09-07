@@ -1,5 +1,5 @@
 import { pool } from "./db.js";
-import { money } from "./auction.js";
+import { formatMoney, money, parseCurrency } from "./auction.js";
 import { readDataFile } from "./storage.js";
 import { sendMail, smtpConfigured } from "./mail.js";
 
@@ -174,13 +174,16 @@ export async function confirmPaymentAndEmailVouchers(invoiceId: string, eventTit
       });
     }
 
+    const curRes = await pool.query("SELECT currency FROM events WHERE id = $1", [invoice.event_id]);
+    const currency = parseCurrency(curRes.rows[0]?.currency);
+
     await sendMail({
       to: invoice.guest_email,
       subject: `Your vouchers — ${eventTitle}`,
       text:
         `Hi ${invoice.guest_name},\n\n` +
         `Payment received for your winning bids at "${eventTitle}" ` +
-        `(total ${money(invoice.total).toFixed(2)}).\n\n` +
+        `(total ${formatMoney(invoice.total, currency)}).\n\n` +
         `Your voucher PDF(s) are attached (one per item).\n\n` +
         `— FlüsterLos\n`,
       attachments,

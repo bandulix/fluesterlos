@@ -9,6 +9,7 @@ export async function ensureDataDirs() {
   await mkdir(path.join(DATA_DIR, "vouchers"), { recursive: true });
   await mkdir(path.join(DATA_DIR, "payslips"), { recursive: true });
   await mkdir(path.join(DATA_DIR, "qr"), { recursive: true });
+  await mkdir(path.join(DATA_DIR, "photos"), { recursive: true });
 }
 
 function safeExt(filename: string, allowed: string[], fallback: string) {
@@ -18,7 +19,7 @@ function safeExt(filename: string, allowed: string[], fallback: string) {
 
 /** Returns relative path under DATA_DIR (posix-style). */
 export async function saveUpload(
-  kind: "vouchers" | "payslips" | "qr",
+  kind: "vouchers" | "payslips" | "qr" | "photos",
   originalName: string,
   buffer: Buffer,
   idHint?: string,
@@ -27,7 +28,9 @@ export async function saveUpload(
   const allowed =
     kind === "vouchers"
       ? [".pdf"]
-      : [".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf"];
+      : kind === "photos"
+        ? [".jpg", ".jpeg", ".png", ".webp", ".gif"]
+        : [".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf"];
   const fallback = kind === "vouchers" ? ".pdf" : ".jpg";
   const ext = safeExt(originalName, allowed, fallback);
   const id = idHint || randomBytes(12).toString("hex");

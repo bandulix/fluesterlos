@@ -5,7 +5,8 @@ import multipart from "@fastify/multipart";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { pool, migrate } from "./db.js";
-import { auctionStatus, money } from "./auction.js";
+import { auctionStatus, money, parseCurrency } from "./auction.js";
+import { publish } from "./sse.js";
 import { registerRestRoutes } from "./rest.js";
 import { registerInvoiceRoutes } from "./invoiceRoutes.js";
 import { ensureDataDirs } from "./storage.js";
@@ -14,9 +15,13 @@ import {
   countHostUsers,
   createSession,
   hostFromRequest,
+  addHostUser,
   loginHost,
+  listHostUsers,
   registerOwner,
+  removeHostUser,
   requireHost,
+  requireOwner,
 } from "./hostAuth.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -31,11 +36,17 @@ await app.register(cors, {
 });
 await app.register(cookie);
 await app.register(multipart, {
-  limits: { fileSize: 25 * 1024 * 1024, files: 2 },
+  limits: { fileSize: 25 * 1024 * 1024, files: 3 },
 });
 
 function codeOf(raw: string) {
   return raw.trim().toLowerCase();
+}
+
+function publicItemPhotoUrl(code: string, itemId: string, stored: string | null): string | null {
+  if (!stored) return null;
+  if (/^https?:\/\//i.test(stored)) return stored;
+  return `/api/events/${code}/items/${itemId}/photo`;
 }
 
 async function getEventByCode(code: string) {
@@ -50,6 +61,7 @@ async function getEventByCode(code: string) {
         title: string;
         starts_at: Date;
         ends_at: Date;
+        currency?: string;
       }
     | undefined;
 }
@@ -84,7 +96,7 @@ async function buildLivePayload(eventId: string, code: string) {
     id: row.id,
     title: row.title,
     description: row.description,
-    photoUrl: row.photo_url,
+    photoUrl: publicItemPhotoUrl(code, row.id, row.photo_url),
     startingBid: money(row.starting_bid),
     minIncrement: money(row.min_increment),
     buyNow: row.buy_now == null ? null : money(row.buy_now),
@@ -104,6 +116,7 @@ async function buildLivePayload(eventId: string, code: string) {
       startsAt: new Date(event.starts_at).toISOString(),
       endsAt: new Date(event.ends_at).toISOString(),
       status,
+      currency: parseCurrency(event.currency),
       joinUrl: `${PUBLIC_URL}/e/${event.code}`,
     },
     items,
@@ -132,6 +145,8 @@ app.get("/api/host/auth/status", async (req) => {
     needsBootstrap,
     authenticated: !!host,
     email: host?.email,
+    role: host?.role,
+    id: host?.id,
   };
 });
 
@@ -201,6 +216,55 @@ app.get("/api/host/me", async (req, reply) => {
   return { user: { id: host.id, email: host.email, role: host.role } };
 });
 
+app.get("/api/host/users", async (req, reply) => {
+  try {
+    await requireHost(req);
+  } catch {
+    return reply.code(401).send({ error: "Unauthorized" });
+  }
+  return { users: await listHostUsers() };
+});
+
+const addHostSchema = z.object({
+  email: z.string().email().max(200),
+  password: z.string().min(8).max(200),
+});
+
+app.post("/api/host/users", async (req, reply) => {
+  try {
+    await requireOwner(req);
+  } catch (e) {
+    const status = (e as Error & { statusCode?: number }).statusCode ?? 401;
+    return reply.code(status).send({ error: (e as Error).message });
+  }
+  const parsed = addHostSchema.safeParse(req.body);
+  if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+  try {
+    const user = await addHostUser(parsed.data.email, parsed.data.password);
+    return { user };
+  } catch (e) {
+    const status = (e as Error & { statusCode?: number }).statusCode ?? 500;
+    return reply.code(status).send({ error: (e as Error).message });
+  }
+});
+
+app.delete("/api/host/users/:id", async (req, reply) => {
+  let actor;
+  try {
+    actor = await requireOwner(req);
+  } catch (e) {
+    const status = (e as Error & { statusCode?: number }).statusCode ?? 401;
+    return reply.code(status).send({ error: (e as Error).message });
+  }
+  try {
+    await removeHostUser((req.params as { id: string }).id, actor.id);
+    return { ok: true };
+  } catch (e) {
+    const status = (e as Error & { statusCode?: number }).statusCode ?? 500;
+    return reply.code(status).send({ error: (e as Error).message });
+  }
+});
+
 app.get("/api/host/check", async (req, reply) => {
   try {
     await requireHost(req);
@@ -210,10 +274,41 @@ app.get("/api/host/check", async (req, reply) => {
   return { ok: true };
 });
 
+app.get("/api/host/events", async (req, reply) => {
+  try {
+    await requireHost(req);
+  } catch {
+    return reply.code(401).send({ error: "Unauthorized" });
+  }
+  const { rows } = await pool.query(
+    `SELECT e.id, e.code, e.title, e.starts_at, e.ends_at, e.created_at, e.currency,
+      (SELECT COUNT(*)::int FROM items i WHERE i.event_id = e.id) AS item_count,
+      (SELECT COUNT(*)::int FROM guests g WHERE g.event_id = e.id) AS guest_count
+     FROM events e
+     ORDER BY e.created_at DESC`,
+  );
+  return {
+    events: rows.map((e) => ({
+      id: e.id,
+      code: e.code,
+      title: e.title,
+      startsAt: new Date(e.starts_at).toISOString(),
+      endsAt: new Date(e.ends_at).toISOString(),
+      createdAt: new Date(e.created_at).toISOString(),
+      status: auctionStatus(e.starts_at, e.ends_at),
+      currency: parseCurrency(e.currency),
+      itemCount: e.item_count,
+      guestCount: e.guest_count,
+      joinUrl: `${PUBLIC_URL}/e/${e.code}`,
+    })),
+  };
+});
+
 const createEventSchema = z.object({
   title: z.string().min(1).max(200),
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
+  currency: z.enum(["USD", "EUR", "THB"]).optional().default("THB"),
   items: z
     .array(
       z.object({
@@ -247,9 +342,9 @@ app.post("/api/host/events", async (req, reply) => {
   try {
     await client.query("BEGIN");
     const ev = await client.query(
-      `INSERT INTO events (code, title, starts_at, ends_at)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [code, body.title, body.startsAt, body.endsAt],
+      `INSERT INTO events (code, title, starts_at, ends_at, currency)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [code, body.title, body.startsAt, body.endsAt, body.currency],
     );
     const event = ev.rows[0];
     for (let i = 0; i < body.items.length; i++) {
@@ -278,6 +373,33 @@ app.post("/api/host/events", async (req, reply) => {
   } finally {
     client.release();
   }
+});
+
+const patchEventSchema = z.object({
+  currency: z.enum(["USD", "EUR", "THB"]).optional(),
+  title: z.string().min(1).max(200).optional(),
+});
+
+app.patch("/api/host/events/:code", async (req, reply) => {
+  try {
+    await requireHost(req);
+  } catch {
+    return reply.code(401).send({ error: "Unauthorized" });
+  }
+  const code = codeOf((req.params as { code: string }).code);
+  const event = await getEventByCode(code);
+  if (!event) return reply.code(404).send({ error: "Event not found" });
+  const parsed = patchEventSchema.safeParse(req.body);
+  if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+  if (parsed.data.currency !== undefined) {
+    await pool.query("UPDATE events SET currency = $1 WHERE id = $2", [parsed.data.currency, event.id]);
+  }
+  if (parsed.data.title !== undefined) {
+    await pool.query("UPDATE events SET title = $1 WHERE id = $2", [parsed.data.title, event.id]);
+  }
+  const live = await buildLivePayload(event.id, event.code);
+  publish(event.code, "update", live);
+  return live;
 });
 
 registerRestRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { formatMoney, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
 import { Countdown } from "../components/Countdown";
 
@@ -24,6 +25,7 @@ export function EngagerPage() {
   }, [items.length]);
 
   if (!live) return <div className="engager"><p>Loading engager… {error}</p></div>;
+  const ccy = parseCurrency(live.event.currency);
   const highlight = items[idx % Math.max(items.length, 1)];
   const joinUrl = live.event.joinUrl;
   const isLive = live.event.status === "open";
@@ -40,7 +42,7 @@ export function EngagerPage() {
       <div className="engager-grid">
         <section className={`panel totals${flash ? " bid-flash" : ""}`}>
           <p className="muted">Live total (sum of high bids)</p>
-          <p className="huge">{live.stats.totalHighBids.toFixed(2)}</p>
+          <p className="huge">{formatMoney(live.stats.totalHighBids, ccy)}</p>
           <p className="muted">{live.stats.totalBids} bids · {live.stats.guestCount} guests</p>
         </section>
         <section className={`panel highlight${flash ? " bid-flash" : ""}`}>
@@ -49,7 +51,7 @@ export function EngagerPage() {
               <p className="muted">Now featuring</p>
               <h2>{highlight.title}</h2>
               {highlight.photoUrl && <img src={highlight.photoUrl} alt="" />}
-              <p className="huge">{highlight.highBid.toFixed(2)}</p>
+              <p className="huge">{formatMoney(highlight.highBid, ccy)}</p>
               <p className="muted">{highlight.highBidder ? `High: ${highlight.highBidder}` : "Awaiting first bid"}</p>
             </>
           ) : (
@@ -61,7 +63,7 @@ export function EngagerPage() {
           <ul>
             {live.recentBids.slice(0, 8).map((b, i) => (
               <li key={`${b.createdAt}-${i}`}>
-                <strong>{b.amount.toFixed(2)}</strong> · {b.itemTitle} · {b.guestName}
+                <strong>{formatMoney(b.amount, ccy)}</strong> · {b.itemTitle} · {b.guestName}
               </li>
             ))}
           </ul>

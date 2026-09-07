@@ -146,6 +146,66 @@ export async function registerOwner(
   }
 }
 
+export async function requireOwner(req: FastifyRequest): Promise<HostUser> {
+  const host = await requireHost(req);
+  if (host.role !== "owner") {
+    const err = new Error("Owner only");
+    (err as Error & { statusCode?: number }).statusCode = 403;
+    throw err;
+  }
+  return host;
+}
+
+export async function listHostUsers(): Promise<Array<HostUser & { createdAt: string }>> {
+  const { rows } = await pool.query(
+    "SELECT id, email, role, created_at FROM host_users ORDER BY lower(email)",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    email: r.email,
+    role: r.role,
+    createdAt: new Date(r.created_at).toISOString(),
+  }));
+}
+
+export async function addHostUser(email: string, password: string): Promise<HostUser> {
+  const passwordHash = await hashPassword(password);
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO host_users (email, password_hash, role)
+       VALUES ($1, $2, 'host')
+       RETURNING id, email, role`,
+      [email.trim().toLowerCase(), passwordHash],
+    );
+    return rows[0] as HostUser;
+  } catch (e) {
+    const err = e as { code?: string };
+    if (err.code === "23505") {
+      const conflict = new Error("That email is already a host");
+      (conflict as Error & { statusCode?: number }).statusCode = 409;
+      throw conflict;
+    }
+    throw e;
+  }
+}
+
+export async function removeHostUser(id: string, actorId: string): Promise<void> {
+  if (id === actorId) {
+    const err = new Error("You cannot remove your own login");
+    (err as Error & { statusCode?: number }).statusCode = 400;
+    throw err;
+  }
+  const { rowCount } = await pool.query(
+    "DELETE FROM host_users WHERE id = $1 AND role <> 'owner'",
+    [id],
+  );
+  if (!rowCount) {
+    const err = new Error("Host not found or cannot be removed");
+    (err as Error & { statusCode?: number }).statusCode = 404;
+    throw err;
+  }
+}
+
 export async function loginHost(email: string, password: string): Promise<HostUser> {
   const { rows } = await pool.query(
     "SELECT id, email, role, password_hash FROM host_users WHERE lower(email) = lower($1)",

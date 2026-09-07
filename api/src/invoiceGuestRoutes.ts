@@ -1,13 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { pool } from "./db.js";
-import { auctionStatus, money } from "./auction.js";
+import { auctionStatus, money, parseCurrency } from "./auction.js";
 import { getGuestInvoice } from "./invoices.js";
 import { promptPayPayload } from "./promptpay.js";
 import { saveUpload } from "./storage.js";
 import { guestFromRequest } from "./guestAuth.js";
 import { getHostSettings } from "./invoiceHostRoutes.js";
 
-type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date };
+type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date; currency?: string };
 
 async function readMultipartFile(req: import("fastify").FastifyRequest) {
   const file = await req.file();
@@ -34,10 +34,11 @@ export function registerInvoiceGuestRoutes(
       return reply.code(401).send({ error: "Join the event first" });
     }
     const status = auctionStatus(event.starts_at, event.ends_at);
+    const currency = parseCurrency(event.currency);
     const data = await getGuestInvoice(event.id, guest.id);
     if (!data) {
       return {
-        event: { id: event.id, code: event.code, title: event.title, status },
+        event: { id: event.id, code: event.code, title: event.title, status, currency },
         invoice: null,
         message: "No winning bids for you yet",
       };
@@ -46,11 +47,14 @@ export function registerInvoiceGuestRoutes(
     let promptpayPayloadStr: string | null = null;
     const total = money(data.invoice.total);
     if (settings.promptpay_id) {
-      try { promptpayPayloadStr = promptPayPayload(settings.promptpay_id, total); }
-      catch { promptpayPayloadStr = null; }
+      try {
+        promptpayPayloadStr = promptPayPayload(settings.promptpay_id, currency === "THB" ? total : undefined);
+      } catch {
+        promptpayPayloadStr = null;
+      }
     }
     return {
-      event: { id: event.id, code: event.code, title: event.title, status },
+      event: { id: event.id, code: event.code, title: event.title, status, currency },
       invoice: {
         id: data.invoice.id,
         total,

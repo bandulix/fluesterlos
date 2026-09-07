@@ -19,6 +19,8 @@ export async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'THB';
+
     CREATE TABLE IF NOT EXISTS items (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,

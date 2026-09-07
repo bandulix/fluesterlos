@@ -2,9 +2,10 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { API_BASE, api, getGuestToken, uploadForm } from "../lib/api";
+import { formatMoney, parseCurrency } from "../lib/money";
 
 type InvoiceResponse = {
-  event: { id: string; code: string; title: string; status: string };
+  event: { id: string; code: string; title: string; status: string; currency?: string };
   invoice: null | {
     id: string;
     total: number;
@@ -75,12 +76,13 @@ export function InvoicePage() {
 
   const inv = data.invoice;
   const pay = data.payment;
+  const ccy = parseCurrency(data.event.currency);
   const hostQrSrc = pay?.hostQrImageUrl ? `${API_BASE}${pay.hostQrImageUrl}` : null;
 
   return (
     <section className="stack">
       <div className="card">
-        <h1>Invoice — {data.event.title}</h1>
+        <h1>{data.event.title}</h1>
         <p className="row muted">
           <Link to={`/e/${code}/bid`}>Back to bids</Link>
           <span>Auction: {data.event.status}</span>
@@ -94,7 +96,7 @@ export function InvoicePage() {
         <>
           <div className="card">
             <h2>Your winning total</h2>
-            <p><strong>{inv.total.toFixed(2)}</strong></p>
+            <p><strong>{formatMoney(inv.total, ccy)}</strong></p>
             <p>
               Status:{" "}
               <strong>
@@ -109,7 +111,7 @@ export function InvoicePage() {
               {inv.lines.map((l) => (
                 <li key={l.itemId}>
                   <strong>{l.title}</strong>
-                  {l.description ? ` — ${l.description}` : ""} — {l.amount.toFixed(2)}
+                  {l.description ? ` — ${l.description}` : ""} — {formatMoney(l.amount, ccy)}
                 </li>
               ))}
             </ul>
@@ -118,6 +120,10 @@ export function InvoicePage() {
           {inv.status !== "paid" && (
             <div className="card">
               <h2>Pay via PromptPay</h2>
+              <p>Amount due: <strong>{formatMoney(inv.total, ccy)}</strong></p>
+              {ccy !== "THB" && (
+                <p className="muted">Enter {formatMoney(inv.total, ccy)} in your banking app. PromptPay amount is filled only for Thai baht auctions.</p>
+              )}
               {pay?.payeeName && <p>Payee: {pay.payeeName}</p>}
               {pay?.promptpayId && <p className="muted">PromptPay ID: {pay.promptpayId}</p>}
               {pay?.promptpayPayload ? (
