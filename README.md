@@ -5,21 +5,26 @@ Open-source, self-hosted **silent auction** for charity and event hosts.
 > QR → PWA → bid; everyone sees the live board — and the big screen keeps the room bidding.
 
 **License:** [AGPL-3.0](./LICENSE)
-**Status:** vertical slice + vouchers / per-guest invoices / PromptPay payslip flow
+**Status:** host dashboard + guest bid PWA + vouchers / invoices / PromptPay
+**Changelog:** [CHANGELOG.md](./CHANGELOG.md)
 
 ## Why
 Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloat. FlüsterLos is Docker-first OSS you run yourself.
 
 ## MVP (locked)
-- Host setup with scheduled start/end (auto open/close + countdowns)
+- Host dashboard: list of auctions, signed-in email in the top bar, create event, reopen past events
+- Scheduled start/end (auto open/close + countdowns)
+- Per-auction **currency:** USD, EUR, or THB
 - Installable PWA + QR join
-- Guest registration: **name + email only** (no phone OTP)
-- Live mobile bidding
-- **Live stats visible to everyone** (not host-only)
+- Guest identity is **email** (name optional, shown on the board; no phone OTP)
+- Guest bid UI: auction title + time left + one-tap bid (no product chrome)
+- Item **photo file upload** (not a URL) + required voucher PDF
+- Live mobile bidding; **live stats visible to everyone**
 - Big-screen engager view for the event room
 - Single `docker compose up`
 - Host auth: first registered host is owner (email + bcrypt password, httpOnly session cookie); one-time `BOOTSTRAP_TOKEN` gates that first registration
-- **Vouchers + invoices:** one invoice per winning guest (sum of all wins); Thai PromptPay QR; payslip upload; host confirms → SMTP emails voucher PDF(s) (one attachment per won item). **No card/Stripe checkout.**
+- **Users:** guests and extra hosts are keyed by email; owner can add/remove host logins
+- **Vouchers + invoices:** one invoice per winning guest (sum of all wins); Thai PromptPay QR (amount filled for THB); payslip upload; host confirms → SMTP emails voucher PDF(s) (one attachment per won item). **No card/Stripe checkout.**
 
 ## Quickstart
 
@@ -32,10 +37,12 @@ Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloa
    - **Fresh install:** register with email, password, and `BOOTSTRAP_TOKEN` from `.env`
    - **Later visits:** log in with email + password
 5. Configure **Payment settings** (PromptPay ID and/or upload a static QR image)
-6. Create event, then **add items** — each item requires a voucher PDF (stored under `DATA_DIR`, volume `appdata:/data`)
-7. Guest joins at `/e/<code>`, bids at `/e/<code>/bid`
-8. After close, winners open `/e/<code>/invoice` — combined total, Thai QR, payslip upload
-9. Host reviews payslips on the event card and clicks **Payment correct & received** → guest gets voucher PDF(s) by email
+6. Create event: title, schedule, **currency** (USD / EUR / THB)
+7. Add items — each item needs a **voucher PDF**; optional **photo file** (stored under `DATA_DIR`, volume `appdata:/data`)
+8. Guest joins at `/e/<code>` with **email** (name optional), bids at `/e/<code>/bid`
+9. After close, winners open `/e/<code>/invoice` — combined total, PromptPay QR, payslip upload
+10. Host reviews payslips on the event card and clicks **Payment correct & received** → guest gets voucher PDF(s) by email
+11. **Users** on Host: list/add auction guests by email; owner can add extra host logins by email
 
 API also on http://localhost:3000 (`/api/health`).
 
@@ -51,11 +58,12 @@ docker compose -f docker-compose.ghcr.yml up
 Pulls `ghcr.io/bandulix/fluesterlos-api:latest` and `ghcr.io/bandulix/fluesterlos-web:latest` (no local build). Optional pin: `FLUESTERLOS_TAG=<sha>`. If packages are private, `docker login ghcr.io` with a PAT that has `read:packages`.
 
 ### Host vs guest auth
-- **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie. Guests stay name+email only.
+- **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie. Owner may add more host logins by email.
+- **Guests** are keyed by **email** per auction (same email = same guest). Name is optional display on the board.
 
 ### Payment / vouchers / SMTP
 - **Invoice model:** exactly **one invoice per winning guest** = sum of all their winning bids (not one invoice per item). Itemized lines are detail under that invoice.
-- **PromptPay:** set phone or 13-digit national ID in Host → Payment settings. Guests get an EMV PromptPay QR (amount filled). Optionally upload a static QR image instead/in addition.
+- **PromptPay:** set phone or 13-digit national ID in Host → Payment settings. Guests get an EMV PromptPay QR; **amount is filled only when the auction currency is THB**. Optionally upload a static QR image instead/in addition.
 - **Payslip:** guest pays outside the app, uploads image/PDF in the invoice PWA view.
 - **Confirm:** host marks payment received once for the whole invoice; server emails **multiple PDF attachments** (one per won item) via SMTP.
 - **Env:** `DATA_DIR=/data`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (see `.env.example`). Compose mounts volume `appdata` at `/data` on the API.
@@ -74,7 +82,7 @@ Then register again at `/host` with the current `BOOTSTRAP_TOKEN`.
 - Optional: prebuilt images via GHCR + `docker-compose.ghcr.yml`
 
 ## Out of MVP
-Gala suite, native store apps, card checkout, multi-tenant SaaS, CRM, AI copy. Extra host roles later (owner-only today).
+Gala suite, native store apps, card checkout, multi-tenant SaaS, CRM, AI copy. Extra host *roles* beyond owner vs host later.
 
 ## Theming
 
@@ -105,7 +113,8 @@ services:
 Animations respect `prefers-reduced-motion: reduce`.
 
 ## Docs
-See [`docs/mvp-one-pager.md`](./docs/mvp-one-pager.md).
+- [`CHANGELOG.md`](./CHANGELOG.md)
+- [`docs/mvp-one-pager.md`](./docs/mvp-one-pager.md)
 
 ## Name
 *Flüster* (whisper) + *Los* (auction lot). ASCII: **FluesterLos** / `fluesterlos`.
