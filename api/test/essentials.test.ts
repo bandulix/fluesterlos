@@ -270,11 +270,16 @@ describe("results export", () => {
     expect(res.headers["content-disposition"]).toMatch(/results-.*\.csv/);
     const lines = res.body.replace(/^\uFEFF/, "").trim().split("\r\n");
     expect(lines[0]).toBe(
-      '"Lot","Item","Type","Sponsor","Winner","Phone","Email","Amount","Currency","Paid","Method","Paid at","Handed over","Handed over at"',
+      '"Lot","Item","Type","Sponsor","Winner","Phone","Email","Amount","Currency","Paid","Method","Paid at (Asia/Bangkok, UTC+7)","Handed over","Handed over at (Asia/Bangkok, UTC+7)"',
     );
     expect(lines).toHaveLength(4);
-    expect(lines[1]).toMatch(/^"1","'=HYPERLINK\(""http:\/\/evil""\)","voucher","Grand Hotel","Anna","'\+66810000001","anna@example.org","1000","THB","yes","Cash","[^"]+","yes","[^"]+"$/);
-    expect(lines[2]).toMatch(/^"2","Jersey","physical","","Ben","'\+66810000002","","1500","THB","no","","","no",""$/);
+    // Phones: readable national format, no leading + and no visible apostrophe.
+    expect(lines[1]).toMatch(/^"1","'=HYPERLINK\(""http:\/\/evil""\)","voucher","Grand Hotel","Anna","081 000 0001","anna@example.org","1000","THB","yes","Cash","(\d{4}-\d\d-\d\d \d\d:\d\d)","yes","\d{4}-\d\d-\d\d \d\d:\d\d"$/);
+    expect(lines[2]).toMatch(/^"2","Jersey","physical","","Ben","081 000 0002","","1500","THB","no","","","no",""$/);
+    // Paid at is Bangkok wall time (UTC+7), not UTC.
+    const paidAt = (await pool.query("SELECT paid_at FROM invoices WHERE status = 'paid'")).rows[0].paid_at as Date;
+    const bkk = new Date(paidAt.getTime() + 7 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
+    expect(lines[1]).toContain(`"Cash","${bkk}"`);
     expect(lines[3]).toBe('"3","Unsold lot","voucher","","","","","","THB","","","","",""');
   });
 
@@ -287,11 +292,27 @@ describe("results export", () => {
     const ws = wb.getWorksheet("Results")!;
     expect(ws.getRow(1).getCell(1).value).toBe("Lot");
     expect(ws.getRow(2).getCell(6).value).toBe("+66810000001");
+    expect(ws.getColumn(6).numFmt).toBe("@");
+    expect(ws.getRow(1).getCell(12).value).toBe("Paid at (Asia/Bangkok, UTC+7)");
+    const paidAt = (await pool.query("SELECT paid_at FROM invoices WHERE status = 'paid'")).rows[0].paid_at as Date;
+    const cell = ws.getRow(2).getCell(12).value as Date;
+    // Excel dates carry no zone: the cell holds the Bangkok wall time.
+    expect(cell.toISOString().slice(0, 16)).toBe(new Date(paidAt.getTime() + 7 * 3600_000).toISOString().slice(0, 16));
     expect(ws.getRow(2).getCell(8).value).toBe(1000);
     expect(ws.getRow(5).getCell(8).value).toBe(2500);
     const anon = await app.inject({ method: "GET", url: `/api/host/events/${code}/results.xlsx` });
     expect(anon.statusCode).toBe(401);
     const bad = await app.inject({ method: "GET", url: `/api/host/events/${code}/results.pdf`, headers: { cookie } });
     expect(bad.statusCode).toBe(404);
+  });
+});
+
+describe("csv phone format", () => {
+  it("is readable and never starts with a formula character", async () => {
+    const { csvPhone } = await import("../src/phone.js");
+    expect(csvPhone("+66812345678")).toBe("081 234 5678");
+    expect(csvPhone("+4915123456789")).toBe("(+49) 1512 3456789");
+    expect(csvPhone("")).toBe("");
+    for (const p of ["+66812345678", "+4915123456789", "+14155550123"]) expect(csvPhone(p)).not.toMatch(/^[=+\-@]/);
   });
 });

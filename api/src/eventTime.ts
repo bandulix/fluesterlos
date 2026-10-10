@@ -26,3 +26,29 @@ export function parseInstant(raw: string): Date | null {
   const d = new Date(raw.trim());
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+export function wallTimeParts(at: Date, tz: string) {
+  const out: Record<string, number> = {};
+  const f = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  for (const p of f.formatToParts(at)) if (p.type !== "literal") out[p.type] = Number(p.value);
+  return { year: out.year, month: out.month, day: out.day, hour: out.hour === 24 ? 0 : out.hour, minute: out.minute, second: out.second };
+}
+
+/** "UTC+7", "UTC+5:30", "UTC-5", "UTC" for `tz` at instant `at`. */
+export function offsetLabel(tz: string, at: Date = new Date()): string {
+  const whole = new Date(Math.floor(at.getTime() / 1000) * 1000);
+  const p = wallTimeParts(whole, tz);
+  const min = Math.round((Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - whole.getTime()) / 60_000);
+  if (min === 0) return "UTC";
+  const abs = Math.abs(min);
+  return `UTC${min < 0 ? "-" : "+"}${Math.floor(abs / 60)}${abs % 60 ? `:${String(abs % 60).padStart(2, "0")}` : ""}`;
+}

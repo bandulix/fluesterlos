@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   api,
@@ -22,6 +22,9 @@ import {
 } from "../lib/time";
 import { FilePreview } from "../components/FilePreview";
 import { SponsorField } from "../components/SponsorField";
+import { draftSponsorsBefore } from "../lib/sponsorDrafts";
+import { handoverToastText } from "../lib/deskText";
+import { Toast, ToastMessage } from "../components/Toast";
 import { HelpDeskCard } from "./HostHelpDesk";
 import { HostEventCard, RunAction } from "./HostEventCard";
 import {
@@ -100,6 +103,21 @@ export function HostPage() {
   const [hostEmail, setHostEmail] = useState("");
   const [hostPassword, setHostPassword] = useState("");
   const [note, setNote] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const clearToast = useCallback(() => setToast(null), []);
+  // Event just created: scroll its card into view and highlight it briefly.
+  const [highlightCode, setHighlightCode] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlightCode || live?.event.code !== highlightCode) return;
+    const raf = requestAnimationFrame(() => {
+      document.getElementById(`event-card-${highlightCode}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    const t = setTimeout(() => setHighlightCode(null), 3000);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [highlightCode, live?.event.code]);
 
   async function loadSettings() {
     const s = await api<HostSettings>("/api/host/settings");
@@ -318,6 +336,7 @@ export function HostPage() {
       const liveNext = await api<LivePayload>(`/api/events/${res.event.code}`);
       setLive(liveNext);
       setSearchParams({ e: liveNext.event.code });
+      setHighlightCode(liveNext.event.code);
       resetCreateForm();
       await loadEvents().catch(() => undefined);
       await loadInvoices(liveNext.event.code).catch(() => undefined);
@@ -403,6 +422,8 @@ export function HostPage() {
         method: "POST",
         body: JSON.stringify({ handedOver }),
       });
+      const inv = invoices.find((i) => i.id === invoiceId);
+      setToast({ id: Date.now(), text: handoverToastText(inv, itemId, handedOver) });
       await loadInvoices(live.event.code);
     } catch (err) {
       setError((err as Error).message);
@@ -585,6 +606,7 @@ export function HostPage() {
           sponsors={sponsors}
           busy={busy}
           run={runAction}
+          highlight={highlightCode === live.event.code}
         />
       )}
 
@@ -745,6 +767,7 @@ export function HostPage() {
               )}
               <SponsorField
                 sponsors={sponsors}
+                drafts={draftSponsorsBefore(items, idx)}
                 name={it.sponsorName}
                 logo={it.sponsorLogo}
                 onName={(sponsorName) => updateItem(idx, { sponsorName })}
@@ -783,6 +806,7 @@ export function HostPage() {
         onSave={onSaveSettings}
         onQrUpload={onQrUpload}
       />
+      <Toast toast={toast} onDone={clearToast} />
     </section>
   );
 }

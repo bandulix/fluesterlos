@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { pool } from "./db.js";
 import { sendMail, smtpConfigured } from "./mail.js";
 import { safeEqual } from "./hostAuth.js";
+import { isKnownDevice } from "./devices.js";
 import { maskEmail, normalizePhone, phoneTail } from "./phone.js";
 
 export type GuestRow = {
@@ -118,7 +119,8 @@ type Log = { warn: (obj: unknown, msg?: string) => void };
  *  - the phone is new for this event, or
  *  - the guest was added by the host and never claimed by a device, or
  *  - the request already carries this guest's token (same device), or
- *  - the request carries the token of an older email-only guest (the phone is attached to it).
+ *  - the request carries the token of an older email-only guest (the phone is attached to it), or
+ *  - the request comes from a device this guest already authenticated on (device cookie).
  * Otherwise a 6-digit code is created: emailed if the guest has an email (and SMTP is set),
  * and always shown on the host help desk. Without SMTP/email it is also written to the log.
  */
@@ -129,6 +131,8 @@ export async function joinGuest(opts: {
   name: string;
   email?: string | null;
   presentedToken: string;
+  /** This browser's device id (httpOnly cookie), if any. */
+  deviceId?: string | null;
   log: Log;
 }): Promise<JoinResult> {
   const phone = requirePhone(opts.phone);
@@ -172,6 +176,11 @@ export async function joinGuest(opts: {
       [row.id, opts.name.trim(), email],
     );
     if (claimed.rows[0]) return { kind: "joined", guest: claimed.rows[0] as GuestRow };
+  }
+
+  // Same device as an earlier verified session (e.g. after "Not you? Log out"): no code needed.
+  if (await isKnownDevice(row.id, opts.deviceId)) {
+    return { kind: "joined", guest: await updateProfile(row, opts.name, email) };
   }
 
   // Note: an email typed on the new device is ignored here — the code only goes to the email on file.

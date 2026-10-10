@@ -248,3 +248,60 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .sponsor-tile .sponsor-logo { height: 40px; }
 .desk-list { margin: 0.25rem 0; padding-left: 1.2rem; }
 .countdown-when { font-size: 1rem; }
+
+/* App update prompt (see lib/swUpdate.ts) */
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  max-width: calc(100vw - 32px);
+}
+.update-banner button {
+  background: #fff;
+  color: #0f766e;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pill.warn { background: rgba(248, 113, 113, 0.25); color: inherit; font-weight: 600; }
+.banner.warn { border-left: 4px solid #f87171; background: rgba(248, 113, 113, 0.14); }
+
+/* Handover confirmation toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 999;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #065f46;
+  color: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  animation: toast-in 0.18s ease-out;
+  max-width: calc(100vw - 32px);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Newly created event card */
+.event-card { scroll-margin-top: 16px; }
+.event-card.just-created { animation: just-created 3s ease-out; }
+@keyframes just-created {
+  0%, 40% { box-shadow: 0 0 0 3px #2dd4bf, 0 0 24px rgba(45, 212, 191, 0.5); }
+  100% { box-shadow: none; }
+}

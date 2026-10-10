@@ -10,7 +10,8 @@ export type HostSettings = {
   defaultTimezone?: string;
 };
 
-export type PaymentMethod = "cash" | "bank_transfer" | "promptpay";
+import type { PaymentMethod } from "../lib/deskText";
+export type { PaymentMethod } from "../lib/deskText";
 
 export const METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: "Cash",
@@ -18,30 +19,10 @@ export const METHOD_LABEL: Record<PaymentMethod, string> = {
   promptpay: "PromptPay",
 };
 
-export type HostInvoice = {
-  id: string;
-  guestId: string;
-  guestName: string;
-  guestEmail: string | null;
-  guestPhone: string | null;
-  total: number;
-  status: "unpaid" | "payslip_uploaded" | "paid";
-  paymentMethod: PaymentMethod | null;
-  paidBy: string | null;
-  hasPayslip: boolean;
-  paidAt: string | null;
-  vouchersEmailedAt: string | null;
-  lines: Array<{
-    itemId: string;
-    title: string;
-    description: string;
-    amount: number;
-    kind: "voucher" | "physical";
-    hasVoucher: boolean;
-    sponsorName: string | null;
-    handedOverAt: string | null;
-  }>;
-};
+import type { HostInvoice } from "../lib/deskText";
+import { deskHandoverText, missingVoucherPdfs, voucherPdfWarning } from "../lib/deskText";
+export type { EmailStatus, HostInvoice } from "../lib/deskText";
+export { afterPaidMessage, deskHandoverText, emailStatusText, missingVoucherPdfs, voucherPdfWarning } from "../lib/deskText";
 
 export type InvoiceSummary = {
   invoices: number;
@@ -51,33 +32,6 @@ export type InvoiceSummary = {
   items: number;
   handedOver: number;
 };
-
-export type EmailStatus =
-  | "sent"
-  | "already_sent"
-  | "no_email"
-  | "smtp_not_configured"
-  | "voucher_pdf_missing"
-  | "not_paid";
-
-export function emailStatusText(status: EmailStatus | undefined, emailed?: number): string {
-  switch (status) {
-    case "sent":
-      return `Winner email sent${emailed ? ` with ${emailed} voucher PDF(s)` : ""}.`;
-    case "already_sent":
-      return "Winner email was already sent.";
-    case "no_email":
-      return "No email on file — hand vouchers over at the desk or ask the guest to add an email on their invoice page.";
-    case "smtp_not_configured":
-      return "SMTP is not configured — no email sent.";
-    case "voucher_pdf_missing":
-      return "Email held: a voucher PDF is missing. Upload it on the item, then press “Send email”.";
-    case "not_paid":
-      return "Not paid yet — no email sent.";
-    default:
-      return "";
-  }
-}
 
 export async function uploadHostQr(file: File) {
   const form = new FormData();
@@ -149,27 +103,6 @@ export function PaymentSettingsCard(props: {
   );
 }
 
-/** What the desk has to hand over in person (no email on file, or physical prizes). */
-export function deskHandoverText(inv: HostInvoice): string {
-  const vouchers = inv.lines.filter((l) => l.kind === "voucher").map((l) => l.title);
-  const physical = inv.lines.filter((l) => l.kind === "physical").map((l) => l.title);
-  const parts: string[] = [];
-  if (vouchers.length && !inv.guestEmail) parts.push(`print/show voucher(s): ${vouchers.join(", ")}`);
-  if (physical.length) parts.push(`hand over: ${physical.join(", ")}`);
-  return parts.length ? `At the desk — ${parts.join("; ")}.` : "";
-}
-
-/** Message after "Mark paid": email outcome plus what is held for the desk. */
-export function afterPaidMessage(inv: HostInvoice | undefined, emailStatus: EmailStatus | undefined, emailed?: number): string {
-  const name = inv?.guestName ? `${inv.guestName}: ` : "";
-  const email = emailStatusText(emailStatus, emailed);
-  const desk = inv ? deskHandoverText(inv) : "";
-  if (emailStatus === "no_email") {
-    return `${name}marked paid. No email on file, so nothing was emailed. ${desk}`.trim();
-  }
-  return `${name}marked paid. ${email} ${desk}`.trim();
-}
-
 function InvoiceRow(props: {
   inv: HostInvoice;
   busy: boolean;
@@ -190,6 +123,8 @@ function InvoiceRow(props: {
   const needsSlipCheck = method !== "cash" && !inv.hasPayslip;
   const hasVouchers = inv.lines.some((l) => l.kind === "voucher");
   const desk = paid ? deskHandoverText(inv) : "";
+  const pdfWarning = voucherPdfWarning(inv);
+  const missingPdfs = missingVoucherPdfs(inv).length;
 
   async function toggle(itemId: string, next: boolean) {
     setOptimistic((o) => ({ ...o, [itemId]: next }));
@@ -217,6 +152,14 @@ function InvoiceRow(props: {
         <span className={`pill status-${inv.status}`}>
           {paid ? `paid${inv.paymentMethod ? ` · ${METHOD_LABEL[inv.paymentMethod]}` : ""}` : inv.status.replace("_", " ")}
         </span>
+        {missingPdfs > 0 && (
+          <>
+            {" "}
+            <span className="pill warn" title="Attach the voucher PDF to the item before handing over or emailing">
+              {missingPdfs === 1 ? "voucher PDF missing" : `${missingPdfs} voucher PDFs missing`}
+            </span>
+          </>
+        )}
       </p>
       <ul className="stack">
         {inv.lines.map((l) => {
@@ -248,6 +191,7 @@ function InvoiceRow(props: {
           );
         })}
       </ul>
+      {pdfWarning && <p className="banner warn">{pdfWarning}</p>}
       {desk && <p className="banner">{desk}</p>}
       <div className="row">
         {inv.hasPayslip && (
