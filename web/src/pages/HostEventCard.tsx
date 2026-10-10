@@ -50,8 +50,10 @@ export function HostEventCard(props: {
   sponsors: HostSponsor[];
   busy: boolean;
   run: RunAction;
+  /** Just created: scroll target gets a short highlight. */
+  highlight?: boolean;
 }) {
-  const { live, summary, invoiceSummary, sponsors, busy, run } = props;
+  const { live, summary, invoiceSummary, sponsors, busy, run, highlight } = props;
   const ev = live.event;
   const code = ev.code;
   const tz = ev.timezone || DEFAULT_EVENT_TZ;
@@ -113,7 +115,7 @@ export function HostEventCard(props: {
   }
 
   return (
-    <div className="card">
+    <div id={`event-card-${live.event.code}`} className={`card event-card${highlight ? " just-created" : ""}`}>
       <div className="row between">
         <h2>{ev.title}</h2>
         <span className={`pill status-${ev.status}`}>{ev.status}</span>

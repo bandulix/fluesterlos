@@ -116,8 +116,9 @@ export function formatTimeInZone(at: string | number | Date, tz: string): string
 }
 
 /** Default schedule for the create form: starts at the next 5-minute mark ≥ 5 min away, runs 2 h. */
+/** New-event defaults: starts now (current minute, so it opens at once), ends 2 hours later. */
 export function defaultSchedule(tz: string, now = Date.now()) {
-  const start = Math.ceil((now + 5 * 60_000) / (5 * 60_000)) * 5 * 60_000;
+  const start = Math.floor(now / 60_000) * 60_000;
   return { startsAt: instantToWallTime(start, tz), endsAt: instantToWallTime(start + 2 * 3_600_000, tz) };
 }
 

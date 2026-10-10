@@ -82,7 +82,8 @@ Pulls `ghcr.io/bandulix/fluesterlos-api:latest` and `ghcr.io/bandulix/fluesterlo
 - **Payslip:** guest pays outside the app, uploads image/PDF in the invoice PWA view.
 - **Confirm:** host marks payment received once for the whole invoice with the method. Cash needs no payslip; bank transfer / PromptPay need a payslip or the host's explicit "I checked the transfer arrived". The server then emails **one PDF attachment per won voucher** and a "collect at the desk" line per physical item. If a voucher PDF is still missing the email is held; attach the PDF on the item and press **Send email**.
 - **Handover:** per item, only after the invoice is paid (timestamp + host recorded).
-- **Results export:** `GET /api/host/events/:code/results.xlsx` or `.csv` (host only), one row per lot including unsold lots.
+- **Results export:** `GET /api/host/events/:code/results.xlsx` or `.csv` (host only), one row per lot including unsold lots. Timestamps are in the event time zone (named in the column header). CSV phones are written readably without a leading `+` (`081 234 5678` for `DEFAULT_PHONE_COUNTRY`, `(+49) 1512 3456789` otherwise), so spreadsheets neither run them as formulas nor show an apostrophe. xlsx keeps E.164 as text.
+- **Caching / updates:** serve `sw.js`, `index.html` and the manifest with `Cache-Control: no-cache` and `/assets/*` as immutable (see `web/nginx.conf`). Open tabs reload by themselves when a new version is deployed.
 - **Env:** `DATA_DIR=/data`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (see `.env.example`). Compose mounts volume `appdata` at `/data` on the API.
 
 ### Break-glass (owner locked out)

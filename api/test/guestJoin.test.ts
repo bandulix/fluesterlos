@@ -83,7 +83,8 @@ describe("guest join by phone", () => {
       resendInSeconds: 60,
     });
     expect(res.body).not.toContain(original.token);
-    expect(res.headers["set-cookie"]).toBeUndefined();
+    // No guest session for the new device (only an untrusted device marker).
+    expect(String(res.headers["set-cookie"] ?? "")).not.toMatch(/fl_guest=/);
     expect(mailbox.sent).toHaveLength(1);
     expect(mailbox.sent[0].to).toBe("anna@example.org");
     const { rows } = await pool.query("SELECT name, email FROM guests WHERE id = $1", [original.id]);

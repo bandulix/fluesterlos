@@ -8,6 +8,8 @@ export const NAVIGATE_FALLBACK_DENYLIST = [/^\/api\//];
 
 export const pwaOptions: Partial<VitePWAOptions> = {
   registerType: "autoUpdate",
+  // Registered by src/lib/swUpdate.ts, which also reloads (or prompts) when a new version takes over.
+  injectRegister: false,
   includeAssets: ["favicon.svg", "icon-192.png", "icon-512.png"],
   manifest: {
     id: "/",

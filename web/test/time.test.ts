@@ -28,16 +28,17 @@ describe("event time zone helpers", () => {
       expect(offsetLabel("Asia/Bangkok")).toBe("UTC+7");
     });
 
-    it(`default schedule is in the future and open for 2 hours (browser in ${browserTz})`, () => {
+    it(`default schedule starts now (current minute) and runs 2 hours (browser in ${browserTz})`, () => {
       process.env.TZ = browserTz;
       const now = Date.parse("2026-10-10T09:02:30Z");
       const s = defaultSchedule("Asia/Bangkok", now);
       const start = wallTimeToInstant(s.startsAt, "Asia/Bangkok")!.getTime();
       const end = wallTimeToInstant(s.endsAt, "Asia/Bangkok")!.getTime();
-      expect(start).toBeGreaterThan(now);
-      expect(start - now).toBeLessThanOrEqual(10 * 60_000);
+      expect(start).toBeLessThanOrEqual(now);
+      expect(now - start).toBeLessThan(60_000);
       expect(end - start).toBe(2 * 3_600_000);
-      expect(s.startsAt).toBe("2026-10-10T16:10");
+      expect(s.startsAt).toBe("2026-10-10T16:02");
+      expect(s.endsAt).toBe("2026-10-10T18:02");
     });
   }
 

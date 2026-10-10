@@ -244,17 +244,17 @@ export function registerInvoiceHostRoutes(
     if (format !== "csv" && format !== "xlsx") return reply.code(404).send({ error: "Use .csv or .xlsx" });
     const event = await getEventByCode(codeOf(code));
     if (!event) return reply.code(404).send({ error: "Event not found" });
-    const { rows } = await eventResults(event.id);
+    const results = await eventResults(event.id);
     const base = `results-${event.code}`;
     if (format === "csv") {
       return reply
         .header("Content-Disposition", `attachment; filename="${base}.csv"`)
         .type("text/csv; charset=utf-8")
-        .send(resultsCsv(rows));
+        .send(resultsCsv(results));
     }
     return reply
       .header("Content-Disposition", `attachment; filename="${base}.xlsx"`)
       .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-      .send(await resultsXlsx(rows, event.title));
+      .send(await resultsXlsx(results, event.title));
   });
 }

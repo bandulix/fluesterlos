@@ -156,6 +156,15 @@ export async function migrate() {
     ALTER TABLE events ADD COLUMN IF NOT EXISTS closed_early_at TIMESTAMPTZ;
     ALTER TABLE events ADD COLUMN IF NOT EXISTS closed_by TEXT;
 
+    -- Click-test round 2: devices a guest has authenticated on (hash of an httpOnly cookie id).
+    CREATE TABLE IF NOT EXISTS guest_devices (
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      device_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (guest_id, device_hash)
+    );
+
     CREATE INDEX IF NOT EXISTS bids_item_created_idx ON bids(item_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS items_event_sort_idx ON items(event_id, sort_order);
     CREATE INDEX IF NOT EXISTS host_sessions_user_idx ON host_sessions(host_user_id);

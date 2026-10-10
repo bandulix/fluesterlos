@@ -15,6 +15,7 @@ import {
   verifyGuestCode,
 } from "./guestAuth.js";
 import { upsertSponsor } from "./sponsors.js";
+import { ensureDeviceId, rememberDevice } from "./devices.js";
 import { isAllowedOrigin, rateLimitFor } from "./security.js";
 import { cookieSecure } from "./hostAuth.js";
 
@@ -266,6 +267,7 @@ export function registerRestRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const parsed = joinSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+    const deviceId = ensureDeviceId(req, reply);
     const result = await joinGuest({
       eventId: event.id,
       eventTitle: event.title,
@@ -273,6 +275,7 @@ export function registerRestRoutes(
       name: parsed.data.name,
       email: parsed.data.email || null,
       presentedToken: tokenFromRequest(req as never),
+      deviceId,
       log: req.log,
     });
     if (result.kind === "code_sent") {
@@ -286,6 +289,7 @@ export function registerRestRoutes(
       });
     }
     const guest = result.guest;
+    await rememberDevice(guest.id, deviceId);
     setGuestCookie(reply, guest.token);
     const live = await buildLivePayload(event.id, event.code);
     publish(event.code, "update", live);
@@ -313,6 +317,7 @@ export function registerRestRoutes(
       code: parsed.data.code,
       name: parsed.data.name,
     });
+    await rememberDevice(guest.id, ensureDeviceId(req, reply));
     setGuestCookie(reply, guest.token);
     const live = await buildLivePayload(event.id, event.code);
     publish(event.code, "update", live);
@@ -328,6 +333,8 @@ export function registerRestRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const guest = await guestFromRequest(req as never);
     if (!guest || guest.event_id !== event.id) return { guest: null };
+    // Guests already signed in (e.g. before device markers existed) get this device remembered too.
+    await rememberDevice(guest.id, ensureDeviceId(req, reply));
     const bidItems = await pool.query(
       `SELECT DISTINCT b.item_id FROM bids b JOIN items i ON i.id = b.item_id
        WHERE b.guest_id = $1 AND i.event_id = $2`,

@@ -41,6 +41,14 @@ describe("service worker config", () => {
     const sw = readFileSync(swPath, "utf8");
     expect(sw).toMatch(/denylist:\[\/\^\\\/api\\\/\/\]/);
     expect(sw).toContain("skipWaiting");
+    // index.html is precached with a content revision, so a new deploy never serves the old shell.
+    expect(sw).toMatch(/url:"index\.html",revision:"[0-9a-f]+"/);
+  });
+
+  it("the app registers the service worker itself (so it can reload on update)", () => {
+    expect(pwaOptions.injectRegister).toBe(false);
+    const main = readFileSync(path.join(import.meta.dirname, "..", "src", "main.tsx"), "utf8");
+    expect(main).toContain("registerServiceWorker()");
   });
 });
 
