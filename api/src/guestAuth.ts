@@ -336,3 +336,8 @@ export async function verifyGuestCode(opts: {
   }
   return updateProfile(guest, opts.name, null);
 }
+
+/** Opaque, per-event key for "is this guest the current leader" without exposing guest ids. */
+export function leaderKey(eventId: string, guestId: string): string {
+  return createHash("sha256").update(`leader:${eventId}:${guestId}`).digest("hex").slice(0, 16);
+}

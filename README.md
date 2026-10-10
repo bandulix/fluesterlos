@@ -13,7 +13,7 @@ Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloa
 
 ## MVP (locked)
 - Host dashboard: list of auctions, signed-in email in the top bar, create event, reopen past events
-- Scheduled start/end (auto open/close + countdowns)
+- Scheduled start/end (auto open/close + countdowns) in the **event time zone** (default Asia/Bangkok, `DEFAULT_EVENT_TIMEZONE`); host can close now, extend, reopen (while nothing is paid) and edit times and items
 - Per-auction **currency:** USD, EUR, or THB
 - Installable PWA + QR join
 - Guest identity is the **mobile number** (E.164; numbers without `+` are read as `DEFAULT_PHONE_COUNTRY`, default Thailand). Name optional, shown on the board (defaults to `Guest …1234`); email optional, only needed for voucher PDFs

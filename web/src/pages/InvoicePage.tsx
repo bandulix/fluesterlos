@@ -48,6 +48,7 @@ export function InvoicePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
+  const [editingEmail, setEditingEmail] = useState(false);
 
   const load = useCallback(async () => {
     const res = await api<InvoiceResponse>(`/api/events/${code}/invoice`, {}, token);
@@ -93,7 +94,8 @@ export function InvoicePage() {
     setError(null);
     try {
       await api(`/api/events/${code}/me/email`, { method: "PUT", body: JSON.stringify({ email }) }, token);
-      setMsg("Thanks — your vouchers will be sent to this email once payment is confirmed.");
+      setMsg(`Saved — vouchers go to ${email}.`);
+      setEditingEmail(false);
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -153,14 +155,44 @@ export function InvoicePage() {
             </ul>
           </div>
 
-          {data.guest?.needsEmail && (
+          {inv.lines.some((l) => l.kind === "voucher") && (
             <div className="card">
-              <h2>Where should we send your vouchers?</h2>
-              <p className="muted">You won a voucher — we email the PDF after your payment is confirmed.</p>
-              <form className="stack" onSubmit={onEmail}>
-                <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
-                <button className="button" disabled={busy}>Save email</button>
-              </form>
+              <h2>Voucher email</h2>
+              {data.guest?.email && !editingEmail ? (
+                <p className="line-row">
+                  <span>
+                    {inv.vouchersEmailedAt ? "Vouchers were sent to" : "Vouchers will be sent to"} <strong>{data.guest.email}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => {
+                      setEmail(data.guest?.email ?? "");
+                      setEditingEmail(true);
+                    }}
+                  >
+                    Change
+                  </button>
+                </p>
+              ) : (
+                <>
+                  <p className="muted">You won a voucher — we email the PDF after your payment is confirmed.</p>
+                  <form className="stack" onSubmit={onEmail}>
+                    <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
+                    <div className="row">
+                      <button className="button" disabled={busy}>Save email</button>
+                      {data.guest?.email && (
+                        <button type="button" className="button secondary" onClick={() => setEditingEmail(false)}>
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </form>
+                </>
+              )}
+              {inv.vouchersEmailedAt && editingEmail && (
+                <p className="muted">Already emailed once — after changing, ask the desk to resend.</p>
+              )}
             </div>
           )}
 

@@ -1,11 +1,13 @@
 import { FormEvent, useState } from "react";
 import { API_BASE, uploadForm } from "../lib/api";
+import { DEFAULT_EVENT_TZ, formatInZone } from "../lib/time";
 import { formatMoney, parseCurrency } from "../lib/money";
 
 export type HostSettings = {
   promptpayId: string;
   payeeName: string;
   hasQrImage: boolean;
+  defaultTimezone?: string;
 };
 
 export type PaymentMethod = "cash" | "bank_transfer" | "promptpay";
@@ -147,52 +149,106 @@ export function PaymentSettingsCard(props: {
   );
 }
 
+/** What the desk has to hand over in person (no email on file, or physical prizes). */
+export function deskHandoverText(inv: HostInvoice): string {
+  const vouchers = inv.lines.filter((l) => l.kind === "voucher").map((l) => l.title);
+  const physical = inv.lines.filter((l) => l.kind === "physical").map((l) => l.title);
+  const parts: string[] = [];
+  if (vouchers.length && !inv.guestEmail) parts.push(`print/show voucher(s): ${vouchers.join(", ")}`);
+  if (physical.length) parts.push(`hand over: ${physical.join(", ")}`);
+  return parts.length ? `At the desk — ${parts.join("; ")}.` : "";
+}
+
+/** Message after "Mark paid": email outcome plus what is held for the desk. */
+export function afterPaidMessage(inv: HostInvoice | undefined, emailStatus: EmailStatus | undefined, emailed?: number): string {
+  const name = inv?.guestName ? `${inv.guestName}: ` : "";
+  const email = emailStatusText(emailStatus, emailed);
+  const desk = inv ? deskHandoverText(inv) : "";
+  if (emailStatus === "no_email") {
+    return `${name}marked paid. No email on file, so nothing was emailed. ${desk}`.trim();
+  }
+  return `${name}marked paid. ${email} ${desk}`.trim();
+}
+
 function InvoiceRow(props: {
   inv: HostInvoice;
   busy: boolean;
   ccy: ReturnType<typeof parseCurrency>;
+  tz: string;
+  eventCode: string;
   onConfirm: (id: string, method: PaymentMethod, confirmedWithoutSlip: boolean) => void;
-  onHandover: (id: string, itemId: string, handedOver: boolean) => void;
+  onHandover: (id: string, itemId: string, handedOver: boolean) => Promise<void>;
   onSendEmail: (id: string) => void;
 }) {
-  const { inv, busy, ccy, onConfirm, onHandover, onSendEmail } = props;
+  const { inv, busy, ccy, tz, eventCode, onConfirm, onHandover, onSendEmail } = props;
   const [method, setMethod] = useState<PaymentMethod>(inv.hasPayslip ? "promptpay" : "cash");
   const [withoutSlip, setWithoutSlip] = useState(false);
+  // Optimistic handover state: the box flips immediately; only that box is disabled while saving.
+  const [optimistic, setOptimistic] = useState<Record<string, boolean>>({});
+  const [pending, setPending] = useState<Record<string, boolean>>({});
   const paid = inv.status === "paid";
   const needsSlipCheck = method !== "cash" && !inv.hasPayslip;
   const hasVouchers = inv.lines.some((l) => l.kind === "voucher");
+  const desk = paid ? deskHandoverText(inv) : "";
+
+  async function toggle(itemId: string, next: boolean) {
+    setOptimistic((o) => ({ ...o, [itemId]: next }));
+    setPending((p) => ({ ...p, [itemId]: true }));
+    try {
+      await onHandover(inv.id, itemId, next);
+    } catch {
+      setOptimistic((o) => ({ ...o, [itemId]: !next }));
+    } finally {
+      setPending((p) => ({ ...p, [itemId]: false }));
+      // Server data is reloaded by the parent; drop the override once it is in.
+      setOptimistic((o) => {
+        const { [itemId]: _drop, ...rest } = o;
+        return rest;
+      });
+    }
+  }
+
   return (
     <div className="card nested">
       <p>
         <strong>{inv.guestName}</strong>
         {inv.guestPhone ? ` · ${inv.guestPhone}` : ""}
-        {inv.guestEmail ? ` · ${inv.guestEmail}` : ""} — <strong>{formatMoney(inv.total, ccy)}</strong> —{" "}
+        {inv.guestEmail ? ` · ${inv.guestEmail}` : " · no email"} — <strong>{formatMoney(inv.total, ccy)}</strong> —{" "}
         <span className={`pill status-${inv.status}`}>
           {paid ? `paid${inv.paymentMethod ? ` · ${METHOD_LABEL[inv.paymentMethod]}` : ""}` : inv.status.replace("_", " ")}
         </span>
       </p>
       <ul className="stack">
-        {inv.lines.map((l) => (
-          <li key={l.itemId} className="line-row">
-            <label className="line-row" title={paid ? "" : "Mark the invoice paid before handing over"}>
-              <input
-                type="checkbox"
-                checked={Boolean(l.handedOverAt)}
-                disabled={busy || !paid}
-                onChange={(e) => onHandover(inv.id, l.itemId, e.target.checked)}
-              />
-              Handed over
-            </label>
-            <span>
-              {l.title} — {formatMoney(l.amount, ccy)}
-              {l.sponsorName ? ` · ${l.sponsorName}` : ""}
-            </span>
-            <span className={`pill kind-${l.kind}`}>{l.kind === "physical" ? "physical" : "voucher"}</span>
-            {l.kind === "voucher" && !l.hasVoucher && <span className="pill">PDF missing</span>}
-            {l.handedOverAt && <span className="muted">{new Date(l.handedOverAt).toLocaleString()}</span>}
-          </li>
-        ))}
+        {inv.lines.map((l) => {
+          const checked = optimistic[l.itemId] ?? Boolean(l.handedOverAt);
+          return (
+            <li key={l.itemId} className="line-row">
+              <label className="line-row" title={paid ? "" : "Mark the invoice paid before handing over"}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!paid || Boolean(pending[l.itemId])}
+                  onChange={(e) => toggle(l.itemId, e.target.checked)}
+                />
+                Handed over
+              </label>
+              <span>
+                {l.title} — {formatMoney(l.amount, ccy)}
+                {l.sponsorName ? ` · ${l.sponsorName}` : ""}
+              </span>
+              <span className={`pill kind-${l.kind}`}>{l.kind === "physical" ? "physical" : "voucher"}</span>
+              {l.kind === "voucher" && !l.hasVoucher && <span className="pill">PDF missing</span>}
+              {l.kind === "voucher" && l.hasVoucher && (
+                <a href={`${API_BASE}/api/host/events/${eventCode}/items/${l.itemId}/voucher`} target="_blank" rel="noreferrer">
+                  Voucher PDF
+                </a>
+              )}
+              {l.handedOverAt && checked && <span className="muted">{formatInZone(l.handedOverAt, tz)}</span>}
+            </li>
+          );
+        })}
       </ul>
+      {desk && <p className="banner">{desk}</p>}
       <div className="row">
         {inv.hasPayslip && (
           <a
@@ -226,24 +282,22 @@ function InvoiceRow(props: {
               disabled={busy || (needsSlipCheck && !withoutSlip)}
               onClick={() => onConfirm(inv.id, method, needsSlipCheck && withoutSlip)}
             >
-              Mark paid{hasVouchers ? " & email vouchers" : ""}
+              Mark paid{hasVouchers && inv.guestEmail ? " & email vouchers" : ""}
             </button>
           </>
         )}
-        {paid && hasVouchers && (
+        {paid && hasVouchers && inv.guestEmail && (
           <button type="button" className="button secondary" disabled={busy} onClick={() => onSendEmail(inv.id)}>
             {inv.vouchersEmailedAt ? "Resend email" : "Send email"}
           </button>
         )}
         {inv.paidAt && (
           <span className="muted">
-            Paid {new Date(inv.paidAt).toLocaleString()}
+            Paid {formatInZone(inv.paidAt, tz)}
             {inv.paidBy ? ` by ${inv.paidBy}` : ""}
           </span>
         )}
-        {inv.vouchersEmailedAt && (
-          <span className="muted">Emailed {new Date(inv.vouchersEmailedAt).toLocaleString()}</span>
-        )}
+        {inv.vouchersEmailedAt && <span className="muted">Emailed {formatInZone(inv.vouchersEmailedAt, tz)}</span>}
       </div>
     </div>
   );
@@ -253,13 +307,16 @@ export function InvoicesCard(props: {
   invoices: HostInvoice[];
   busy: boolean;
   currency?: string;
+  timezone?: string;
+  eventCode: string;
   onRefresh: () => void;
   onConfirm: (id: string, method: PaymentMethod, confirmedWithoutSlip: boolean) => void;
-  onHandover: (id: string, itemId: string, handedOver: boolean) => void;
+  onHandover: (id: string, itemId: string, handedOver: boolean) => Promise<void>;
   onSendEmail: (id: string) => void;
 }) {
   const { invoices, busy, onRefresh } = props;
   const ccy = parseCurrency(props.currency);
+  const tz = props.timezone || DEFAULT_EVENT_TZ;
   const [filter, setFilter] = useState("");
   const q = filter.trim().toLowerCase();
   const digits = q.replace(/\D/g, "");
@@ -293,6 +350,8 @@ export function InvoicesCard(props: {
           inv={inv}
           busy={busy}
           ccy={ccy}
+          tz={tz}
+          eventCode={props.eventCode}
           onConfirm={props.onConfirm}
           onHandover={props.onHandover}
           onSendEmail={props.onSendEmail}

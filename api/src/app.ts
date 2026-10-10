@@ -10,6 +10,9 @@ import { publish } from "./sse.js";
 import { registerRestRoutes } from "./rest.js";
 import { registerInvoiceRoutes } from "./invoiceRoutes.js";
 import { registerSponsorRoutes, sponsorLogoUrl, upsertSponsor } from "./sponsors.js";
+import { defaultEventTimeZone, isValidTimeZone, parseInstant } from "./eventTime.js";
+import { registerEventControlRoutes, rescheduleEvent } from "./eventControls.js";
+import { leaderKey } from "./guestAuth.js";
 import { registerRateLimit, corsOriginOption, rateLimitFor } from "./security.js";
 import {
   clearSession,
@@ -51,7 +54,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   function publicItemPhotoUrl(code: string, itemId: string, stored: string | null): string | null {
     if (!stored) return null;
     if (/^https?:\/\//i.test(stored)) return stored;
-    return `/api/events/${code}/items/${itemId}/photo`;
+    return `/api/events/${code}/items/${itemId}/photo?v=${encodeURIComponent(stored.split("/").pop() ?? "")}`;
   }
 
   async function getEventByCode(code: string) {
@@ -67,6 +70,9 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
           starts_at: Date;
           ends_at: Date;
           currency?: string;
+          timezone: string;
+          closed_early_at: Date | null;
+          closed_by: string | null;
         }
       | undefined;
   }
@@ -80,6 +86,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
         COALESCE((SELECT MAX(b.amount) FROM bids b WHERE b.item_id = i.id), i.starting_bid) AS high_bid,
         (SELECT g.name FROM bids b JOIN guests g ON g.id = b.guest_id
           WHERE b.item_id = i.id ORDER BY b.amount DESC, b.created_at ASC LIMIT 1) AS high_bidder,
+        (SELECT b.guest_id FROM bids b
+          WHERE b.item_id = i.id ORDER BY b.amount DESC, b.created_at ASC LIMIT 1) AS high_bidder_id,
         (SELECT COUNT(*)::int FROM bids b WHERE b.item_id = i.id) AS bid_count
        FROM items i LEFT JOIN sponsors s ON s.id = i.sponsor_id
        WHERE i.event_id = $1 ORDER BY i.sort_order, i.created_at`,
@@ -110,6 +118,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
       sortOrder: row.sort_order,
       highBid: money(row.high_bid),
       highBidder: row.high_bidder,
+      // Opaque per-event key of the current leader; a guest compares it with their own (GET /me).
+      leaderKey: row.high_bidder_id ? leaderKey(eventId, row.high_bidder_id) : null,
       bidCount: row.bid_count,
       hasVoucher: Boolean(row.voucher_pdf_path),
       kind: (row.kind === "physical" ? "physical" : "voucher") as "voucher" | "physical",
@@ -126,6 +136,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
         title: event.title,
         startsAt: new Date(event.starts_at).toISOString(),
         endsAt: new Date(event.ends_at).toISOString(),
+        timezone: event.timezone || defaultEventTimeZone(),
+        closedEarly: Boolean(event.closed_early_at),
         status,
         currency: parseCurrency(event.currency),
         joinUrl: `${PUBLIC_URL}/e/${event.code}`,
@@ -293,6 +305,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     }
     const { rows } = await pool.query(
       `SELECT e.id, e.code, e.title, e.starts_at, e.ends_at, e.created_at, e.currency,
+        e.timezone, e.closed_early_at, e.closed_by,
+        (SELECT COUNT(*)::int FROM invoices v WHERE v.event_id = e.id AND v.status = 'paid') AS paid_invoice_count,
         (SELECT COUNT(*)::int FROM items i WHERE i.event_id = e.id) AS item_count,
         (SELECT COUNT(*)::int FROM guests g WHERE g.event_id = e.id) AS guest_count
        FROM events e
@@ -307,6 +321,10 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
         endsAt: new Date(e.ends_at).toISOString(),
         createdAt: new Date(e.created_at).toISOString(),
         status: auctionStatus(e.starts_at, e.ends_at),
+        timezone: e.timezone || defaultEventTimeZone(),
+        closedEarlyAt: e.closed_early_at ? new Date(e.closed_early_at).toISOString() : null,
+        closedBy: e.closed_by ?? null,
+        paidInvoiceCount: e.paid_invoice_count,
         currency: parseCurrency(e.currency),
         itemCount: e.item_count,
         guestCount: e.guest_count,
@@ -317,8 +335,10 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
 
   const createEventSchema = z.object({
     title: z.string().min(1).max(200),
-    startsAt: z.string().datetime(),
-    endsAt: z.string().datetime(),
+    // Absolute instants only (Z or offset), e.g. "2027-01-17T19:00:00+07:00".
+    startsAt: z.string().datetime({ offset: true }),
+    endsAt: z.string().datetime({ offset: true }),
+    timezone: z.string().max(64).optional(),
     currency: z.enum(["USD", "EUR", "THB"]).optional().default("THB"),
     items: z
       .array(
@@ -350,17 +370,24 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     if (body.items.some((it) => it.buyNow != null && !(it.buyNow > it.startingBid))) {
       return reply.code(400).send({ error: "buyNow must be greater than startingBid" });
     }
-    if (new Date(body.endsAt) <= new Date(body.startsAt)) {
+    const startsAt = parseInstant(body.startsAt);
+    const endsAt = parseInstant(body.endsAt);
+    if (!startsAt || !endsAt) {
+      return reply.code(400).send({ error: "startsAt/endsAt must include a time zone offset" });
+    }
+    if (endsAt <= startsAt) {
       return reply.code(400).send({ error: "endsAt must be after startsAt" });
     }
+    const timezone = body.timezone?.trim() || defaultEventTimeZone();
+    if (!isValidTimeZone(timezone)) return reply.code(400).send({ error: "Unknown time zone" });
     const code = nanoid(8).toLowerCase();
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       const ev = await client.query(
-        `INSERT INTO events (code, title, starts_at, ends_at, currency)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [code, body.title, body.startsAt, body.endsAt, body.currency],
+        `INSERT INTO events (code, title, starts_at, ends_at, currency, timezone)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [code, body.title, startsAt, endsAt, body.currency, timezone],
       );
       const event = ev.rows[0];
       for (let i = 0; i < body.items.length; i++) {
@@ -397,6 +424,9 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   const patchEventSchema = z.object({
     currency: z.enum(["USD", "EUR", "THB"]).optional(),
     title: z.string().min(1).max(200).optional(),
+    timezone: z.string().max(64).optional(),
+    startsAt: z.string().datetime({ offset: true }).optional(),
+    endsAt: z.string().datetime({ offset: true }).optional(),
   });
 
   app.patch("/api/host/events/:code", async (req, reply) => {
@@ -410,6 +440,19 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const parsed = patchEventSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+    if (parsed.data.timezone !== undefined && !isValidTimeZone(parsed.data.timezone)) {
+      return reply.code(400).send({ error: "Unknown time zone" });
+    }
+    if (parsed.data.startsAt || parsed.data.endsAt) {
+      const startsAt = parsed.data.startsAt ? parseInstant(parsed.data.startsAt) : undefined;
+      const endsAt = parsed.data.endsAt ? parseInstant(parsed.data.endsAt) : undefined;
+      if (startsAt === null || endsAt === null) return reply.code(400).send({ error: "Invalid time" });
+      const host = (await requireHost(req)) as { email: string };
+      await rescheduleEvent(event.id, { startsAt, endsAt }, host.email);
+    }
+    if (parsed.data.timezone !== undefined) {
+      await pool.query("UPDATE events SET timezone = $1 WHERE id = $2", [parsed.data.timezone, event.id]);
+    }
     if (parsed.data.currency !== undefined) {
       await pool.query("UPDATE events SET currency = $1 WHERE id = $2", [parsed.data.currency, event.id]);
     }
@@ -424,6 +467,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   registerRestRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
   registerInvoiceRoutes(app, { codeOf, getEventByCode, requireHost });
   registerSponsorRoutes(app, { requireHost });
+  registerEventControlRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as Error & { statusCode?: number };

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, getGuestToken } from "../lib/api";
+import { api, clearGuestToken, getGuestToken, GuestMe, LiveItem, maskPhone } from "../lib/api";
 import { formatMoney, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
 import { Countdown } from "../components/Countdown";
@@ -15,6 +15,42 @@ export function BidPage() {
   const [flash, setFlash] = useState(false);
   const [flashTitle, setFlashTitle] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [me, setMe] = useState<GuestMe | null>(null);
+
+  const loadMe = useCallback(async () => {
+    const res = await api<GuestMe>(`/api/events/${code}/me`, {}, token);
+    if (!res.guest) {
+      // Token no longer valid for this event: start over at the join page.
+      clearGuestToken(code);
+      nav(`/e/${code}`, { replace: true });
+      return;
+    }
+    setMe(res);
+  }, [code, token, nav]);
+
+  useEffect(() => {
+    if (token) loadMe().catch(() => undefined);
+  }, [token, loadMe]);
+
+  // Transient feedback only; the per-item status below is the source of truth.
+  useEffect(() => {
+    if (!msg) return;
+    const id = window.setTimeout(() => setMsg(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [msg]);
+
+  async function logout() {
+    await api(`/api/events/${code}/logout`, { method: "POST", body: "{}" }).catch(() => undefined);
+    clearGuestToken(code);
+    nav(`/e/${code}`, { replace: true });
+  }
+
+  function itemStatus(it: LiveItem): "winning" | "outbid" | null {
+    if (!me?.leaderKey) return null;
+    if (it.leaderKey && it.leaderKey === me.leaderKey) return "winning";
+    if (me.bidItemIds?.includes(it.id)) return "outbid";
+    return null;
+  }
 
   useEffect(() => {
     if (!token) nav(`/e/${code}`, { replace: true });
@@ -39,7 +75,8 @@ export function BidPage() {
         method: "POST",
         body: JSON.stringify({ itemId, amount }),
       }, token);
-      setMsg(`You're in at ${formatMoney(amount, parseCurrency(live?.event.currency))}`);
+      setMsg(`Bid placed: ${formatMoney(amount, parseCurrency(live?.event.currency))}`);
+      await loadMe().catch(() => undefined);
     } catch (err) {
       const body = (err as Error & { body?: { currentHigh?: number; minNext?: number; outbid?: boolean; sold?: boolean } }).body;
       if (body?.sold) {
@@ -63,10 +100,26 @@ export function BidPage() {
     <section className={`stack bid-board${flash ? " bid-flash" : ""}`}>
       <header className="bid-head">
         <h1>{live.event.title}</h1>
-        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
+        {me?.guest && (
+          <p className="guest-who">
+            <span>
+              Bidding as <strong>{me.guest.name}</strong>
+              {me.guest.phone ? ` (${maskPhone(me.guest.phone)})` : ""}
+            </span>
+            <button type="button" className="link-button" onClick={logout}>
+              Not you? Log out
+            </button>
+          </p>
+        )}
+        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
         {live.event.status === "closed" && (
           <p className="banner">
-            Closed. <Link to={`/e/${code}/invoice`}>Pay your invoice</Link>
+            Closed.{" "}
+            {live.items.some((it) => itemStatus(it) === "winning") ? (
+              <Link to={`/e/${code}/invoice`}>Pay your invoice</Link>
+            ) : (
+              <Link to={`/e/${code}/invoice`}>See your invoice</Link>
+            )}
           </p>
         )}
         {msg && <p className="banner">{msg}</p>}
@@ -86,6 +139,20 @@ export function BidPage() {
             {it.description ? <p>{it.description}</p> : null}
             <KindPill kind={it.kind} />
             <p className="high-bid">{formatMoney(it.highBid, ccy)}{it.highBidder ? ` · ${it.highBidder}` : ""}</p>
+            {(() => {
+              const st = itemStatus(it);
+              if (st === "winning") {
+                return (
+                  <p className="item-status winning">
+                    {open ? "You're winning" : live.event.status === "closed" ? "You won" : "You're the high bidder"}
+                  </p>
+                );
+              }
+              if (st === "outbid") {
+                return <p className="item-status outbid">{open ? "Outbid — bid again to win" : "Outbid"}</p>;
+              }
+              return null;
+            })()}
             <div className="row">
               {sold && <span className="pill status-closed">Sold (buy now)</span>}
               {showBid && (

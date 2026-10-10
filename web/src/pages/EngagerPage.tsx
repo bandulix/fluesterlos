@@ -40,7 +40,7 @@ export function EngagerPage() {
           <h1>{live.event.title}</h1>
           <span className="live-badge">Live</span>
         </div>
-        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
+        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
       </header>
       <div className="engager-grid">
         <section className={`panel totals${flash ? " bid-flash" : ""}`}>
@@ -76,13 +76,14 @@ export function EngagerPage() {
             <div className="sponsor-strip">
               <h3>Thank you to our sponsors</h3>
               <div className="row">
-                {sponsors.map((sp) =>
-                  sp.logoUrl ? (
-                    <img key={sp.id} src={`${API_BASE}${sp.logoUrl}`} alt={sp.name} className="sponsor-logo" title={sp.name} />
-                  ) : (
-                    <span key={sp.id} className="pill">{sp.name}</span>
-                  ),
-                )}
+                {sponsors.map((sp) => (
+                  <div key={sp.id} className="sponsor-tile">
+                    {sp.logoUrl ? (
+                      <img src={`${API_BASE}${sp.logoUrl}`} alt="" className="sponsor-logo" />
+                    ) : null}
+                    <span className={sp.logoUrl ? "muted" : "pill"}>{sp.name}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}

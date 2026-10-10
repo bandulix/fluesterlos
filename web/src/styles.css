@@ -228,3 +228,23 @@ textarea { min-height: 70px; }
 .line-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .sponsor-strip { margin-top: 1rem; }
 .sponsor-strip .sponsor-logo { height: 40px; }
+
+/* Click-test round 1 */
+a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid var(--border, rgba(255,255,255,0.2)); background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 0.85rem; }
+.chip .sponsor-logo { height: 20px; }
+.sponsor-picks { gap: 0.4rem; }
+.event-times { display: grid; gap: 0.25rem; }
+.event-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end; }
+.event-controls input[type="number"] { width: 5.5rem; }
+.button.danger { background: #b91c1c; color: #fff; }
+.item-status { font-weight: 600; }
+.item-status.winning { color: #22c55e; }
+.item-status.outbid { color: #f97316; }
+.guest-who { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.9rem; }
+.link-button { background: none; border: none; color: var(--accent, #38bdf8); text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+.sponsor-strip .row { gap: 1rem; align-items: center; }
+.sponsor-tile { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+.sponsor-tile .sponsor-logo { height: 40px; }
+.desk-list { margin: 0.25rem 0; padding-left: 1.2rem; }
+.countdown-when { font-size: 1rem; }

@@ -68,7 +68,7 @@ describe("items: physical prizes and sponsors", () => {
     expect((await addItem(code, { title: "Spa", sponsorName: "grand hotel" })).statusCode).toBe(200);
     const live = (await app.inject({ method: "GET", url: `/api/events/${code}` })).json();
     const [a, b] = live.items;
-    expect(a.sponsor).toMatchObject({ name: "Grand Hotel", logoUrl: expect.stringMatching(/^\/api\/sponsors\/.+\/logo$/) });
+    expect(a.sponsor).toMatchObject({ name: "Grand Hotel", logoUrl: expect.stringMatching(/^\/api\/sponsors\/.+\/logo\?v=.+$/) });
     expect(b.sponsor.id).toBe(a.sponsor.id);
     expect(a.photoUrl).toBeTruthy(); // logo was not mistaken for the photo
     const logo = await app.inject({ method: "GET", url: a.sponsor.logoUrl });

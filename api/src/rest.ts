@@ -7,6 +7,7 @@ import { contentTypeFor, readDataFile, saveUpload } from "./storage.js";
 import {
   guestFromRequest,
   joinGuest,
+  leaderKey,
   pendingLoginRequests,
   setGuestEmail,
   tokenFromRequest,
@@ -327,7 +328,22 @@ export function registerRestRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const guest = await guestFromRequest(req as never);
     if (!guest || guest.event_id !== event.id) return { guest: null };
-    return { guest: guestDto(guest) };
+    const bidItems = await pool.query(
+      `SELECT DISTINCT b.item_id FROM bids b JOIN items i ON i.id = b.item_id
+       WHERE b.guest_id = $1 AND i.event_id = $2`,
+      [guest.id, event.id],
+    );
+    return {
+      guest: guestDto(guest),
+      leaderKey: leaderKey(event.id, guest.id),
+      bidItemIds: bidItems.rows.map((r) => r.item_id as string),
+    };
+  });
+
+  /** "Not you?" — forget this device's guest session (the guest can join again with their phone). */
+  app.post("/api/events/:code/logout", async (_req, reply) => {
+    reply.clearCookie("fl_guest", { path: "/" });
+    return { ok: true };
   });
 
   const emailSchema = z.object({ email: z.string().email().max(200) });
@@ -367,6 +383,15 @@ export function registerRestRoutes(
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      // Share-lock the event row: "close now" / reschedule take FOR UPDATE, so no bid lands after a close.
+      const evNow = await client.query("SELECT starts_at, ends_at FROM events WHERE id = $1 FOR SHARE", [event.id]);
+      const statusNow = auctionStatus(evNow.rows[0].starts_at, evNow.rows[0].ends_at);
+      if (statusNow !== "open") {
+        await client.query("ROLLBACK");
+        return reply.code(400).send({
+          error: statusNow === "scheduled" ? "Auction has not started" : "Auction is closed",
+        });
+      }
       const itemRes = await client.query(
         "SELECT * FROM items WHERE id = $1 AND event_id = $2 FOR UPDATE",
         [parsed.data.itemId, event.id],
