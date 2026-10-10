@@ -7,6 +7,24 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — browser click test, round 1
+- **Time zones (critical):** the create form pre-filled start/end with UTC clock times shown as local times, so a host whose browser was not on UTC got an event that was already closed. Events now have a **time zone** (default `Asia/Bangkok`, `DEFAULT_EVENT_TIMEZONE`, selectable per event). Start/end are entered and shown in that zone (with "UTC+7" label and the device's local time when it differs); the browser sends ISO times **with offset** and the API rejects times without one. Times are stored in UTC. Help desk, payment desk and countdowns use the event zone too. The create form refuses an end time in the past.
+- **Exports / file links (critical):** the PWA service worker answered navigations to `/api/...` with the app shell, so Excel/CSV exports, "View payslip" and voucher PDF links showed a blank app page. `/api/` is now excluded from the navigation fallback, and the new service worker takes over existing installs immediately (`skipWaiting`, `clientsClaim`, old caches cleaned up).
+- **PWA manifest:** valid `start_url`, `scope`, `id` and PNG icons (192/512 + maskable); the per-event guest manifest (served from a `blob:` URL) now uses absolute URLs. Added `favicon.ico`.
+- New-event form resets after a successful create (title, times, items, chosen files, sponsor + logo) and can't be submitted twice. The sponsor logo input is no longer disabled.
+- Guest bid page shows per item **"You're winning" / "Outbid"** (live, via an opaque leader key — no guest ids in the public payload) instead of a stale "You're in at …" banner, and who is bidding ("Bidding as Anna (…1234)") with **Not you? Log out** (`POST /api/events/:code/logout`).
+- Engager sponsor strip shows logo + name for every sponsor (name chip when there is no logo).
+- Payment desk: after "Mark paid" for a guest without email it says what to hand over at the desk (vouchers to print/show, physical items); voucher PDF links per line (`GET /api/host/events/:code/items/:itemId/voucher`); "Send email" only when the guest has an email; attaching a voucher PDF refreshes the invoices; "View payslip" styled like the other buttons; the handover checkbox updates immediately (optimistic, per-row saving) instead of disabling the whole desk.
+- Guest invoice page shows the saved voucher email with a **Change** option.
+- Replaced sponsor logos / item photos are not hidden by browser caches (versioned URLs).
+
+### Added — host event controls
+- Event card shows start/end in the event zone and **why** it is closed (scheduled end passed, or "closed early at … by …").
+- **Close now**, **Extend by N minutes**, **Reopen for N minutes** (`POST /api/host/events/:code/close`, `/extend {minutes}`), **edit start/end/time zone/currency** (`PATCH /api/host/events/:code`, `PUT /api/host/events/:code/schedule`). A closed auction can only be reopened while **no invoice is paid**; the start can't move into the future once there are bids. Bids take a share lock on the event row, so nothing is accepted after "Close now".
+- **Edit / delete items** and **add items** to an existing event (`PATCH` / `DELETE /api/host/events/:code/items/:itemId`). Prices and type lock once an item has bids or the auction is closed; title, description, sponsor and photo stay editable; items with bids can't be deleted. Switching a voucher item to physical drops its PDF.
+- Sponsor field suggests existing sponsors (with their logos) and shows the logo on file for a matching name.
+- Web unit tests (Vitest): time zone helpers under several device zones, service worker / manifest config. `npm test` runs API and web tests.
+
 ### Added — event essentials (stacks on the pre-event fixes)
 - **Physical prizes:** items have a type `voucher` or `physical`. Voucher PDFs are optional at creation and can be attached later (`POST /api/host/events/:code/items/:itemId/voucher`); physical items reject a PDF. Winner emails handle mixed wins: one PDF per voucher, plus "please collect at the desk" for physical items. The bid page and invoice show the type.
 - **Phone is the guest key:** guests join with a mobile number (normalized to E.164 via `libphonenumber-js`; `DEFAULT_PHONE_COUNTRY`, default `TH`). Name optional (board shows `Guest …1234` if empty), email optional. Winners of vouchers without an email are asked for one on the invoice page (`PUT /api/events/:code/me/email`).

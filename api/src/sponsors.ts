@@ -12,7 +12,8 @@ export function isImageFile(file: { filename: string; mimetype: string }) {
 }
 
 export function sponsorLogoUrl(id: string, logoPath: string | null | undefined): string | null {
-  return logoPath ? `/api/sponsors/${id}/logo` : null;
+  // ?v= changes when the logo is replaced, so browsers don't keep showing the old one.
+  return logoPath ? `/api/sponsors/${id}/logo?v=${encodeURIComponent(logoPath.split("/").pop() ?? "")}` : null;
 }
 
 function httpError(statusCode: number, message: string) {
@@ -38,7 +39,7 @@ export async function upsertSponsor(
   );
   let row = rows[0] as { id: string; name: string; logo_path: string | null };
   if (logo) {
-    const rel = await saveUpload("sponsors", logo.filename, logo.buffer, row.id);
+    const rel = await saveUpload("sponsors", logo.filename, logo.buffer, `${row.id}-${Date.now().toString(36)}`);
     const upd = await pool.query(
       "UPDATE sponsors SET logo_path = $2 WHERE id = $1 RETURNING id, name, logo_path",
       [row.id, rel],

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { api, LoginRequest } from "../lib/api";
+import { DEFAULT_EVENT_TZ, formatTimeInZone, offsetLabel } from "../lib/time";
 
 /**
  * Help desk: guests whose phone is already in use on another device need a 6-digit code.
  * If they have no email (or SMTP is off) the code is only shown here. Check who they are
  * (e.g. ask for their name / look at their phone) before reading the code out.
  */
-export function HelpDeskCard({ code }: { code: string }) {
+export function HelpDeskCard({ code, timezone }: { code: string; timezone?: string }) {
+  const tz = timezone || DEFAULT_EVENT_TZ;
   const [requests, setRequests] = useState<LoginRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
@@ -50,7 +52,7 @@ export function HelpDeskCard({ code }: { code: string }) {
                 <strong>{r.guestName}</strong>
                 <span className="muted">
                   {r.phone ?? r.email} · {r.delivery === "email" ? "also emailed" : "desk only"} · requested{" "}
-                  {new Date(r.requestedAt).toLocaleTimeString()}
+                  {formatTimeInZone(r.requestedAt, tz)} ({offsetLabel(tz)}) · expires {formatTimeInZone(r.expiresAt, tz)}
                   {r.attempts ? ` · ${r.attempts} wrong tries` : ""}
                 </span>
               </span>

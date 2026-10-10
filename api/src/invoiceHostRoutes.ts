@@ -1,3 +1,4 @@
+import { defaultEventTimeZone } from "./eventTime.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { pool } from "./db.js";
@@ -48,7 +49,12 @@ export function registerInvoiceHostRoutes(
   app.get("/api/host/settings", async (req, reply) => {
     try { await requireHost(req); } catch { return reply.code(401).send({ error: "Unauthorized" }); }
     const s = await getHostSettings();
-    return { promptpayId: s.promptpay_id ?? "", payeeName: s.payee_name ?? "", hasQrImage: Boolean(s.qr_image_path) };
+    return {
+      promptpayId: s.promptpay_id ?? "",
+      payeeName: s.payee_name ?? "",
+      hasQrImage: Boolean(s.qr_image_path),
+      defaultTimezone: defaultEventTimeZone(),
+    };
   });
 
   const settingsSchema = z.object({
@@ -77,7 +83,12 @@ export function registerInvoiceHostRoutes(
       );
     }
     const s = await getHostSettings();
-    return { promptpayId: s.promptpay_id ?? "", payeeName: s.payee_name ?? "", hasQrImage: Boolean(s.qr_image_path) };
+    return {
+      promptpayId: s.promptpay_id ?? "",
+      payeeName: s.payee_name ?? "",
+      hasQrImage: Boolean(s.qr_image_path),
+      defaultTimezone: defaultEventTimeZone(),
+    };
   });
 
   app.post("/api/host/settings/qr", async (req, reply) => {

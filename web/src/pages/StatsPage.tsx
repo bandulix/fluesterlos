@@ -22,7 +22,7 @@ export function StatsPage() {
     <section className={`stack stats-page${flash ? " bid-flash" : ""}`}>
       <div className="card">
         <h1>{live.event.title}</h1>
-        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
+        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
         <div className="stats-grid">
           <div className="stat"><span className="muted">Total high bids</span><strong>{formatMoney(live.stats.totalHighBids, ccy)}</strong></div>
           <div className="stat"><span className="muted">Bids</span><strong>{live.stats.totalBids}</strong></div>

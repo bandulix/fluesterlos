@@ -14,6 +14,9 @@ export type LivePayload = {
     status: "scheduled" | "open" | "closed";
     currency: "USD" | "EUR" | "THB";
     joinUrl: string;
+    /** IANA zone used to enter and show times for this event (default Asia/Bangkok). */
+    timezone?: string;
+    closedEarly?: boolean;
   };
   items: Array<{
     id: string;
@@ -27,6 +30,8 @@ export type LivePayload = {
     sortOrder: number;
     highBid: number;
     highBidder: string | null;
+    /** Opaque key of the current leader; compare with GET /me leaderKey. */
+    leaderKey?: string | null;
     bidCount: number;
     hasVoucher?: boolean;
     kind?: ItemKind;
@@ -76,6 +81,10 @@ export type HostEventSummary = {
   itemCount: number;
   guestCount: number;
   joinUrl: string;
+  timezone?: string;
+  closedEarlyAt?: string | null;
+  closedBy?: string | null;
+  paidInvoiceCount?: number;
 };
 
 export type InvoiceDto = {
@@ -110,6 +119,25 @@ export function getGuestToken(code: string) {
 
 export function setGuestToken(code: string, token: string) {
   localStorage.setItem(guestTokenKey(code), token);
+}
+
+export function clearGuestToken(code: string) {
+  localStorage.removeItem(guestTokenKey(code));
+}
+
+export type GuestMe = {
+  guest: null | { id: string; name: string; email: string | null; phone: string | null };
+  leaderKey?: string;
+  bidItemIds?: string[];
+};
+
+export type LiveItem = LivePayload["items"][number];
+
+/** "…5678" — enough for a guest to recognise their own number on a shared screen. */
+export function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  return digits.length >= 4 ? `…${digits.slice(-4)}` : "";
 }
 
 export async function api<T>(path: string, init: RequestInit = {}, guestToken?: string | null): Promise<T> {
@@ -150,11 +178,12 @@ export async function uploadForm<T>(
   path: string,
   form: FormData,
   guestToken?: string | null,
+  method: "POST" | "PATCH" | "PUT" = "POST",
 ): Promise<T> {
   const headers = new Headers();
   if (guestToken) headers.set("X-Guest-Token", guestToken);
   const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
+    method,
     headers,
     body: form,
     credentials: "include",

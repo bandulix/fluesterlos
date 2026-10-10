@@ -1,6 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
-import { Link, useSearchParams } from "react-router-dom";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   api,
   HostAccount,
@@ -12,13 +11,23 @@ import {
   uploadForm,
 } from "../lib/api";
 import { useHostAuth } from "../lib/hostAuth";
-import { Currency, CURRENCY_OPTIONS, formatMoney, parseCurrency } from "../lib/money";
-import { Countdown } from "../components/Countdown";
-import { HelpDeskCard } from "./HostHelpDesk";
+import { Currency, CURRENCY_OPTIONS, parseCurrency } from "../lib/money";
 import {
+  DEFAULT_EVENT_TZ,
+  defaultSchedule,
+  offsetLabel,
+  timeZoneChoices,
+  wallTimeToInstant,
+  wallTimeToIso,
+} from "../lib/time";
+import { FilePreview } from "../components/FilePreview";
+import { SponsorField } from "../components/SponsorField";
+import { HelpDeskCard } from "./HostHelpDesk";
+import { HostEventCard, RunAction } from "./HostEventCard";
+import {
+  afterPaidMessage,
   emailStatusText,
   EmailStatus,
-  EventStatusSummary,
   HostInvoice,
   HostSettings,
   InvoicesCard,
@@ -56,21 +65,6 @@ const emptyItem = (): DraftItem => ({
 
 type EmailResult = { ok: boolean; alreadyPaid?: boolean; emailStatus?: EmailStatus; emailed?: number };
 
-function DraftPhotoPreview({ file }: { file: File | null }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!file) {
-      setUrl(null);
-      return;
-    }
-    const next = URL.createObjectURL(file);
-    setUrl(next);
-    return () => URL.revokeObjectURL(next);
-  }, [file]);
-  if (!url) return null;
-  return <img src={url} alt="" className="thumb" />;
-}
-
 export function HostPage() {
   const { auth, refreshAuth } = useHostAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -79,9 +73,13 @@ export function HostPage() {
   const [bootstrapToken, setBootstrapToken] = useState("");
   const [title, setTitle] = useState("Charity Silent Auction");
   const [currency, setCurrency] = useState<Currency>("THB");
-  const [eventCurrency, setEventCurrency] = useState<Currency>("THB");
-  const [startsAt, setStartsAt] = useState(() => new Date(Date.now() + 60_000).toISOString().slice(0, 16));
-  const [endsAt, setEndsAt] = useState(() => new Date(Date.now() + 60 * 60_000).toISOString().slice(0, 16));
+  // Create-form times are wall times in createTz (default Asia/Bangkok), never the browser's zone.
+  const [createTz, setCreateTz] = useState(DEFAULT_EVENT_TZ);
+  const [startsAt, setStartsAt] = useState(() => defaultSchedule(DEFAULT_EVENT_TZ).startsAt);
+  const [endsAt, setEndsAt] = useState(() => defaultSchedule(DEFAULT_EVENT_TZ).endsAt);
+  const scheduleTouched = useRef(false);
+  const creating = useRef(false);
+  const [formKey, setFormKey] = useState(0);
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
   const [events, setEvents] = useState<HostEventSummary[]>([]);
   const [live, setLive] = useState<LivePayload | null>(null);
@@ -103,11 +101,15 @@ export function HostPage() {
   const [hostPassword, setHostPassword] = useState("");
   const [note, setNote] = useState<string | null>(null);
 
-  const joinUrl = live?.event.joinUrl;
-
   async function loadSettings() {
     const s = await api<HostSettings>("/api/host/settings");
     setSettings(s);
+    if (s.defaultTimezone && !scheduleTouched.current) {
+      setCreateTz(s.defaultTimezone);
+      const d = defaultSchedule(s.defaultTimezone);
+      setStartsAt(d.startsAt);
+      setEndsAt(d.endsAt);
+    }
     setPromptpayId(s.promptpayId);
     setPayeeName(s.payeeName);
   }
@@ -144,7 +146,6 @@ export function HostPage() {
   async function openEvent(code: string) {
     const next = await api<LivePayload>(`/api/events/${code}`);
     setLive(next);
-    setEventCurrency(parseCurrency(next.event.currency));
     setSearchParams({ e: code });
     await loadInvoices(code).catch(() => setInvoices([]));
     await loadGuests(code).catch(() => setGuests([]));
@@ -258,22 +259,46 @@ export function HostPage() {
     }
   }
 
+  function resetCreateForm(tz = createTz) {
+    const d = defaultSchedule(tz);
+    scheduleTouched.current = false;
+    setTitle("Charity Silent Auction");
+    setStartsAt(d.startsAt);
+    setEndsAt(d.endsAt);
+    setItems([emptyItem()]);
+    setFormKey((k) => k + 1); // remounts file inputs so chosen files are cleared too
+  }
+
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    if (creating.current) return; // double click / double submit
+    const startIso = wallTimeToIso(startsAt, createTz);
+    const endIso = wallTimeToIso(endsAt, createTz);
+    const end = wallTimeToInstant(endsAt, createTz);
+    if (!startIso || !endIso || !end) {
+      setError("Please enter a start and end time");
+      return;
+    }
+    if (end.getTime() <= Date.now()) {
+      setError(`The end time (${endsAt.replace("T", " ")} ${createTz}) is already in the past — the auction would be closed at once.`);
+      return;
+    }
+    for (const it of items) {
+      if (it.title.trim() && it.sponsorLogo && !it.sponsorName.trim()) {
+        setError(`Enter the sponsor name for the logo on “${it.title.trim()}”`);
+        return;
+      }
+    }
+    creating.current = true;
     setBusy(true);
     setError(null);
+    setNote(null);
     try {
       const draft = items.filter((it) => it.title.trim());
       const res = await api<LivePayload>("/api/host/events", {
         method: "POST",
-        body: JSON.stringify({
-          title,
-          startsAt: new Date(startsAt).toISOString(),
-          endsAt: new Date(endsAt).toISOString(),
-          currency,
-        }),
+        body: JSON.stringify({ title, startsAt: startIso, endsAt: endIso, timezone: createTz, currency }),
       });
-      let liveNext = res;
       for (const it of draft) {
         const form = new FormData();
         form.append("title", it.title.trim());
@@ -288,13 +313,12 @@ export function HostPage() {
           if (it.sponsorLogo) form.append("sponsorLogo", it.sponsorLogo, it.sponsorLogo.name);
         }
         if (it.photo) form.append("photo", it.photo, it.photo.name);
-        liveNext = await uploadForm<LivePayload>(`/api/host/events/${res.event.code}/items`, form);
+        await uploadForm<LivePayload>(`/api/host/events/${res.event.code}/items`, form);
       }
-      liveNext = await api<LivePayload>(`/api/events/${res.event.code}`);
+      const liveNext = await api<LivePayload>(`/api/events/${res.event.code}`);
       setLive(liveNext);
-      setEventCurrency(parseCurrency(liveNext.event.currency));
       setSearchParams({ e: liveNext.event.code });
-      setItems([emptyItem()]);
+      resetCreateForm();
       await loadEvents().catch(() => undefined);
       await loadInvoices(liveNext.event.code).catch(() => undefined);
       await loadGuests(liveNext.event.code).catch(() => undefined);
@@ -302,15 +326,42 @@ export function HostPage() {
       const missing = draft.filter((it) => it.kind === "voucher" && !it.voucher).length;
       setNote(
         missing
-          ? `Event created. ${missing} voucher item(s) still need a PDF — attach it below before payments.`
+          ? `Event created. ${missing} voucher item(s) still need a PDF — attach it on the event card before payments.`
           : "Event created.",
       );
     } catch (err) {
       setError((err as Error).message);
     } finally {
+      creating.current = false;
       setBusy(false);
     }
   }
+
+  /** Host action on the open event: busy flag, banner, then reload event, list, invoices and sponsors. */
+  const runAction: RunAction = async (fn, successNote, opts) => {
+    if (!live) return false;
+    const code = live.event.code;
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const result = await fn();
+      setLive(result && "event" in result ? result : await api<LivePayload>(`/api/events/${code}`));
+      await Promise.all([
+        loadEvents().catch(() => undefined),
+        loadInvoices(code).catch(() => undefined),
+        loadSponsors().catch(() => undefined),
+      ]);
+      setNote(successNote);
+      return true;
+    } catch (err) {
+      setError((err as Error).message);
+      if (opts?.rethrow) throw err;
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
 
   async function invoiceAction(fn: () => Promise<string>) {
     setBusy(true);
@@ -332,7 +383,8 @@ export function HostPage() {
         method: "POST",
         body: JSON.stringify({ method, confirmedWithoutSlip }),
       });
-      return res.alreadyPaid ? "Already paid." : `Marked paid. ${emailStatusText(res.emailStatus, res.emailed)}`;
+      if (res.alreadyPaid) return "Already paid.";
+      return afterPaidMessage(invoices.find((i) => i.id === invoiceId), res.emailStatus, res.emailed);
     });
   }
 
@@ -343,57 +395,23 @@ export function HostPage() {
     });
   }
 
-  function onHandover(invoiceId: string, itemId: string, handedOver: boolean) {
-    return invoiceAction(async () => {
+  /** Optimistic in the row; here: save, then reload invoices before resolving (no global busy). */
+  async function onHandover(invoiceId: string, itemId: string, handedOver: boolean) {
+    if (!live) return;
+    try {
       await api(`/api/host/invoices/${invoiceId}/lines/${itemId}/handover`, {
         method: "POST",
         body: JSON.stringify({ handedOver }),
       });
-      return handedOver ? "Marked as handed over." : "Handover undone.";
-    });
-  }
-
-  async function onAttachVoucher(itemId: string, file: File) {
-    if (!live) return;
-    setBusy(true);
-    setError(null);
-    setNote(null);
-    try {
-      const form = new FormData();
-      form.append("file", file, file.name);
-      await uploadForm(`/api/host/events/${live.event.code}/items/${itemId}/voucher`, form);
-      setLive(await api<LivePayload>(`/api/events/${live.event.code}`));
-      setNote("Voucher PDF attached.");
+      await loadInvoices(live.event.code);
     } catch (err) {
       setError((err as Error).message);
-    } finally {
-      setBusy(false);
+      throw err;
     }
   }
 
   function updateItem(idx: number, patch: Partial<DraftItem>) {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  }
-
-  async function onSaveCurrency(e: FormEvent) {
-    e.preventDefault();
-    if (!live) return;
-    setBusy(true);
-    setError(null);
-    setNote(null);
-    try {
-      const next = await api<LivePayload>(`/api/host/events/${live.event.code}`, {
-        method: "PATCH",
-        body: JSON.stringify({ currency: eventCurrency }),
-      });
-      setLive(next);
-      await loadEvents();
-      setNote("Auction currency saved.");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function onAddGuest(e: FormEvent) {
@@ -559,69 +577,15 @@ export function HostPage() {
       </div>
 
       {live && (
-        <div className="card">
-          <div className="row between">
-            <h2>{live.event.title}</h2>
-            <span className={`pill status-${live.event.status}`}>{live.event.status}</span>
-          </div>
-          <p>Code: <code>{live.event.code}</code></p>
-          <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} />
-          <form className="stack" onSubmit={onSaveCurrency}>
-            <label>
-              Currency
-              {currencySelect(eventCurrency, setEventCurrency)}
-            </label>
-            <button className="button secondary" disabled={busy}>Save auction settings</button>
-          </form>
-          {joinUrl && (
-            <div className="qr-block">
-              <QRCodeSVG value={joinUrl} size={180} />
-              <div>
-                <p><a href={joinUrl}>{joinUrl}</a></p>
-                <p className="row">
-                  <Link to={`/e/${live.event.code}/bid`}>Guest bid</Link>
-                  <Link to={`/e/${live.event.code}/stats`}>Stats</Link>
-                  <Link to={`/e/${live.event.code}/engager`}>Engager</Link>
-                  <Link to={`/e/${live.event.code}/invoice`}>Invoice</Link>
-                </p>
-              </div>
-            </div>
-          )}
-          <h3>Payments &amp; handover</h3>
-          <EventStatusSummary code={live.event.code} summary={invoiceSummary} currency={live.event.currency} />
-          <h3>Items</h3>
-          <ul className="stack">
-            {live.items.map((it) => (
-              <li key={it.id}>
-                {it.photoUrl && <img src={it.photoUrl} alt="" className="thumb" />}
-                <div className="line-row">
-                  <span>
-                    {it.title} — high {formatMoney(it.highBid, parseCurrency(live.event.currency))}
-                    {it.sponsor ? ` · ${it.sponsor.name}` : ""}
-                  </span>
-                  {it.kind === "physical" ? (
-                    <span className="pill kind-physical">physical</span>
-                  ) : it.hasVoucher ? (
-                    <span className="pill kind-voucher">voucher ✓</span>
-                  ) : (
-                    <label className="line-row">
-                      <span className="pill">voucher PDF missing</span>
-                      <input
-                        type="file"
-                        accept="application/pdf,.pdf"
-                        disabled={busy}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) onAttachVoucher(it.id, f);
-                        }}
-                      />
-                    </label>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <HostEventCard
+          key={live.event.code}
+          live={live}
+          summary={events.find((ev) => ev.code === live.event.code)}
+          invoiceSummary={invoiceSummary}
+          sponsors={sponsors}
+          busy={busy}
+          run={runAction}
+        />
       )}
 
       {live && (
@@ -629,6 +593,8 @@ export function HostPage() {
           invoices={invoices}
           busy={busy}
           currency={live.event.currency}
+          timezone={live.event.timezone}
+          eventCode={live.event.code}
           onRefresh={() => loadInvoices(live.event.code).catch((err) => setError((err as Error).message))}
           onConfirm={onConfirmPayment}
           onHandover={onHandover}
@@ -636,7 +602,7 @@ export function HostPage() {
         />
       )}
 
-      {live && <HelpDeskCard code={live.event.code} />}
+      {live && <HelpDeskCard code={live.event.code} timezone={live.event.timezone} />}
 
       <div className="card">
         <h2>Users</h2>
@@ -705,22 +671,61 @@ export function HostPage() {
 
       <div className="card">
         <h2>New event</h2>
-        <form className="stack" onSubmit={onCreate}>
+        <form className="stack" onSubmit={onCreate} key={formKey}>
           <label>Event title <input value={title} onChange={(e) => setTitle(e.target.value)} required /></label>
           <div className="row">
-            <label>Starts <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required /></label>
-            <label>Ends <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} required /></label>
+            <label>
+              Starts
+              <input
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => {
+                  scheduleTouched.current = true;
+                  setStartsAt(e.target.value);
+                }}
+                required
+              />
+            </label>
+            <label>
+              Ends
+              <input
+                type="datetime-local"
+                value={endsAt}
+                onChange={(e) => {
+                  scheduleTouched.current = true;
+                  setEndsAt(e.target.value);
+                }}
+                required
+              />
+            </label>
+            <label>
+              Time zone
+              <select
+                value={createTz}
+                onChange={(e) => {
+                  const tz = e.target.value;
+                  setCreateTz(tz);
+                  if (!scheduleTouched.current) {
+                    const d = defaultSchedule(tz);
+                    setStartsAt(d.startsAt);
+                    setEndsAt(d.endsAt);
+                  }
+                }}
+              >
+                {timeZoneChoices([createTz]).map((z) => (
+                  <option key={z} value={z}>{z} ({offsetLabel(z)})</option>
+                ))}
+              </select>
+            </label>
             <label>
               Currency
               {currencySelect(currency, setCurrency)}
             </label>
           </div>
+          <p className="muted">
+            Times are in the event time zone: {createTz} ({offsetLabel(createTz)}), whatever zone this device is in.
+          </p>
           <h3>Items</h3>
-          <datalist id="sponsor-names">
-            {sponsors.map((sp) => (
-              <option key={sp.id} value={sp.name} />
-            ))}
-          </datalist>
           {items.map((it, idx) => (
             <div className="card nested" key={idx}>
               <label>Title <input value={it.title} onChange={(e) => updateItem(idx, { title: e.target.value })} /></label>
@@ -738,26 +743,13 @@ export function HostPage() {
                   <input type="file" accept="application/pdf,.pdf" onChange={(e) => updateItem(idx, { voucher: e.target.files?.[0] ?? null })} />
                 </label>
               )}
-              <div className="row">
-                <label>
-                  Sponsor
-                  <input
-                    value={it.sponsorName}
-                    list="sponsor-names"
-                    onChange={(e) => updateItem(idx, { sponsorName: e.target.value })}
-                    placeholder="Optional"
-                  />
-                </label>
-                <label>
-                  Sponsor logo
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
-                    disabled={!it.sponsorName.trim()}
-                    onChange={(e) => updateItem(idx, { sponsorLogo: e.target.files?.[0] ?? null })}
-                  />
-                </label>
-              </div>
+              <SponsorField
+                sponsors={sponsors}
+                name={it.sponsorName}
+                logo={it.sponsorLogo}
+                onName={(sponsorName) => updateItem(idx, { sponsorName })}
+                onLogo={(sponsorLogo) => updateItem(idx, { sponsorLogo })}
+              />
               <label>
                 Photo
                 <input
@@ -766,7 +758,7 @@ export function HostPage() {
                   onChange={(e) => updateItem(idx, { photo: e.target.files?.[0] ?? null })}
                 />
               </label>
-              <DraftPhotoPreview file={it.photo} />
+              <FilePreview file={it.photo} />
               <div className="row">
                 <label>Starting <input type="number" step="0.01" value={it.startingBid} onChange={(e) => updateItem(idx, { startingBid: e.target.value })} /></label>
                 <label>Min + <input type="number" step="0.01" value={it.minIncrement} onChange={(e) => updateItem(idx, { minIncrement: e.target.value })} /></label>
@@ -776,7 +768,7 @@ export function HostPage() {
           ))}
           <div className="row">
             <button type="button" className="button secondary" onClick={() => setItems((p) => [...p, emptyItem()])}>Add item</button>
-            <button className="button" disabled={busy}>{busy ? "Creating…" : "Create event"}</button>
+            <button className="button" disabled={busy || creating.current}>{busy ? "Creating…" : "Create event"}</button>
           </div>
         </form>
       </div>

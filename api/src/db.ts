@@ -151,6 +151,11 @@ export async function migrate() {
     ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS handed_over_at TIMESTAMPTZ;
     ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS handed_over_by TEXT;
 
+    -- Click-test round 1: event time zone (display/input only; times stay UTC) and early close.
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Asia/Bangkok';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS closed_early_at TIMESTAMPTZ;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS closed_by TEXT;
+
     CREATE INDEX IF NOT EXISTS bids_item_created_idx ON bids(item_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS items_event_sort_idx ON items(event_id, sort_order);
     CREATE INDEX IF NOT EXISTS host_sessions_user_idx ON host_sessions(host_user_id);

@@ -39,16 +39,10 @@ export function useGuestEventTitle(code: string | null) {
     if (!code || !title) return;
     const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     const prevHref = link?.href;
-    const manifest = {
-      name: title,
-      short_name: title.slice(0, 24),
-      description: title,
-      start_url: `/e/${code}/bid`,
-      display: "standalone",
-      theme_color: "#070b16",
-      background_color: "#0b1220",
-      icons: [{ src: "/favicon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }],
-    };
+    // The manifest is served from a blob: URL, so every URL in it must be absolute —
+    // relative start_url / icon src resolve against "blob:" and browsers reject them.
+    const origin = window.location.origin;
+    const manifest = buildGuestManifest(origin, code, title);
     const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
     const url = URL.createObjectURL(blob);
     if (link) link.href = url;
@@ -59,4 +53,23 @@ export function useGuestEventTitle(code: string | null) {
   }, [code, title]);
 
   return title;
+}
+
+export function buildGuestManifest(origin: string, code: string, title: string) {
+  return {
+    id: `${origin}/e/${code}`,
+    name: title,
+    short_name: title.slice(0, 24),
+    description: title,
+    start_url: `${origin}/e/${encodeURIComponent(code)}/bid`,
+    scope: `${origin}/`,
+    display: "standalone",
+    theme_color: "#070b16",
+    background_color: "#0b1220",
+    icons: [
+      { src: `${origin}/icon-192.png`, sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: `${origin}/icon-512.png`, sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: `${origin}/icon-512.png`, sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  };
 }
