@@ -4,6 +4,7 @@ import { api, getGuestToken } from "../lib/api";
 import { formatMoney, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
 import { Countdown } from "../components/Countdown";
+import { KindPill, SponsorBadge } from "../components/SponsorBadge";
 
 export function BidPage() {
   const { code = "" } = useParams();
@@ -81,7 +82,9 @@ export function BidPage() {
           <article className={`card item${itemFlash}`} key={it.id}>
             {it.photoUrl && <img src={it.photoUrl} alt="" className="thumb" />}
             <h2>{it.title}</h2>
+            <SponsorBadge sponsor={it.sponsor} />
             {it.description ? <p>{it.description}</p> : null}
+            <KindPill kind={it.kind} />
             <p className="high-bid">{formatMoney(it.highBid, ccy)}{it.highBidder ? ` · ${it.highBidder}` : ""}</p>
             <div className="row">
               {sold && <span className="pill status-closed">Sold (buy now)</span>}

@@ -16,33 +16,36 @@ Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloa
 - Scheduled start/end (auto open/close + countdowns)
 - Per-auction **currency:** USD, EUR, or THB
 - Installable PWA + QR join
-- Guest identity is **email** (name optional, shown on the board; no phone OTP)
+- Guest identity is the **mobile number** (E.164; numbers without `+` are read as `DEFAULT_PHONE_COUNTRY`, default Thailand). Name optional, shown on the board (defaults to `Guest …1234`); email optional, only needed for voucher PDFs
 - Guest bid UI: auction title + time left + one-tap bid (no product chrome)
-- Item **photo file upload** (not a URL) + required voucher PDF
+- Item **photo file upload** (not a URL); item type **voucher** (PDF emailed after payment, can be attached later) or **physical** (collected at the desk)
+- **Sponsors:** name + logo per item, shown on the bid page, big screen and invoice; sponsors are reused by name
 - Live mobile bidding; **live stats visible to everyone**
 - Big-screen engager view for the event room
 - Single `docker compose up`
 - Host auth: first registered host is owner (email + bcrypt password, httpOnly session cookie); one-time `BOOTSTRAP_TOKEN` gates that first registration
-- **Users:** guests and extra hosts are keyed by email; owner can add/remove host logins
+- **Users:** guests are keyed by phone, extra hosts by email; owner can add/remove host logins
 - **Vouchers + invoices:** one invoice per winning guest (sum of all wins); Thai PromptPay QR (amount filled for THB); payslip upload; host confirms → SMTP emails voucher PDF(s) (one attachment per won item). **No card/Stripe checkout.**
+- **Payment desk:** mark each invoice paid by cash / bank transfer / PromptPay, tick each item when it is handed over, see paid/handed-over totals on the event card, export results as Excel or CSV
 
 ## Quickstart
 
 ### A) Build from source
 
 1. Copy env: `cp .env.example .env` and set a strong `BOOTSTRAP_TOKEN` (used only for the first owner register)
-2. Optionally set `SMTP_*` so voucher emails work after payment confirm
+2. Optionally set `SMTP_*` so voucher emails (and login codes) go out by email. Set `DEFAULT_PHONE_COUNTRY` if your guests are not in Thailand
 3. Start stack: `docker compose up --build`
 4. Open **Host UI** at http://localhost:8080/host
    - **Fresh install:** register with email, password, and `BOOTSTRAP_TOKEN` from `.env`
    - **Later visits:** log in with email + password
 5. Configure **Payment settings** (PromptPay ID and/or upload a static QR image)
 6. Create event: title, schedule, **currency** (USD / EUR / THB)
-7. Add items — each item needs a **voucher PDF**; optional **photo file** (stored under `DATA_DIR`, volume `appdata:/data`)
-8. Guest joins at `/e/<code>` with **email** (name optional), bids at `/e/<code>/bid`
-9. After close, winners open `/e/<code>/invoice` — combined total, PromptPay QR, payslip upload
-10. Host reviews payslips on the event card and clicks **Payment correct & received** → guest gets voucher PDF(s) by email
-11. **Users** on Host: list/add auction guests by email; owner can add extra host logins by email
+7. Add items — type **voucher** (voucher PDF now or later) or **physical**; optional **photo file** and **sponsor name + logo** (stored under `DATA_DIR`, volume `appdata:/data`)
+8. Guest joins at `/e/<code>` with their **mobile number** (name and email optional), bids at `/e/<code>/bid`
+9. After close, winners open `/e/<code>/invoice` — combined total, PromptPay QR, payslip upload; winners of vouchers without an email on file are asked for one
+10. At the **Payment desk** the host picks the method (cash / bank transfer / PromptPay) and clicks **Mark paid** → voucher PDF(s) are emailed, physical items get a "collect at the desk" note. Tick **Handed over** per item as prizes leave the desk
+11. Event card shows paid / handed-over totals and links to the **Excel / CSV results export** (lot, sponsor, winner, phone, amount, paid, method, handed over)
+12. **Users** on Host: list/add auction guests by phone; owner can add extra host logins by email
 
 API also on http://localhost:3000 (`/api/health`).
 
@@ -68,15 +71,18 @@ Pulls `ghcr.io/bandulix/fluesterlos-api:latest` and `ghcr.io/bandulix/fluesterlo
 
 ### Host vs guest auth
 - **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie. Owner may add more host logins by email.
-- **Guests** are keyed by **email** per auction (same email = same guest). Name is optional display on the board.
-- If an email is already bidding on another device, the new device must enter a **6-digit code** sent to that email (SMTP). Without SMTP the code appears in the API log (`docker compose logs api`), so a host can read it out at the help desk.
+- **Guests** are keyed by **mobile number** per auction (same number = same guest). Name is optional display on the board; the full number is never shown publicly. Email is optional and may be shared (e.g. by a couple).
+- If a number is already bidding on another device, the new device must enter a **6-digit code**. It is emailed to the address on file (if the guest gave one and SMTP is set) and always shown on the host **Help desk** card, so a host can check who it is and read it out. When it cannot be emailed it is also written to the API log as a last resort. Codes are valid 10 min, max 5 tries.
+- **Upgrading from 0.2.x:** the migration keeps existing email-keyed guests; their devices keep working, and the phone is attached the next time they join from that device (or when a host adds the same email with a phone).
 - **CORS / proxy:** credentialed CORS is limited to the origin of `PUBLIC_URL` (override with `CORS_ORIGINS`). Rate limits on join, verify, bid and host login are set with `RATE_LIMIT_*` (see `.env.example`).
 
 ### Payment / vouchers / SMTP
 - **Invoice model:** exactly **one invoice per winning guest** = sum of all their winning bids (not one invoice per item). Itemized lines are detail under that invoice.
 - **PromptPay:** set phone or 13-digit national ID in Host → Payment settings. Guests get an EMV PromptPay QR; **amount is filled only when the auction currency is THB**. Optionally upload a static QR image instead/in addition.
 - **Payslip:** guest pays outside the app, uploads image/PDF in the invoice PWA view.
-- **Confirm:** host marks payment received once for the whole invoice; server emails **multiple PDF attachments** (one per won item) via SMTP.
+- **Confirm:** host marks payment received once for the whole invoice with the method. Cash needs no payslip; bank transfer / PromptPay need a payslip or the host's explicit "I checked the transfer arrived". The server then emails **one PDF attachment per won voucher** and a "collect at the desk" line per physical item. If a voucher PDF is still missing the email is held; attach the PDF on the item and press **Send email**.
+- **Handover:** per item, only after the invoice is paid (timestamp + host recorded).
+- **Results export:** `GET /api/host/events/:code/results.xlsx` or `.csv` (host only), one row per lot including unsold lots.
 - **Env:** `DATA_DIR=/data`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (see `.env.example`). Compose mounts volume `appdata` at `/data` on the API.
 
 ### Break-glass (owner locked out)

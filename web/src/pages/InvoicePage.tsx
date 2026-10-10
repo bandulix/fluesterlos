@@ -3,6 +3,10 @@ import { QRCodeSVG } from "qrcode.react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { API_BASE, api, getGuestToken, uploadForm } from "../lib/api";
 import { formatMoney, parseCurrency } from "../lib/money";
+import { KindPill, SponsorBadge } from "../components/SponsorBadge";
+import type { ItemKind, Sponsor } from "../lib/api";
+
+const METHOD_LABEL: Record<string, string> = { cash: "cash", bank_transfer: "bank transfer", promptpay: "PromptPay" };
 
 type InvoiceResponse = {
   event: { id: string; code: string; title: string; status: string; currency?: string };
@@ -12,8 +16,19 @@ type InvoiceResponse = {
     status: "unpaid" | "payslip_uploaded" | "paid";
     hasPayslip: boolean;
     paidAt: string | null;
-    lines: Array<{ itemId: string; title: string; description: string; amount: number }>;
+    lines: Array<{
+      itemId: string;
+      title: string;
+      description: string;
+      amount: number;
+      kind: ItemKind;
+      sponsor: Sponsor | null;
+      handedOverAt: string | null;
+    }>;
+    paymentMethod: string | null;
+    vouchersEmailedAt: string | null;
   };
+  guest?: { email: string | null; needsEmail: boolean; hasPhysical: boolean };
   message?: string;
   payment?: {
     payeeName: string;
@@ -32,6 +47,7 @@ export function InvoicePage() {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [email, setEmail] = useState("");
 
   const load = useCallback(async () => {
     const res = await api<InvoiceResponse>(`/api/events/${code}/invoice`, {}, token);
@@ -62,6 +78,22 @@ export function InvoicePage() {
       form.append("file", file);
       await uploadForm(`/api/events/${code}/invoice/payslip`, form, token);
       setMsg("Payslip uploaded — waiting for host to confirm payment.");
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onEmail(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    setError(null);
+    try {
+      await api(`/api/events/${code}/me/email`, { method: "PUT", body: JSON.stringify({ email }) }, token);
+      setMsg("Thanks — your vouchers will be sent to this email once payment is confirmed.");
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -101,7 +133,7 @@ export function InvoicePage() {
               Status:{" "}
               <strong>
                 {inv.status === "paid"
-                  ? "Paid — vouchers emailed"
+                  ? `Paid${inv.paymentMethod ? ` (${METHOD_LABEL[inv.paymentMethod] ?? inv.paymentMethod})` : ""}`
                   : inv.status === "payslip_uploaded"
                     ? "Payslip uploaded — awaiting host"
                     : "Unpaid"}
@@ -110,16 +142,32 @@ export function InvoicePage() {
             <ul>
               {inv.lines.map((l) => (
                 <li key={l.itemId}>
-                  <strong>{l.title}</strong>
-                  {l.description ? ` — ${l.description}` : ""} — {formatMoney(l.amount, ccy)}
+                  <div className="line-row">
+                    <strong>{l.title}</strong> — {formatMoney(l.amount, ccy)} <KindPill kind={l.kind} />
+                    {l.handedOverAt && <span className="pill">Handed over</span>}
+                  </div>
+                  {l.description ? <p className="muted">{l.description}</p> : null}
+                  <SponsorBadge sponsor={l.sponsor} />
                 </li>
               ))}
             </ul>
           </div>
 
+          {data.guest?.needsEmail && (
+            <div className="card">
+              <h2>Where should we send your vouchers?</h2>
+              <p className="muted">You won a voucher — we email the PDF after your payment is confirmed.</p>
+              <form className="stack" onSubmit={onEmail}>
+                <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
+                <button className="button" disabled={busy}>Save email</button>
+              </form>
+            </div>
+          )}
+
           {inv.status !== "paid" && (
             <div className="card">
               <h2>Pay via PromptPay</h2>
+              <p className="muted">Or pay cash / bank transfer at the desk.</p>
               <p>Amount due: <strong>{formatMoney(inv.total, ccy)}</strong></p>
               {ccy !== "THB" && (
                 <p className="muted">Enter {formatMoney(inv.total, ccy)} in your banking app. PromptPay amount is filled only for Thai baht auctions.</p>
@@ -157,7 +205,15 @@ export function InvoicePage() {
 
           {inv.status === "paid" && (
             <div className="card">
-              <p>Payment confirmed. Check your email for voucher PDF(s) — one per won item.</p>
+              <p>Payment confirmed — thank you!</p>
+              {inv.lines.some((l) => l.kind === "voucher") && (
+                <p>
+                  {inv.vouchersEmailedAt
+                    ? `Voucher PDF(s) emailed to ${data.guest?.email ?? "you"}.`
+                    : "Your voucher PDF(s) will be emailed shortly."}
+                </p>
+              )}
+              {data.guest?.hasPhysical && <p>Please collect your item(s) at the desk.</p>}
             </div>
           )}
         </>

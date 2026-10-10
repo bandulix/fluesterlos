@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { formatMoney, parseCurrency } from "../lib/money";
+import { API_BASE } from "../lib/api";
 import { useLive } from "../lib/useLive";
 import { Countdown } from "../components/Countdown";
+import { SponsorBadge } from "../components/SponsorBadge";
 
 export function EngagerPage() {
   const { code = "" } = useParams();
@@ -29,6 +31,7 @@ export function EngagerPage() {
   const highlight = items[idx % Math.max(items.length, 1)];
   const joinUrl = live.event.joinUrl;
   const isLive = live.event.status === "open";
+  const sponsors = [...new Map(items.filter((i) => i.sponsor).map((i) => [i.sponsor!.id, i.sponsor!])).values()];
 
   return (
     <div className={`engager${isLive ? " is-live" : ""}${flash ? " bid-flash" : ""}`}>
@@ -50,6 +53,7 @@ export function EngagerPage() {
             <>
               <p className="muted">Now featuring</p>
               <h2>{highlight.title}</h2>
+              <SponsorBadge sponsor={highlight.sponsor} size="lg" />
               {highlight.photoUrl && <img src={highlight.photoUrl} alt="" />}
               <p className="huge">{formatMoney(highlight.highBid, ccy)}</p>
               <p className="muted">{highlight.highBidder ? `High: ${highlight.highBidder}` : "Awaiting first bid"}</p>
@@ -68,6 +72,20 @@ export function EngagerPage() {
             ))}
           </ul>
           {joinUrl && <p className="scan">Scan to bid: {joinUrl}</p>}
+          {sponsors.length > 0 && (
+            <div className="sponsor-strip">
+              <h3>Thank you to our sponsors</h3>
+              <div className="row">
+                {sponsors.map((sp) =>
+                  sp.logoUrl ? (
+                    <img key={sp.id} src={`${API_BASE}${sp.logoUrl}`} alt={sp.name} className="sponsor-logo" title={sp.name} />
+                  ) : (
+                    <span key={sp.id} className="pill">{sp.name}</span>
+                  ),
+                )}
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </div>

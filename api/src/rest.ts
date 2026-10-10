@@ -4,7 +4,16 @@ import { pool } from "./db.js";
 import { auctionStatus, money } from "./auction.js";
 import { publish, subscribe } from "./sse.js";
 import { contentTypeFor, readDataFile, saveUpload } from "./storage.js";
-import { guestFromRequest, joinGuest, tokenFromRequest, upsertGuest, verifyGuestCode } from "./guestAuth.js";
+import {
+  guestFromRequest,
+  joinGuest,
+  pendingLoginRequests,
+  setGuestEmail,
+  tokenFromRequest,
+  upsertGuest,
+  verifyGuestCode,
+} from "./guestAuth.js";
+import { upsertSponsor } from "./sponsors.js";
 import { isAllowedOrigin, rateLimitFor } from "./security.js";
 import { cookieSecure } from "./hostAuth.js";
 
@@ -39,6 +48,10 @@ function isImageUpload(file: { filename: string; mimetype: string }) {
   return /\.(jpe?g|png|webp|gif)$/i.test(file.filename || "");
 }
 
+function guestDto(g: { id: string; name: string; email: string | null; phone: string | null; token: string }) {
+  return { id: g.id, name: g.name, email: g.email, phone: g.phone, token: g.token };
+}
+
 export function registerRestRoutes(
   app: FastifyInstance,
   deps: {
@@ -50,7 +63,11 @@ export function registerRestRoutes(
 ) {
   const { codeOf, getEventByCode, buildLivePayload, requireHost } = deps;
 
-  /** Multipart add-item — voucher PDF required (field: voucherPdf). */
+  /**
+   * Multipart add-item. Fields: title, startingBid, minIncrement, optional description, buyNow,
+   * kind ("voucher" | "physical", default voucher), sponsorName or sponsorId.
+   * Files: voucherPdf (optional — can be attached later), photo, sponsorLogo.
+   */
   app.post("/api/host/events/:code/items", async (req, reply) => {
     try {
       await requireHost(req);
@@ -62,7 +79,7 @@ export function registerRestRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
     if (!req.isMultipart?.()) {
       return reply.code(400).send({
-        error: "multipart required: title, startingBid, minIncrement + voucherPdf",
+        error: "multipart required: title, startingBid, minIncrement (+ optional voucherPdf, photo, sponsorLogo)",
       });
     }
     const { fields, files } = await readParts(req);
@@ -71,26 +88,42 @@ export function registerRestRoutes(
     const startingBid = Number(fields.startingBid);
     const minIncrement = Number(fields.minIncrement);
     const buyNow = fields.buyNow?.trim() ? Number(fields.buyNow) : null;
+    const kind = (fields.kind || "voucher").trim().toLowerCase();
     const pdf = files.find(
       (f) =>
         f.fieldname === "voucherPdf" ||
-        f.mimetype === "application/pdf" ||
-        f.filename.toLowerCase().endsWith(".pdf"),
+        (f.fieldname !== "photo" && f.fieldname !== "sponsorLogo" &&
+          (f.mimetype === "application/pdf" || f.filename.toLowerCase().endsWith(".pdf"))),
     );
+    const logo = files.find((f) => f.fieldname === "sponsorLogo");
     const photo = files.find(
-      (f) => f !== pdf && (f.fieldname === "photo" || isImageUpload(f)),
+      (f) => f !== pdf && f !== logo && (f.fieldname === "photo" || isImageUpload(f)),
     );
     if (!title || !(startingBid > 0) || !(minIncrement > 0)) {
       return reply.code(400).send({ error: "title, startingBid, and minIncrement are required" });
     }
-    if (!pdf) {
-      return reply.code(400).send({ error: "voucher PDF is required (field voucherPdf)" });
+    if (kind !== "voucher" && kind !== "physical") {
+      return reply.code(400).send({ error: "kind must be voucher or physical" });
     }
     if (buyNow != null && !(buyNow > startingBid)) {
       return reply.code(400).send({ error: "buyNow must be greater than startingBid" });
     }
     if (photo && !isImageUpload(photo)) {
       return reply.code(400).send({ error: "photo must be jpg, png, webp, or gif" });
+    }
+    if (pdf && kind === "physical") {
+      return reply.code(400).send({ error: "physical items have no voucher PDF" });
+    }
+
+    let sponsorId: string | null = null;
+    if (fields.sponsorId?.trim()) {
+      const s = await pool.query("SELECT id FROM sponsors WHERE id::text = $1", [fields.sponsorId.trim()]);
+      if (!s.rows[0]) return reply.code(400).send({ error: "Unknown sponsor" });
+      sponsorId = s.rows[0].id;
+    } else if (fields.sponsorName?.trim()) {
+      sponsorId = (await upsertSponsor(fields.sponsorName, logo ?? null)).id;
+    } else if (logo) {
+      return reply.code(400).send({ error: "sponsorLogo needs a sponsorName" });
     }
 
     const sortRes = await pool.query(
@@ -99,12 +132,12 @@ export function registerRestRoutes(
     );
     const ins = await pool.query(
       `INSERT INTO items
-        (event_id, title, description, photo_url, starting_bid, min_increment, buy_now, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [event.id, title, description, null, startingBid, minIncrement, buyNow, sortRes.rows[0].n],
+        (event_id, title, description, photo_url, starting_bid, min_increment, buy_now, sort_order, kind, sponsor_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [event.id, title, description, null, startingBid, minIncrement, buyNow, sortRes.rows[0].n, kind, sponsorId],
     );
     const itemId = ins.rows[0].id as string;
-    const voucherPath = await saveUpload("vouchers", pdf.filename, pdf.buffer, itemId);
+    const voucherPath = pdf ? await saveUpload("vouchers", pdf.filename, pdf.buffer, itemId) : null;
     let photoPath: string | null = null;
     if (photo) {
       photoPath = await saveUpload("photos", photo.filename, photo.buffer, itemId);
@@ -155,11 +188,11 @@ export function registerRestRoutes(
     const event = await getEventByCode(code);
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const { rows } = await pool.query(
-      `SELECT g.id, g.name, g.email, g.created_at,
+      `SELECT g.id, g.name, g.email, g.phone, g.created_at, g.claimed_at,
         (SELECT COUNT(*)::int FROM bids b WHERE b.guest_id = g.id) AS bid_count
        FROM guests g
        WHERE g.event_id = $1
-       ORDER BY lower(g.email)`,
+       ORDER BY g.phone NULLS LAST, lower(g.email)`,
       [event.id],
     );
     return {
@@ -167,6 +200,8 @@ export function registerRestRoutes(
         id: g.id,
         name: g.name,
         email: g.email,
+        phone: g.phone,
+        joined: Boolean(g.claimed_at),
         bidCount: g.bid_count,
         createdAt: new Date(g.created_at).toISOString(),
       })),
@@ -174,8 +209,9 @@ export function registerRestRoutes(
   });
 
   const addGuestSchema = z.object({
-    email: z.string().email().max(200),
+    phone: z.string().min(3).max(40),
     name: z.string().max(120).optional().default(""),
+    email: z.string().email().max(200).optional().or(z.literal("")),
   });
 
   app.post("/api/host/events/:code/guests", async (req, reply) => {
@@ -189,15 +225,28 @@ export function registerRestRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const parsed = addGuestSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
-    const guest = await upsertGuest(event.id, parsed.data.email, parsed.data.name);
+    const guest = await upsertGuest(event.id, parsed.data.phone, parsed.data.name, parsed.data.email || null);
     const live = await buildLivePayload(event.id, event.code);
     publish(event.code, "update", live);
-    return { guest: { id: guest.id, name: guest.name, email: guest.email }, live };
+    return { guest: { id: guest.id, name: guest.name, phone: guest.phone, email: guest.email }, live };
+  });
+
+  /** Help desk: pending new-device codes. The host checks the person, then reads the code out. */
+  app.get("/api/host/events/:code/login-requests", async (req, reply) => {
+    try {
+      await requireHost(req);
+    } catch {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    const event = await getEventByCode(codeOf((req.params as { code: string }).code));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    return { requests: await pendingLoginRequests(event.id) };
   });
 
   const joinSchema = z.object({
-    email: z.string().email().max(200),
+    phone: z.string().min(3).max(40),
     name: z.string().max(120).optional().default(""),
+    email: z.string().email().max(200).optional().or(z.literal("")),
   });
 
   function setGuestCookie(reply: import("fastify").FastifyReply, token: string) {
@@ -219,8 +268,9 @@ export function registerRestRoutes(
     const result = await joinGuest({
       eventId: event.id,
       eventTitle: event.title,
-      email: parsed.data.email,
+      phone: parsed.data.phone,
       name: parsed.data.name,
+      email: parsed.data.email || null,
       presentedToken: tokenFromRequest(req as never),
       log: req.log,
     });
@@ -228,7 +278,9 @@ export function registerRestRoutes(
       // Existing guest on a new device: never hand out their token here.
       return reply.code(202).send({
         verificationRequired: true,
-        email: result.email,
+        phone: result.phone,
+        delivery: result.delivery,
+        maskedEmail: result.maskedEmail,
         resendInSeconds: result.resendInSeconds,
       });
     }
@@ -237,13 +289,13 @@ export function registerRestRoutes(
     const live = await buildLivePayload(event.id, event.code);
     publish(event.code, "update", live);
     return {
-      guest: { id: guest.id, name: guest.name, email: guest.email, token: guest.token },
+      guest: guestDto(guest),
       live,
     };
   });
 
   const verifySchema = z.object({
-    email: z.string().email().max(200),
+    phone: z.string().min(3).max(40),
     code: z.string().regex(/^\s*\d{6}\s*$/, "6-digit code required"),
     name: z.string().max(120).optional().default(""),
   });
@@ -256,7 +308,7 @@ export function registerRestRoutes(
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
     const guest = await verifyGuestCode({
       eventId: event.id,
-      email: parsed.data.email,
+      phone: parsed.data.phone,
       code: parsed.data.code,
       name: parsed.data.name,
     });
@@ -264,7 +316,7 @@ export function registerRestRoutes(
     const live = await buildLivePayload(event.id, event.code);
     publish(event.code, "update", live);
     return {
-      guest: { id: guest.id, name: guest.name, email: guest.email, token: guest.token },
+      guest: guestDto(guest),
       live,
     };
   });
@@ -275,9 +327,20 @@ export function registerRestRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const guest = await guestFromRequest(req as never);
     if (!guest || guest.event_id !== event.id) return { guest: null };
-    return {
-      guest: { id: guest.id, name: guest.name, email: guest.email, token: guest.token },
-    };
+    return { guest: guestDto(guest) };
+  });
+
+  const emailSchema = z.object({ email: z.string().email().max(200) });
+
+  /** Guest adds/changes their own email (needed to receive voucher PDFs). */
+  app.put("/api/events/:code/me/email", async (req, reply) => {
+    const event = await getEventByCode(codeOf((req.params as { code: string }).code));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const parsed = emailSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Please enter a valid email" });
+    return { guest: guestDto(await setGuestEmail(guest.id, parsed.data.email)) };
   });
 
   const bidSchema = z.object({

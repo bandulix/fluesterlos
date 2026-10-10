@@ -6,8 +6,10 @@ import {
   createOpenEvent,
   freshApp,
   hostCookie,
+  e164,
   joinGuest,
   mailbox,
+  ph,
   pool,
 } from "./helpers.js";
 
@@ -42,13 +44,31 @@ function uploadPayslip(code: string, token: string) {
   });
 }
 
+export async function uploadVoucherWith(appRef: FastifyInstance, cookieRef: string, code: string, itemId: string) {
+  const boundary = "----flpdf";
+  const body =
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="v.pdf"\r\n` +
+    `Content-Type: application/pdf\r\n\r\n%PDF-1.4 test\r\n--${boundary}--\r\n`;
+  const res = await appRef.inject({
+    method: "POST",
+    url: `/api/host/events/${code}/items/${itemId}/voucher`,
+    headers: { cookie: cookieRef, "content-type": `multipart/form-data; boundary=${boundary}` },
+    payload: body,
+  });
+  if (res.statusCode !== 200) throw new Error(`voucher upload failed: ${res.body}`);
+}
+
+function uploadVoucher(code: string, itemId: string) {
+  return uploadVoucherWith(app, cookie, code, itemId);
+}
+
 async function setup() {
   const ev = await createOpenEvent(app, cookie, [
     { title: "Watch", startingBid: 1000, minIncrement: 100 },
     { title: "Villa", startingBid: 2000, minIncrement: 200 },
   ]);
-  const a = await joinGuest(app, ev.code, "a@example.org", "Anna");
-  const b = await joinGuest(app, ev.code, "b@example.org", "Ben");
+  const a = await joinGuest(app, ev.code, ph(1), "Anna", "a@example.org");
+  const b = await joinGuest(app, ev.code, ph(2), "Ben");
   return { ...ev, a, b };
 }
 
@@ -124,7 +144,7 @@ describe("invoices after close", () => {
     expect(ia.invoice).toBeNull();
     const host = (await app.inject({ method: "GET", url: `/api/host/events/${code}/invoices`, headers: { cookie } })).json();
     expect(host.invoices).toHaveLength(1);
-    expect(host.invoices[0]).toMatchObject({ guestEmail: "b@example.org", total: 1100 });
+    expect(host.invoices[0]).toMatchObject({ guestPhone: e164(2), total: 1100 });
   });
 
   it("handles many winners opening their invoice at the same moment", async () => {
@@ -134,7 +154,7 @@ describe("invoices after close", () => {
       Array.from({ length: 6 }, (_, i) => ({ title: `Lot ${i + 1}`, startingBid: 100, minIncrement: 10 })),
     );
     const guests = await Promise.all(
-      ev.items.map((_, i) => joinGuest(app, ev.code, `w${i}@example.org`)),
+      ev.items.map((_, i) => joinGuest(app, ev.code, `0812${String(i).padStart(6, "0")}`)),
     );
     for (let i = 0; i < guests.length; i++) {
       expect((await bid(app, ev.code, guests[i].token, ev.items[i].id, 100)).statusCode).toBe(200);
@@ -148,6 +168,7 @@ describe("invoices after close", () => {
 
   it("payslip upload, then host confirm emails the vouchers", async () => {
     const { code, eventId, items, a } = await setup();
+    await uploadVoucher(code, items[0].id);
     expect((await bid(app, code, a.token, items[0].id, 1000)).statusCode).toBe(200);
     await closeEvent(eventId);
 
@@ -163,5 +184,6 @@ describe("invoices after close", () => {
     expect(confirm.statusCode).toBe(200);
     expect(mailbox.sent).toHaveLength(1);
     expect(mailbox.sent[0].to).toBe("a@example.org");
+    expect(mailbox.sent[0].attachments).toHaveLength(1);
   });
 });

@@ -39,8 +39,11 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
-function bodyEmail(req: FastifyRequest): string {
-  const body = req.body as { email?: unknown } | undefined;
+/** Identity part of a rate-limit key: phone digits (guest join/verify) or email (host login). */
+function bodyIdentity(req: FastifyRequest): string {
+  const body = req.body as { email?: unknown; phone?: unknown } | undefined;
+  const phoneDigits = String(body?.phone ?? "").replace(/\D/g, "");
+  if (phoneDigits) return phoneDigits.slice(-9);
   return String(body?.email ?? "").trim().toLowerCase();
 }
 
@@ -60,7 +63,7 @@ export function rateLimitFor(kind: RateLimitKind) {
         rateLimit: {
           max: envInt("RATE_LIMIT_JOIN_PER_MIN", 10),
           timeWindow: "1 minute",
-          keyGenerator: (req: FastifyRequest) => `join:${req.ip}:${bodyEmail(req)}`,
+          keyGenerator: (req: FastifyRequest) => `join:${req.ip}:${bodyIdentity(req)}`,
         },
       };
     case "verify":
@@ -68,7 +71,7 @@ export function rateLimitFor(kind: RateLimitKind) {
         rateLimit: {
           max: envInt("RATE_LIMIT_VERIFY_PER_10MIN", 10),
           timeWindow: "10 minutes",
-          keyGenerator: (req: FastifyRequest) => `verify:${req.ip}:${bodyEmail(req)}`,
+          keyGenerator: (req: FastifyRequest) => `verify:${req.ip}:${bodyIdentity(req)}`,
         },
       };
     case "bid":
@@ -84,7 +87,7 @@ export function rateLimitFor(kind: RateLimitKind) {
         rateLimit: {
           max: envInt("RATE_LIMIT_LOGIN_PER_MIN", 10),
           timeWindow: "1 minute",
-          keyGenerator: (req: FastifyRequest) => `login:${req.ip}:${bodyEmail(req)}`,
+          keyGenerator: (req: FastifyRequest) => `login:${req.ip}:${bodyIdentity(req)}`,
         },
       };
   }

@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { bid, closeEvent, createOpenEvent, freshApp, hostCookie, joinGuest, pool } from "./helpers.js";
+import { bid, closeEvent, createOpenEvent, freshApp, hostCookie, joinGuest, ph, pool } from "./helpers.js";
 
 let app: FastifyInstance;
 let cookie: string;
@@ -21,8 +21,8 @@ describe("bidding rules", () => {
     const { code, items } = await createOpenEvent(app, cookie, [
       { title: "Watch", startingBid: 1000, minIncrement: 100 },
     ]);
-    const a = await joinGuest(app, code, "a@example.org");
-    const b = await joinGuest(app, code, "b@example.org");
+    const a = await joinGuest(app, code, ph(1));
+    const b = await joinGuest(app, code, ph(2));
 
     expect((await bid(app, code, a.token, items[0].id, 900)).statusCode).toBe(400);
     expect((await bid(app, code, a.token, items[0].id, 1000)).statusCode).toBe(200);
@@ -36,7 +36,7 @@ describe("bidding rules", () => {
     const { code, eventId, items } = await createOpenEvent(app, cookie, [
       { title: "Watch", startingBid: 1000, minIncrement: 100 },
     ]);
-    const a = await joinGuest(app, code, "a@example.org");
+    const a = await joinGuest(app, code, ph(1));
     await closeEvent(eventId);
     const res = await bid(app, code, a.token, items[0].id, 1000);
     expect(res.statusCode).toBe(400);
@@ -55,7 +55,7 @@ describe("bidding rules", () => {
       { title: "Villa", startingBid: 2000, minIncrement: 200 },
     ]);
     const guests = await Promise.all(
-      Array.from({ length: 10 }, (_, i) => joinGuest(app, code, `g${i}@example.org`)),
+      Array.from({ length: 10 }, (_, i) => joinGuest(app, code, `0811${String(i).padStart(6, "0")}`)),
     );
     const results = await Promise.all(guests.map((g) => bid(app, code, g.token, items[0].id, 2000)));
     expect(results.filter((r) => r.statusCode === 200)).toHaveLength(1);
@@ -85,8 +85,8 @@ describe("buy now", () => {
     const { code, items } = await createOpenEvent(app, cookie, [
       { title: "Brunch", startingBid: 500, minIncrement: 50, buyNow: 2000 },
     ]);
-    const a = await joinGuest(app, code, "a@example.org");
-    const b = await joinGuest(app, code, "b@example.org");
+    const a = await joinGuest(app, code, ph(1));
+    const b = await joinGuest(app, code, ph(2));
     expect((await bid(app, code, a.token, items[0].id, 500)).statusCode).toBe(200);
 
     const buy = await bid(app, code, b.token, items[0].id, 2000);
@@ -105,7 +105,7 @@ describe("buy now", () => {
     const { code, items } = await createOpenEvent(app, cookie, [
       { title: "Brunch", startingBid: 500, minIncrement: 50, buyNow: 2000 },
     ]);
-    const a = await joinGuest(app, code, "a@example.org");
+    const a = await joinGuest(app, code, ph(1));
     const res = await bid(app, code, a.token, items[0].id, 999999);
     expect(res.statusCode).toBe(200);
     expect(res.json().amount).toBe(2000);
@@ -115,8 +115,8 @@ describe("buy now", () => {
     const { code, items } = await createOpenEvent(app, cookie, [
       { title: "Onsen", startingBid: 500, minIncrement: 300, buyNow: 1000 },
     ]);
-    const a = await joinGuest(app, code, "a@example.org");
-    const b = await joinGuest(app, code, "b@example.org");
+    const a = await joinGuest(app, code, ph(1));
+    const b = await joinGuest(app, code, ph(2));
     expect((await bid(app, code, a.token, items[0].id, 500)).statusCode).toBe(200);
     expect((await bid(app, code, a.token, items[0].id, 800)).statusCode).toBe(200); // high 800, next 1100
     const buy = await bid(app, code, b.token, items[0].id, 1000);
@@ -128,8 +128,8 @@ describe("buy now", () => {
     const { code, items } = await createOpenEvent(app, cookie, [
       { title: "Legacy", startingBid: 500, minIncrement: 100, buyNow: 2000 },
     ]);
-    const a = await joinGuest(app, code, "a@example.org");
-    const b = await joinGuest(app, code, "b@example.org");
+    const a = await joinGuest(app, code, ph(1));
+    const b = await joinGuest(app, code, ph(2));
     // Simulate a DB from before the fix: a high bid above buy-now already exists.
     await pool.query("INSERT INTO bids (item_id, guest_id, amount) VALUES ($1, $2, 3000)", [items[0].id, a.id]);
     const res = await bid(app, code, b.token, items[0].id, 2000);
@@ -143,7 +143,7 @@ describe("buy now", () => {
       { title: "Jersey", startingBid: 1000, minIncrement: 100, buyNow: 5000 },
     ]);
     const guests = await Promise.all(
-      Array.from({ length: 8 }, (_, i) => joinGuest(app, code, `g${i}@example.org`)),
+      Array.from({ length: 8 }, (_, i) => joinGuest(app, code, `0811${String(i).padStart(6, "0")}`)),
     );
     const results = await Promise.all(guests.map((g) => bid(app, code, g.token, items[0].id, 5000)));
     expect(results.filter((r) => r.statusCode === 200)).toHaveLength(1);

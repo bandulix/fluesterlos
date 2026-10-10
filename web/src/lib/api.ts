@@ -1,6 +1,9 @@
 const envApi = import.meta.env.VITE_API_URL as string | undefined;
 export const API_BASE = (envApi && envApi.length > 0) ? envApi.replace(/\/$/, "") : "";
 
+export type Sponsor = { id: string; name: string; logoUrl: string | null };
+export type ItemKind = "voucher" | "physical";
+
 export type LivePayload = {
   event: {
     id: string;
@@ -26,6 +29,8 @@ export type LivePayload = {
     highBidder: string | null;
     bidCount: number;
     hasVoucher?: boolean;
+    kind?: ItemKind;
+    sponsor?: Sponsor | null;
   }>;
   stats: {
     guestCount: number;
@@ -45,7 +50,9 @@ export type LivePayload = {
 export type HostGuest = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
+  joined?: boolean;
   bidCount: number;
   createdAt: string;
 };
@@ -76,7 +83,8 @@ export type InvoiceDto = {
   eventId: string;
   guestId: string;
   guestName: string;
-  guestEmail: string;
+  guestEmail: string | null;
+  guestPhone?: string | null;
   total: number;
   status: "unpaid" | "payslip_uploaded" | "paid";
   payslipPath: string | null;
@@ -160,3 +168,17 @@ export async function uploadForm<T>(
   }
   return data as T;
 }
+
+export type LoginRequest = {
+  id: string;
+  code: string;
+  delivery: "email" | "desk";
+  guestName: string;
+  phone: string | null;
+  email: string | null;
+  attempts: number;
+  requestedAt: string;
+  expiresAt: string;
+};
+
+export type HostSponsor = Sponsor & { itemCount: number };

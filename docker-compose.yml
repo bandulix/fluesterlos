@@ -24,6 +24,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       TRUST_PROXY: ${TRUST_PROXY:-loopback,linklocal,uniquelocal}
+      DEFAULT_PHONE_COUNTRY: ${DEFAULT_PHONE_COUNTRY:-TH}
       DATA_DIR: /data
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
