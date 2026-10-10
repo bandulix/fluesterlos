@@ -3,12 +3,14 @@ import { nanoid } from "nanoid";
 import { pool } from "./db.js";
 import { sendMail, smtpConfigured } from "./mail.js";
 import { safeEqual } from "./hostAuth.js";
+import { maskEmail, normalizePhone, phoneTail } from "./phone.js";
 
 export type GuestRow = {
   id: string;
   event_id: string;
   name: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   token: string;
   claimed_at?: Date | null;
 };
@@ -16,6 +18,10 @@ export type GuestRow = {
 const CODE_TTL_MINUTES = 10;
 const CODE_MAX_ATTEMPTS = 5;
 const CODE_RESEND_SECONDS = 60;
+
+function httpError(statusCode: number, message: string) {
+  return Object.assign(new Error(message), { statusCode });
+}
 
 export function tokenFromRequest(req: {
   headers: Record<string, unknown>;
@@ -36,172 +42,257 @@ export async function guestFromRequest(req: {
   return (rows[0] as GuestRow | undefined) ?? null;
 }
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
+export function requirePhone(raw: string): string {
+  const phone = normalizePhone(raw);
+  if (!phone) throw httpError(400, "Please enter a valid phone number");
+  return phone;
 }
 
-function displayName(name: string, normalizedEmail: string) {
-  return name.trim() || normalizedEmail.split("@")[0] || "Guest";
+function normalizeEmail(email: string | null | undefined): string | null {
+  const e = String(email ?? "").trim().toLowerCase();
+  return e || null;
 }
 
-/** Host-side add/update (trusted). New guests stay unclaimed until they join from a device. */
+/** Name shown on the public board: given name, or "Guest …1234" (never the full phone). */
+export function displayName(name: string, phone: string | null, email?: string | null): string {
+  const n = name.trim();
+  if (n) return n;
+  if (phone) return `Guest …${phoneTail(phone)}`;
+  return (email ?? "").split("@")[0] || "Guest";
+}
+
+async function findByPhone(eventId: string, phone: string): Promise<GuestRow | undefined> {
+  const { rows } = await pool.query("SELECT * FROM guests WHERE event_id = $1 AND phone = $2", [eventId, phone]);
+  return rows[0] as GuestRow | undefined;
+}
+
+/**
+ * Host-side add/update (trusted), keyed by phone. If an older email-only guest has the given
+ * email, the phone is attached to that guest. New guests stay unclaimed until they join.
+ */
 export async function upsertGuest(
   eventId: string,
-  email: string,
+  phoneRaw: string,
   name: string,
+  emailRaw?: string | null,
 ): Promise<GuestRow> {
-  const normalized = normalizeEmail(email);
-  const display = displayName(name, normalized);
-  const existing = await pool.query(
-    "SELECT * FROM guests WHERE event_id = $1 AND lower(email) = $2",
-    [eventId, normalized],
-  );
-  const row = existing.rows[0] as GuestRow | undefined;
-  if (row) {
-    if (display && display !== row.name) {
-      await pool.query("UPDATE guests SET name = $1 WHERE id = $2", [display, row.id]);
-      return { ...row, name: display };
+  const phone = requirePhone(phoneRaw);
+  const email = normalizeEmail(emailRaw);
+  let row = await findByPhone(eventId, phone);
+  if (!row && email) {
+    const legacy = await pool.query(
+      "SELECT * FROM guests WHERE event_id = $1 AND phone IS NULL AND lower(email) = $2 LIMIT 1",
+      [eventId, email],
+    );
+    if (legacy.rows[0]) {
+      const upd = await pool.query("UPDATE guests SET phone = $1 WHERE id = $2 RETURNING *", [phone, legacy.rows[0].id]);
+      row = upd.rows[0] as GuestRow;
     }
-    return row;
   }
-  const token = nanoid(24);
+  if (row) {
+    const upd = await pool.query(
+      `UPDATE guests SET name = CASE WHEN $2 <> '' THEN $2 ELSE name END,
+         email = COALESCE($3, email)
+       WHERE id = $1 RETURNING *`,
+      [row.id, name.trim(), email],
+    );
+    return upd.rows[0] as GuestRow;
+  }
   const ins = await pool.query(
-    `INSERT INTO guests (event_id, name, email, token, claimed_at) VALUES ($1,$2,$3,$4,NULL)
-     ON CONFLICT (event_id, email) DO UPDATE SET name = EXCLUDED.name
+    `INSERT INTO guests (event_id, name, phone, email, token, claimed_at) VALUES ($1,$2,$3,$4,$5,NULL)
+     ON CONFLICT (event_id, phone) WHERE phone IS NOT NULL DO UPDATE SET name = EXCLUDED.name
      RETURNING *`,
-    [eventId, display, normalized, token],
+    [eventId, displayName(name, phone, email), phone, email, nanoid(24)],
   );
   return ins.rows[0] as GuestRow;
 }
 
 export type JoinResult =
   | { kind: "joined"; guest: GuestRow }
-  | { kind: "code_sent"; email: string; resendInSeconds: number };
+  | { kind: "code_sent"; phone: string; delivery: "email" | "desk"; maskedEmail: string | null; resendInSeconds: number };
+
+type Log = { warn: (obj: unknown, msg?: string) => void };
 
 /**
- * Guest self-join. Hands out a guest token only when:
- *  - the email is new for this event, or
+ * Guest self-join by phone. Hands out a guest token only when:
+ *  - the phone is new for this event, or
  *  - the guest was added by the host and never claimed by a device, or
- *  - the request already carries this guest's token (same device).
- * Otherwise a 6-digit code is emailed and must be confirmed via verifyGuestCode.
+ *  - the request already carries this guest's token (same device), or
+ *  - the request carries the token of an older email-only guest (the phone is attached to it).
+ * Otherwise a 6-digit code is created: emailed if the guest has an email (and SMTP is set),
+ * and always shown on the host help desk. Without SMTP/email it is also written to the log.
  */
 export async function joinGuest(opts: {
   eventId: string;
   eventTitle: string;
-  email: string;
+  phone: string;
   name: string;
+  email?: string | null;
   presentedToken: string;
-  log: { warn: (obj: unknown, msg?: string) => void };
+  log: Log;
 }): Promise<JoinResult> {
-  const normalized = normalizeEmail(opts.email);
-  const display = displayName(opts.name, normalized);
+  const phone = requirePhone(opts.phone);
+  const email = normalizeEmail(opts.email);
+
+  if (opts.presentedToken) {
+    const legacy = await pool.query(
+      "SELECT * FROM guests WHERE token = $1 AND event_id = $2 AND phone IS NULL",
+      [opts.presentedToken, opts.eventId],
+    );
+    if (legacy.rows[0] && !(await findByPhone(opts.eventId, phone))) {
+      const upd = await pool.query(
+        `UPDATE guests SET phone = $2, name = CASE WHEN $3 <> '' THEN $3 ELSE name END,
+           email = COALESCE(email, $4), claimed_at = COALESCE(claimed_at, now())
+         WHERE id = $1 RETURNING *`,
+        [legacy.rows[0].id, phone, opts.name.trim(), email],
+      );
+      return { kind: "joined", guest: upd.rows[0] as GuestRow };
+    }
+  }
 
   const inserted = await pool.query(
-    `INSERT INTO guests (event_id, name, email, token, claimed_at) VALUES ($1,$2,$3,$4, now())
-     ON CONFLICT (event_id, email) DO NOTHING
+    `INSERT INTO guests (event_id, name, phone, email, token, claimed_at) VALUES ($1,$2,$3,$4,$5, now())
+     ON CONFLICT (event_id, phone) WHERE phone IS NOT NULL DO NOTHING
      RETURNING *`,
-    [opts.eventId, display, normalized, nanoid(24)],
+    [opts.eventId, displayName(opts.name, phone, email), phone, email, nanoid(24)],
   );
   if (inserted.rows[0]) return { kind: "joined", guest: inserted.rows[0] as GuestRow };
 
-  const existing = await pool.query(
-    "SELECT * FROM guests WHERE event_id = $1 AND lower(email) = $2",
-    [opts.eventId, normalized],
-  );
-  const row = existing.rows[0] as GuestRow;
+  const row = (await findByPhone(opts.eventId, phone))!;
 
   if (opts.presentedToken && safeEqual(opts.presentedToken, row.token)) {
-    return { kind: "joined", guest: await renameGuest(row, opts.name) };
+    return { kind: "joined", guest: await updateProfile(row, opts.name, email) };
   }
 
   if (!row.claimed_at) {
     const claimed = await pool.query(
-      `UPDATE guests SET claimed_at = now(), name = $2 WHERE id = $1 AND claimed_at IS NULL RETURNING *`,
-      [row.id, opts.name.trim() ? display : row.name],
+      `UPDATE guests SET claimed_at = now(), name = CASE WHEN $2 <> '' THEN $2 ELSE name END,
+         email = COALESCE(email, $3)
+       WHERE id = $1 AND claimed_at IS NULL RETURNING *`,
+      [row.id, opts.name.trim(), email],
     );
     if (claimed.rows[0]) return { kind: "joined", guest: claimed.rows[0] as GuestRow };
   }
 
-  const resendInSeconds = await issueCode(row, opts.eventTitle, opts.log);
-  return { kind: "code_sent", email: normalized, resendInSeconds };
+  // Note: an email typed on the new device is ignored here — the code only goes to the email on file.
+  const sent = await issueCode(row, opts.eventTitle, opts.log);
+  return {
+    kind: "code_sent",
+    phone,
+    delivery: sent.delivery,
+    maskedEmail: sent.delivery === "email" && row.email ? maskEmail(row.email) : null,
+    resendInSeconds: sent.resendInSeconds,
+  };
 }
 
-async function renameGuest(row: GuestRow, name: string): Promise<GuestRow> {
-  const display = name.trim();
-  if (!display || display === row.name) return row;
-  await pool.query("UPDATE guests SET name = $1 WHERE id = $2", [display, row.id]);
-  return { ...row, name: display };
+async function updateProfile(row: GuestRow, name: string, email: string | null): Promise<GuestRow> {
+  const n = name.trim();
+  if ((!n || n === row.name) && (!email || email === row.email)) return row;
+  const upd = await pool.query(
+    `UPDATE guests SET name = CASE WHEN $2 <> '' THEN $2 ELSE name END, email = COALESCE($3, email)
+     WHERE id = $1 RETURNING *`,
+    [row.id, n, email],
+  );
+  return upd.rows[0] as GuestRow;
+}
+
+/** Guest sets/changes their own email (e.g. at invoice time, to receive voucher PDFs). */
+export async function setGuestEmail(guestId: string, emailRaw: string): Promise<GuestRow> {
+  const email = normalizeEmail(emailRaw);
+  if (!email) throw httpError(400, "Email required");
+  const upd = await pool.query("UPDATE guests SET email = $2 WHERE id = $1 RETURNING *", [guestId, email]);
+  return upd.rows[0] as GuestRow;
 }
 
 export function hashCode(guestId: string, code: string): string {
   return createHash("sha256").update(`${guestId}:${code}`, "utf8").digest("hex");
 }
 
-/** Creates and sends a code unless one was sent very recently. Returns seconds until a resend is allowed. */
+/** Creates (unless one was sent very recently) and delivers a code. */
 async function issueCode(
   guest: GuestRow,
   eventTitle: string,
-  log: { warn: (obj: unknown, msg?: string) => void },
-): Promise<number> {
+  log: Log,
+): Promise<{ delivery: "email" | "desk"; resendInSeconds: number }> {
+  const canEmail = Boolean(guest.email) && smtpConfigured();
   const recent = await pool.query(
-    `SELECT EXTRACT(EPOCH FROM (now() - created_at))::int AS age
+    `SELECT EXTRACT(EPOCH FROM (now() - created_at))::int AS age, delivery
      FROM guest_login_codes
      WHERE guest_id = $1 AND used_at IS NULL AND expires_at > now()
      ORDER BY created_at DESC LIMIT 1`,
     [guest.id],
   );
   const age = recent.rows[0]?.age as number | undefined;
-  if (age != null && age < CODE_RESEND_SECONDS) return CODE_RESEND_SECONDS - age;
+  if (age != null && age < CODE_RESEND_SECONDS) {
+    return { delivery: recent.rows[0].delivery, resendInSeconds: CODE_RESEND_SECONDS - age };
+  }
 
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const delivery = canEmail ? "email" : "desk";
   // Only the newest code is valid.
   await pool.query(
-    "UPDATE guest_login_codes SET used_at = now() WHERE guest_id = $1 AND used_at IS NULL",
+    "UPDATE guest_login_codes SET used_at = now(), desk_code = NULL WHERE guest_id = $1 AND used_at IS NULL",
     [guest.id],
   );
   await pool.query(
-    `INSERT INTO guest_login_codes (guest_id, code_hash, expires_at)
-     VALUES ($1, $2, now() + make_interval(mins => $3))`,
-    [guest.id, hashCode(guest.id, code), CODE_TTL_MINUTES],
+    `INSERT INTO guest_login_codes (guest_id, code_hash, desk_code, delivery, expires_at)
+     VALUES ($1, $2, $3, $4, now() + make_interval(mins => $5))`,
+    [guest.id, hashCode(guest.id, code), code, delivery, CODE_TTL_MINUTES],
   );
 
-  if (!smtpConfigured()) {
+  if (!canEmail) {
     log.warn(
-      { guestEmail: guest.email, event: eventTitle, code },
-      "SMTP not configured — guest login code logged instead of emailed",
+      { guestPhone: guest.phone, event: eventTitle, code },
+      "Guest login code not emailed (no guest email or SMTP) — shown on host help desk and logged here",
     );
-    return CODE_RESEND_SECONDS;
+    return { delivery, resendInSeconds: CODE_RESEND_SECONDS };
   }
   await sendMail({
-    to: guest.email,
+    to: guest.email!,
     subject: `Your code for ${eventTitle}: ${code}`,
     text:
       `Hi ${guest.name},\n\n` +
-      `Someone (hopefully you) wants to bid as ${guest.email} at "${eventTitle}" on a new device.\n\n` +
+      `Someone (hopefully you) wants to bid with phone ${guest.phone} at "${eventTitle}" on a new device.\n\n` +
       `Your code: ${code}\n\n` +
       `It expires in ${CODE_TTL_MINUTES} minutes. If this wasn't you, ignore this email — ` +
       `nobody can bid as you without this code.\n\n` +
       `— FlüsterLos\n`,
   });
-  return CODE_RESEND_SECONDS;
+  return { delivery, resendInSeconds: CODE_RESEND_SECONDS };
 }
 
-function httpError(statusCode: number, message: string) {
-  return Object.assign(new Error(message), { statusCode });
+/** Pending codes for the host help desk (host checks the person, then reads the code out). */
+export async function pendingLoginRequests(eventId: string) {
+  const { rows } = await pool.query(
+    `SELECT c.id, c.desk_code, c.delivery, c.created_at, c.expires_at, c.attempts,
+            g.name, g.phone, g.email
+     FROM guest_login_codes c
+     JOIN guests g ON g.id = c.guest_id
+     WHERE g.event_id = $1 AND c.used_at IS NULL AND c.expires_at > now() AND c.desk_code IS NOT NULL
+     ORDER BY c.created_at DESC`,
+    [eventId],
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    code: r.desk_code as string,
+    delivery: r.delivery as "email" | "desk",
+    guestName: r.name as string,
+    phone: r.phone as string | null,
+    email: (r.email as string | null) ?? null,
+    attempts: r.attempts as number,
+    requestedAt: new Date(r.created_at).toISOString(),
+    expiresAt: new Date(r.expires_at).toISOString(),
+  }));
 }
 
 export async function verifyGuestCode(opts: {
   eventId: string;
-  email: string;
+  phone: string;
   code: string;
   name: string;
 }): Promise<GuestRow> {
-  const normalized = normalizeEmail(opts.email);
-  const g = await pool.query(
-    "SELECT * FROM guests WHERE event_id = $1 AND lower(email) = $2",
-    [opts.eventId, normalized],
-  );
-  const guest = g.rows[0] as GuestRow | undefined;
+  const phone = normalizePhone(opts.phone);
+  const guest = phone ? await findByPhone(opts.eventId, phone) : undefined;
   if (!guest) throw httpError(400, "Invalid or expired code");
 
   const client = await pool.connect();
@@ -222,18 +313,16 @@ export async function verifyGuestCode(opts: {
     if (!ok) {
       await client.query(
         `UPDATE guest_login_codes SET attempts = attempts + 1,
-           used_at = CASE WHEN attempts + 1 >= $2 THEN now() ELSE used_at END
+           used_at = CASE WHEN attempts + 1 >= $2 THEN now() ELSE used_at END,
+           desk_code = CASE WHEN attempts + 1 >= $2 THEN NULL ELSE desk_code END
          WHERE id = $1`,
         [row.id, CODE_MAX_ATTEMPTS],
       );
       await client.query("COMMIT");
       throw httpError(400, "Invalid or expired code");
     }
-    await client.query("UPDATE guest_login_codes SET used_at = now() WHERE id = $1", [row.id]);
-    await client.query(
-      "UPDATE guests SET claimed_at = COALESCE(claimed_at, now()) WHERE id = $1",
-      [guest.id],
-    );
+    await client.query("UPDATE guest_login_codes SET used_at = now(), desk_code = NULL WHERE id = $1", [row.id]);
+    await client.query("UPDATE guests SET claimed_at = COALESCE(claimed_at, now()) WHERE id = $1", [guest.id]);
     await client.query("COMMIT");
   } catch (e) {
     try {
@@ -245,5 +334,5 @@ export async function verifyGuestCode(opts: {
   } finally {
     client.release();
   }
-  return renameGuest(guest, opts.name);
+  return updateProfile(guest, opts.name, null);
 }

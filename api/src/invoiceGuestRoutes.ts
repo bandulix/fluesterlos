@@ -6,6 +6,7 @@ import { promptPayPayload } from "./promptpay.js";
 import { saveUpload } from "./storage.js";
 import { guestFromRequest } from "./guestAuth.js";
 import { getHostSettings } from "./invoiceHostRoutes.js";
+import { sponsorLogoUrl } from "./sponsors.js";
 
 type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date; currency?: string };
 
@@ -69,12 +70,27 @@ export function registerInvoiceGuestRoutes(
         status: data.invoice.status,
         hasPayslip: Boolean(data.invoice.payslip_path),
         paidAt: data.invoice.paid_at ? new Date(data.invoice.paid_at).toISOString() : null,
-        lines: data.lines.map((l: { item_id: string; title: string; description: string; amount: number | string }) => ({
+        lines: data.lines.map((l) => ({
           itemId: l.item_id,
           title: l.title,
           description: l.description,
           amount: money(l.amount),
+          kind: l.kind,
+          sponsor: l.sponsor_id
+            ? { id: l.sponsor_id, name: l.sponsor_name, logoUrl: sponsorLogoUrl(l.sponsor_id, l.sponsor_logo_path) }
+            : null,
+          handedOverAt: l.handed_over_at ? new Date(l.handed_over_at).toISOString() : null,
         })),
+        paymentMethod: data.invoice.payment_method ?? null,
+        vouchersEmailedAt: data.invoice.vouchers_emailed_at
+          ? new Date(data.invoice.vouchers_emailed_at).toISOString()
+          : null,
+      },
+      guest: {
+        email: guest.email,
+        // Voucher PDFs go by email: ask for one if they won a voucher and have none on file.
+        needsEmail: !guest.email && data.lines.some((l) => l.kind === "voucher"),
+        hasPhysical: data.lines.some((l) => l.kind === "physical"),
       },
       payment: {
         payeeName: settings.payee_name ?? "",

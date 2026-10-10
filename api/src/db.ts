@@ -41,10 +41,9 @@ export async function migrate() {
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
-      email TEXT NOT NULL,
+      email TEXT,
       token TEXT NOT NULL UNIQUE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      UNIQUE (event_id, email)
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
     -- Set when a device first receives this guest's token. Existing rows count as claimed
@@ -117,6 +116,40 @@ export async function migrate() {
       amount NUMERIC(12,2) NOT NULL,
       PRIMARY KEY (invoice_id, item_id)
     );
+
+    -- Phase 2: physical prizes, sponsors, phone-keyed guests, payment desk.
+    CREATE TABLE IF NOT EXISTS sponsors (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      logo_path TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS sponsors_name_uq ON sponsors (lower(name));
+
+    ALTER TABLE items ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'voucher';
+    ALTER TABLE items DROP CONSTRAINT IF EXISTS items_kind_check;
+    ALTER TABLE items ADD CONSTRAINT items_kind_check CHECK (kind IN ('voucher', 'physical'));
+    ALTER TABLE items ADD COLUMN IF NOT EXISTS sponsor_id UUID REFERENCES sponsors(id) ON DELETE SET NULL;
+
+    -- Guests are keyed by phone (E.164) per event; email is optional (voucher delivery).
+    -- Older email-keyed guests keep their row and token; phone stays NULL until they add one.
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS phone TEXT;
+    ALTER TABLE guests ALTER COLUMN email DROP NOT NULL;
+    ALTER TABLE guests DROP CONSTRAINT IF EXISTS guests_event_id_email_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS guests_event_phone_uq ON guests (event_id, phone) WHERE phone IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS guests_event_email_idx ON guests (event_id, lower(email));
+
+    -- Plain code kept only while pending so hosts can read it out at the help desk.
+    ALTER TABLE guest_login_codes ADD COLUMN IF NOT EXISTS desk_code TEXT;
+    ALTER TABLE guest_login_codes ADD COLUMN IF NOT EXISTS delivery TEXT NOT NULL DEFAULT 'desk';
+
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_method TEXT;
+    ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_payment_method_check;
+    ALTER TABLE invoices ADD CONSTRAINT invoices_payment_method_check
+      CHECK (payment_method IS NULL OR payment_method IN ('cash', 'bank_transfer', 'promptpay'));
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_by TEXT;
+    ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS handed_over_at TIMESTAMPTZ;
+    ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS handed_over_by TEXT;
 
     CREATE INDEX IF NOT EXISTS bids_item_created_idx ON bids(item_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS items_event_sort_idx ON items(event_id, sort_order);

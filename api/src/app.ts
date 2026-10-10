@@ -9,6 +9,7 @@ import { auctionStatus, money, parseCurrency } from "./auction.js";
 import { publish } from "./sse.js";
 import { registerRestRoutes } from "./rest.js";
 import { registerInvoiceRoutes } from "./invoiceRoutes.js";
+import { registerSponsorRoutes, sponsorLogoUrl, upsertSponsor } from "./sponsors.js";
 import { registerRateLimit, corsOriginOption, rateLimitFor } from "./security.js";
 import {
   clearSession,
@@ -40,7 +41,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   await registerRateLimit(app);
   await app.register(cookie);
   await app.register(multipart, {
-    limits: { fileSize: 25 * 1024 * 1024, files: 3 },
+    limits: { fileSize: 25 * 1024 * 1024, files: 4 },
   });
 
   function codeOf(raw: string) {
@@ -75,12 +76,13 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     if (!event) return null;
     const status = auctionStatus(event.starts_at, event.ends_at);
     const itemsRes = await pool.query(
-      `SELECT i.*,
+      `SELECT i.*, s.name AS sponsor_name, s.logo_path AS sponsor_logo_path,
         COALESCE((SELECT MAX(b.amount) FROM bids b WHERE b.item_id = i.id), i.starting_bid) AS high_bid,
         (SELECT g.name FROM bids b JOIN guests g ON g.id = b.guest_id
           WHERE b.item_id = i.id ORDER BY b.amount DESC, b.created_at ASC LIMIT 1) AS high_bidder,
         (SELECT COUNT(*)::int FROM bids b WHERE b.item_id = i.id) AS bid_count
-       FROM items i WHERE i.event_id = $1 ORDER BY i.sort_order, i.created_at`,
+       FROM items i LEFT JOIN sponsors s ON s.id = i.sponsor_id
+       WHERE i.event_id = $1 ORDER BY i.sort_order, i.created_at`,
       [eventId],
     );
     const recentRes = await pool.query(
@@ -110,6 +112,10 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
       highBidder: row.high_bidder,
       bidCount: row.bid_count,
       hasVoucher: Boolean(row.voucher_pdf_path),
+      kind: (row.kind === "physical" ? "physical" : "voucher") as "voucher" | "physical",
+      sponsor: row.sponsor_id
+        ? { id: row.sponsor_id as string, name: row.sponsor_name as string, logoUrl: sponsorLogoUrl(row.sponsor_id, row.sponsor_logo_path) }
+        : null,
     }));
     const totalHigh = items.reduce((sum, it) => sum + it.highBid, 0);
     const totalBids = items.reduce((sum, it) => sum + it.bidCount, 0);
@@ -323,6 +329,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
           startingBid: z.number().positive(),
           minIncrement: z.number().positive(),
           buyNow: z.number().positive().optional().nullable(),
+          kind: z.enum(["voucher", "physical"]).optional().default("voucher"),
+          sponsorName: z.string().max(200).optional(),
         }),
       )
       .default([]),
@@ -357,10 +365,11 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
       const event = ev.rows[0];
       for (let i = 0; i < body.items.length; i++) {
         const it = body.items[i];
+        const sponsorId = it.sponsorName?.trim() ? (await upsertSponsor(it.sponsorName)).id : null;
         await client.query(
           `INSERT INTO items
-            (event_id, title, description, photo_url, starting_bid, min_increment, buy_now, sort_order)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            (event_id, title, description, photo_url, starting_bid, min_increment, buy_now, sort_order, kind, sponsor_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
           [
             event.id,
             it.title,
@@ -370,6 +379,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
             it.minIncrement,
             it.buyNow ?? null,
             i,
+            it.kind,
+            sponsorId,
           ],
         );
       }
@@ -412,6 +423,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
 
   registerRestRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
   registerInvoiceRoutes(app, { codeOf, getEventByCode, requireHost });
+  registerSponsorRoutes(app, { requireHost });
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as Error & { statusCode?: number };

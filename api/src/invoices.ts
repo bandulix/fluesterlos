@@ -112,10 +112,38 @@ export async function ensureInvoicesForEvent(eventId: string) {
   }
 }
 
+export type PaymentMethod = "cash" | "bank_transfer" | "promptpay";
+export const PAYMENT_METHODS: PaymentMethod[] = ["cash", "bank_transfer", "promptpay"];
+
+const LINE_SELECT = `
+  SELECT il.item_id, il.amount, il.handed_over_at, il.handed_over_by,
+         i.title, i.description, i.kind, i.voucher_pdf_path, i.sort_order,
+         s.id AS sponsor_id, s.name AS sponsor_name, s.logo_path AS sponsor_logo_path
+  FROM invoice_lines il
+  JOIN items i ON i.id = il.item_id
+  LEFT JOIN sponsors s ON s.id = i.sponsor_id
+  WHERE il.invoice_id = $1
+  ORDER BY i.sort_order, i.created_at`;
+
+export type InvoiceLineRow = {
+  item_id: string;
+  amount: string | number;
+  handed_over_at: Date | null;
+  handed_over_by: string | null;
+  title: string;
+  description: string;
+  kind: "voucher" | "physical";
+  voucher_pdf_path: string | null;
+  sort_order: number;
+  sponsor_id: string | null;
+  sponsor_name: string | null;
+  sponsor_logo_path: string | null;
+};
+
 export async function getGuestInvoice(eventId: string, guestId: string) {
   await ensureInvoicesForEvent(eventId);
   const inv = await pool.query(
-    `SELECT inv.*, g.name AS guest_name, g.email AS guest_email
+    `SELECT inv.*, g.name AS guest_name, g.email AS guest_email, g.phone AS guest_phone
      FROM invoices inv
      JOIN guests g ON g.id = inv.guest_id
      WHERE inv.event_id = $1 AND inv.guest_id = $2`,
@@ -123,21 +151,14 @@ export async function getGuestInvoice(eventId: string, guestId: string) {
   );
   const invoice = inv.rows[0];
   if (!invoice) return null;
-  const lines = await pool.query(
-    `SELECT il.item_id, il.amount, i.title, i.description, i.voucher_pdf_path
-     FROM invoice_lines il
-     JOIN items i ON i.id = il.item_id
-     WHERE il.invoice_id = $1
-     ORDER BY i.sort_order, i.created_at`,
-    [invoice.id],
-  );
-  return { invoice, lines: lines.rows };
+  const lines = await pool.query(LINE_SELECT, [invoice.id]);
+  return { invoice, lines: lines.rows as InvoiceLineRow[] };
 }
 
 export async function listEventInvoices(eventId: string) {
   await ensureInvoicesForEvent(eventId);
   const { rows } = await pool.query(
-    `SELECT inv.*, g.name AS guest_name, g.email AS guest_email
+    `SELECT inv.*, g.name AS guest_name, g.email AS guest_email, g.phone AS guest_phone
      FROM invoices inv
      JOIN guests g ON g.id = inv.guest_id
      WHERE inv.event_id = $1
@@ -146,103 +167,141 @@ export async function listEventInvoices(eventId: string) {
   );
   const result = [];
   for (const invoice of rows) {
-    const lines = await pool.query(
-      `SELECT il.item_id, il.amount, i.title, i.description
-       FROM invoice_lines il
-       JOIN items i ON i.id = il.item_id
-       WHERE il.invoice_id = $1
-       ORDER BY i.sort_order, i.created_at`,
-      [invoice.id],
-    );
-    result.push({ invoice, lines: lines.rows });
+    const lines = await pool.query(LINE_SELECT, [invoice.id]);
+    result.push({ invoice, lines: lines.rows as InvoiceLineRow[] });
   }
   return result;
 }
 
-export async function confirmPaymentAndEmailVouchers(invoiceId: string, eventTitle: string) {
-  const ev = await pool.query("SELECT event_id FROM invoices WHERE id = $1", [invoiceId]);
-  if (!ev.rows[0]) throw httpError(404, "Invoice not found");
-  await assertEventClosed(ev.rows[0].event_id as string);
+async function loadInvoice(invoiceId: string) {
+  const { rows } = await pool.query(
+    `SELECT inv.*, g.name AS guest_name, g.email AS guest_email, g.phone AS guest_phone,
+            e.title AS event_title, e.currency
+     FROM invoices inv
+     JOIN guests g ON g.id = inv.guest_id
+     JOIN events e ON e.id = inv.event_id
+     WHERE inv.id = $1`,
+    [invoiceId],
+  );
+  if (!rows[0]) throw httpError(404, "Invoice not found");
+  return rows[0];
+}
+
+/**
+ * Payment desk: mark an invoice paid with a method. Cash needs no payslip; bank transfer and
+ * PromptPay need the guest's payslip, or the host explicitly confirming they checked the
+ * transfer themselves (confirmedWithoutSlip).
+ */
+export async function markInvoicePaid(
+  invoiceId: string,
+  opts: { method: PaymentMethod; confirmedWithoutSlip?: boolean; hostEmail?: string },
+) {
+  const pre = await loadInvoice(invoiceId);
+  await assertEventClosed(pre.event_id);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const invRes = await client.query(
-      `SELECT inv.*, g.name AS guest_name, g.email AS guest_email
-       FROM invoices inv
-       JOIN guests g ON g.id = inv.guest_id
-       WHERE inv.id = $1 FOR UPDATE`,
-      [invoiceId],
-    );
-    const invoice = invRes.rows[0];
-    if (!invoice) {
-      await client.query("ROLLBACK");
-      throw Object.assign(new Error("Invoice not found"), { statusCode: 404 });
-    }
-    if (invoice.status === "paid" && invoice.vouchers_emailed_at) {
+    const { rows } = await client.query("SELECT * FROM invoices WHERE id = $1 FOR UPDATE", [invoiceId]);
+    const invoice = rows[0];
+    if (invoice.status === "paid") {
       await client.query("COMMIT");
-      return { alreadyPaid: true, invoice };
+      return { alreadyPaid: true };
     }
-    await client.query(
-      `UPDATE invoices SET status = 'paid', paid_at = COALESCE(paid_at, now())
-       WHERE id = $1`,
-      [invoiceId],
-    );
-    const lines = await client.query(
-      `SELECT i.title, i.voucher_pdf_path
-       FROM invoice_lines il
-       JOIN items i ON i.id = il.item_id
-       WHERE il.invoice_id = $1`,
-      [invoiceId],
-    );
-    await client.query("COMMIT");
-
-    if (!smtpConfigured()) {
-      throw Object.assign(
-        new Error("Payment marked paid, but SMTP is not configured — vouchers were not emailed"),
-        { statusCode: 503 },
+    if (opts.method !== "cash" && !invoice.payslip_path && !opts.confirmedWithoutSlip) {
+      await client.query("ROLLBACK");
+      throw httpError(
+        409,
+        "No payslip uploaded — for bank transfer / PromptPay confirm that you checked the transfer, or choose cash",
       );
     }
-
-    const attachments = [];
-    for (const line of lines.rows) {
-      if (!line.voucher_pdf_path) continue;
-      const content = await readDataFile(line.voucher_pdf_path);
-      const safe = String(line.title).replace(/[^\w.\-]+/g, "_").slice(0, 80) || "voucher";
-      attachments.push({
-        filename: `${safe}.pdf`,
-        content,
-        contentType: "application/pdf",
-      });
-    }
-
-    const curRes = await pool.query("SELECT currency FROM events WHERE id = $1", [invoice.event_id]);
-    const currency = parseCurrency(curRes.rows[0]?.currency);
-
-    await sendMail({
-      to: invoice.guest_email,
-      subject: `Your vouchers — ${eventTitle}`,
-      text:
-        `Hi ${invoice.guest_name},\n\n` +
-        `Payment received for your winning bids at "${eventTitle}" ` +
-        `(total ${formatMoney(invoice.total, currency)}).\n\n` +
-        `Your voucher PDF(s) are attached (one per item).\n\n` +
-        `— FlüsterLos\n`,
-      attachments,
-    });
-
-    await pool.query(
-      "UPDATE invoices SET vouchers_emailed_at = now() WHERE id = $1",
-      [invoiceId],
+    await client.query(
+      `UPDATE invoices SET status = 'paid', paid_at = COALESCE(paid_at, now()),
+         payment_method = $2, paid_by = $3
+       WHERE id = $1`,
+      [invoiceId, opts.method, opts.hostEmail ?? null],
     );
-    return { alreadyPaid: false, invoice, emailed: attachments.length };
+    await client.query("COMMIT");
+    return { alreadyPaid: false };
   } catch (e) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {
-      /* */
-    }
+    try { await client.query("ROLLBACK"); } catch { /* */ }
     throw e;
   } finally {
     client.release();
   }
+}
+
+export type EmailStatus =
+  | "sent"
+  | "already_sent"
+  | "no_email"
+  | "smtp_not_configured"
+  | "voucher_pdf_missing"
+  | "not_paid";
+
+/**
+ * Sends the winner's confirmation email for a paid invoice: voucher items get their PDF
+ * attached, physical items say "collect at the desk". Mixed wins are one email.
+ * Not sent (status says why) if the guest has no email, SMTP is missing, or a voucher PDF is missing.
+ */
+export async function sendWinnerEmail(invoiceId: string, opts: { force?: boolean } = {}) {
+  const invoice = await loadInvoice(invoiceId);
+  const lines = (await pool.query(LINE_SELECT, [invoiceId])).rows as InvoiceLineRow[];
+  const missing = lines.filter((l) => l.kind === "voucher" && !l.voucher_pdf_path).map((l) => l.title);
+  const result = (emailStatus: EmailStatus, emailed = 0) => ({ emailStatus, emailed, missingVoucherPdfs: missing });
+
+  if (invoice.status !== "paid") return result("not_paid");
+  if (invoice.vouchers_emailed_at && !opts.force) return result("already_sent");
+  if (!invoice.guest_email) return result("no_email");
+  if (!smtpConfigured()) return result("smtp_not_configured");
+  if (missing.length) return result("voucher_pdf_missing");
+
+  const currency = parseCurrency(invoice.currency);
+  const attachments = [];
+  for (const line of lines) {
+    if (line.kind !== "voucher" || !line.voucher_pdf_path) continue;
+    const content = await readDataFile(line.voucher_pdf_path);
+    const safe = String(line.title).replace(/[^\w.\-]+/g, "_").slice(0, 80) || "voucher";
+    attachments.push({ filename: `${safe}.pdf`, content, contentType: "application/pdf" });
+  }
+  const physical = lines.filter((l) => l.kind === "physical");
+  const itemLines = lines
+    .map((l) => {
+      const sponsor = l.sponsor_name ? ` (by ${l.sponsor_name})` : "";
+      const how = l.kind === "physical" ? "please collect it at the desk" : "voucher PDF attached";
+      return `- ${l.title}${sponsor}: ${formatMoney(l.amount, currency)} — ${how}`;
+    })
+    .join("\n");
+
+  await sendMail({
+    to: invoice.guest_email,
+    subject: `Payment received — ${invoice.event_title}`,
+    text:
+      `Hi ${invoice.guest_name},\n\n` +
+      `Thank you! We received your payment for "${invoice.event_title}" ` +
+      `(total ${formatMoney(invoice.total, currency)}).\n\n` +
+      `${itemLines}\n\n` +
+      (physical.length
+        ? `Please collect your item${physical.length > 1 ? "s" : ""} at the desk — bring this email or your phone.\n\n`
+        : "") +
+      `— FlüsterLos\n`,
+    attachments,
+  });
+  await pool.query("UPDATE invoices SET vouchers_emailed_at = now() WHERE id = $1", [invoiceId]);
+  return result("sent", attachments.length);
+}
+
+/** Mark one won item as handed over (or undo). Only for paid invoices. */
+export async function setHandedOver(invoiceId: string, itemId: string, handedOver: boolean, hostEmail?: string) {
+  const invoice = await loadInvoice(invoiceId);
+  if (invoice.status !== "paid") throw httpError(409, "Mark the invoice paid before handing over");
+  const { rows } = await pool.query(
+    `UPDATE invoice_lines
+     SET handed_over_at = CASE WHEN $3 THEN COALESCE(handed_over_at, now()) ELSE NULL END,
+         handed_over_by = CASE WHEN $3 THEN COALESCE(handed_over_by, $4) ELSE NULL END
+     WHERE invoice_id = $1 AND item_id = $2
+     RETURNING handed_over_at`,
+    [invoiceId, itemId, handedOver, hostEmail ?? null],
+  );
+  if (!rows[0]) throw httpError(404, "Item is not on this invoice");
+  return { handedOverAt: rows[0].handed_over_at ? new Date(rows[0].handed_over_at).toISOString() : null };
 }

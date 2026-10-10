@@ -1,14 +1,29 @@
 import { FormEvent, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, HostAccount, HostEventSummary, HostGuest, LivePayload, uploadForm } from "../lib/api";
+import {
+  api,
+  HostAccount,
+  HostEventSummary,
+  HostGuest,
+  HostSponsor,
+  ItemKind,
+  LivePayload,
+  uploadForm,
+} from "../lib/api";
 import { useHostAuth } from "../lib/hostAuth";
 import { Currency, CURRENCY_OPTIONS, formatMoney, parseCurrency } from "../lib/money";
 import { Countdown } from "../components/Countdown";
+import { HelpDeskCard } from "./HostHelpDesk";
 import {
+  emailStatusText,
+  EmailStatus,
+  EventStatusSummary,
   HostInvoice,
   HostSettings,
   InvoicesCard,
+  InvoiceSummary,
+  PaymentMethod,
   PaymentSettingsCard,
   uploadHostQr,
 } from "./HostPayments";
@@ -20,7 +35,10 @@ type DraftItem = {
   startingBid: string;
   minIncrement: string;
   buyNow: string;
+  kind: ItemKind;
   voucher: File | null;
+  sponsorName: string;
+  sponsorLogo: File | null;
 };
 
 const emptyItem = (): DraftItem => ({
@@ -30,8 +48,13 @@ const emptyItem = (): DraftItem => ({
   startingBid: "10",
   minIncrement: "5",
   buyNow: "",
+  kind: "voucher",
   voucher: null,
+  sponsorName: "",
+  sponsorLogo: null,
 });
+
+type EmailResult = { ok: boolean; alreadyPaid?: boolean; emailStatus?: EmailStatus; emailed?: number };
 
 function DraftPhotoPreview({ file }: { file: File | null }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -69,8 +92,11 @@ export function HostPage() {
   const [promptpayId, setPromptpayId] = useState("");
   const [payeeName, setPayeeName] = useState("");
   const [invoices, setInvoices] = useState<HostInvoice[]>([]);
+  const [invoiceSummary, setInvoiceSummary] = useState<InvoiceSummary | null>(null);
+  const [sponsors, setSponsors] = useState<HostSponsor[]>([]);
   const [guests, setGuests] = useState<HostGuest[]>([]);
   const [hosts, setHosts] = useState<HostAccount[]>([]);
+  const [guestPhone, setGuestPhone] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestName, setGuestName] = useState("");
   const [hostEmail, setHostEmail] = useState("");
@@ -87,8 +113,16 @@ export function HostPage() {
   }
 
   async function loadInvoices(code: string) {
-    const res = await api<{ invoices: HostInvoice[] }>(`/api/host/events/${code}/invoices`);
+    const res = await api<{ invoices: HostInvoice[]; summary: InvoiceSummary | null }>(
+      `/api/host/events/${code}/invoices`,
+    );
     setInvoices(res.invoices);
+    setInvoiceSummary(res.summary);
+  }
+
+  async function loadSponsors() {
+    const res = await api<{ sponsors: HostSponsor[] }>("/api/host/sponsors");
+    setSponsors(res.sponsors);
   }
 
   async function loadGuests(code: string) {
@@ -131,6 +165,7 @@ export function HostPage() {
       try {
         await loadSettings();
         await loadHosts().catch(() => setHosts([]));
+        await loadSponsors().catch(() => setSponsors([]));
         const list = await loadEvents();
         if (cancelled) return;
         const wanted = searchParams.get("e") || list[0]?.code;
@@ -229,9 +264,6 @@ export function HostPage() {
     setError(null);
     try {
       const draft = items.filter((it) => it.title.trim());
-      for (const it of draft) {
-        if (!it.voucher) throw new Error(`Voucher PDF required for "${it.title}"`);
-      }
       const res = await api<LivePayload>("/api/host/events", {
         method: "POST",
         body: JSON.stringify({
@@ -249,7 +281,12 @@ export function HostPage() {
         form.append("startingBid", String(Number(it.startingBid)));
         form.append("minIncrement", String(Number(it.minIncrement)));
         if (it.buyNow.trim()) form.append("buyNow", String(Number(it.buyNow)));
-        form.append("voucherPdf", it.voucher!, it.voucher!.name);
+        form.append("kind", it.kind);
+        if (it.kind === "voucher" && it.voucher) form.append("voucherPdf", it.voucher, it.voucher.name);
+        if (it.sponsorName.trim()) {
+          form.append("sponsorName", it.sponsorName.trim());
+          if (it.sponsorLogo) form.append("sponsorLogo", it.sponsorLogo, it.sponsorLogo.name);
+        }
         if (it.photo) form.append("photo", it.photo, it.photo.name);
         liveNext = await uploadForm<LivePayload>(`/api/host/events/${res.event.code}/items`, form);
       }
@@ -261,7 +298,13 @@ export function HostPage() {
       await loadEvents().catch(() => undefined);
       await loadInvoices(liveNext.event.code).catch(() => undefined);
       await loadGuests(liveNext.event.code).catch(() => undefined);
-      setNote("Event created with voucher PDFs.");
+      await loadSponsors().catch(() => undefined);
+      const missing = draft.filter((it) => it.kind === "voucher" && !it.voucher).length;
+      setNote(
+        missing
+          ? `Event created. ${missing} voucher item(s) still need a PDF — attach it below before payments.`
+          : "Event created.",
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -269,17 +312,58 @@ export function HostPage() {
     }
   }
 
-  async function onConfirmPayment(invoiceId: string) {
+  async function invoiceAction(fn: () => Promise<string>) {
     setBusy(true);
     setError(null);
     setNote(null);
     try {
-      const res = await api<{ ok: boolean; alreadyPaid?: boolean; emailed?: number }>(
-        `/api/host/invoices/${invoiceId}/confirm-payment`,
-        { method: "POST" },
-      );
-      setNote(res.alreadyPaid ? "Already paid." : `Paid — emailed ${res.emailed ?? 0} PDF(s).`);
+      setNote(await fn());
       if (live) await loadInvoices(live.event.code);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function onConfirmPayment(invoiceId: string, method: PaymentMethod, confirmedWithoutSlip: boolean) {
+    return invoiceAction(async () => {
+      const res = await api<EmailResult>(`/api/host/invoices/${invoiceId}/confirm-payment`, {
+        method: "POST",
+        body: JSON.stringify({ method, confirmedWithoutSlip }),
+      });
+      return res.alreadyPaid ? "Already paid." : `Marked paid. ${emailStatusText(res.emailStatus, res.emailed)}`;
+    });
+  }
+
+  function onSendEmail(invoiceId: string) {
+    return invoiceAction(async () => {
+      const res = await api<EmailResult>(`/api/host/invoices/${invoiceId}/send-email`, { method: "POST", body: "{}" });
+      return emailStatusText(res.emailStatus, res.emailed);
+    });
+  }
+
+  function onHandover(invoiceId: string, itemId: string, handedOver: boolean) {
+    return invoiceAction(async () => {
+      await api(`/api/host/invoices/${invoiceId}/lines/${itemId}/handover`, {
+        method: "POST",
+        body: JSON.stringify({ handedOver }),
+      });
+      return handedOver ? "Marked as handed over." : "Handover undone.";
+    });
+  }
+
+  async function onAttachVoucher(itemId: string, file: File) {
+    if (!live) return;
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const form = new FormData();
+      form.append("file", file, file.name);
+      await uploadForm(`/api/host/events/${live.event.code}/items/${itemId}/voucher`, form);
+      setLive(await api<LivePayload>(`/api/events/${live.event.code}`));
+      setNote("Voucher PDF attached.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -321,12 +405,13 @@ export function HostPage() {
     try {
       await api(`/api/host/events/${live.event.code}/guests`, {
         method: "POST",
-        body: JSON.stringify({ email: guestEmail, name: guestName }),
+        body: JSON.stringify({ phone: guestPhone, name: guestName, email: guestEmail }),
       });
+      setGuestPhone("");
       setGuestEmail("");
       setGuestName("");
       await loadGuests(live.event.code);
-      setNote("Guest saved by email.");
+      setNote("Guest saved by phone.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -502,13 +587,37 @@ export function HostPage() {
               </div>
             </div>
           )}
-          <h3>Items + voucher PDFs</h3>
+          <h3>Payments &amp; handover</h3>
+          <EventStatusSummary code={live.event.code} summary={invoiceSummary} currency={live.event.currency} />
+          <h3>Items</h3>
           <ul className="stack">
             {live.items.map((it) => (
               <li key={it.id}>
                 {it.photoUrl && <img src={it.photoUrl} alt="" className="thumb" />}
-                {it.title} — high {formatMoney(it.highBid, parseCurrency(live.event.currency))}
-                {it.hasVoucher ? " · voucher ✓" : " · voucher missing"}
+                <div className="line-row">
+                  <span>
+                    {it.title} — high {formatMoney(it.highBid, parseCurrency(live.event.currency))}
+                    {it.sponsor ? ` · ${it.sponsor.name}` : ""}
+                  </span>
+                  {it.kind === "physical" ? (
+                    <span className="pill kind-physical">physical</span>
+                  ) : it.hasVoucher ? (
+                    <span className="pill kind-voucher">voucher ✓</span>
+                  ) : (
+                    <label className="line-row">
+                      <span className="pill">voucher PDF missing</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        disabled={busy}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) onAttachVoucher(it.id, f);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -522,24 +631,32 @@ export function HostPage() {
           currency={live.event.currency}
           onRefresh={() => loadInvoices(live.event.code).catch((err) => setError((err as Error).message))}
           onConfirm={onConfirmPayment}
+          onHandover={onHandover}
+          onSendEmail={onSendEmail}
         />
       )}
 
+      {live && <HelpDeskCard code={live.event.code} />}
+
       <div className="card">
         <h2>Users</h2>
-        <p className="muted">Identity is the email address.</p>
+        <p className="muted">Guests are identified by mobile number; name and email are optional.</p>
         {live && (
           <>
             <h3>Guests — {live.event.title}</h3>
             {guests.length === 0 ? (
-              <p className="muted">None yet. They appear when they join, or add by email.</p>
+              <p className="muted">None yet. They appear when they join, or add them by phone.</p>
             ) : (
               <ul className="auction-list">
                 {guests.map((g) => (
                   <li key={g.id} className="auction-row">
                     <span className="auction-meta">
-                      <strong>{g.email}</strong>
-                      <span className="muted">{g.name} · {g.bidCount} bids</span>
+                      <strong>{g.phone ?? g.email}</strong>
+                      <span className="muted">
+                        {g.name}
+                        {g.phone && g.email ? ` · ${g.email}` : ""} · {g.bidCount} bids
+                        {g.joined === false ? " · not joined yet" : ""}
+                      </span>
                     </span>
                   </li>
                 ))}
@@ -547,8 +664,9 @@ export function HostPage() {
             )}
             <form className="stack" onSubmit={onAddGuest}>
               <div className="row">
-                <label>Email <input type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} required autoComplete="off" /></label>
+                <label>Phone <input type="tel" inputMode="tel" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} required autoComplete="off" placeholder="081 234 5678" /></label>
                 <label>Name <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Optional" /></label>
+                <label>Email <input type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} autoComplete="off" placeholder="Optional" /></label>
               </div>
               <button className="button secondary" disabled={busy}>Add guest</button>
             </form>
@@ -598,11 +716,48 @@ export function HostPage() {
             </label>
           </div>
           <h3>Items</h3>
+          <datalist id="sponsor-names">
+            {sponsors.map((sp) => (
+              <option key={sp.id} value={sp.name} />
+            ))}
+          </datalist>
           {items.map((it, idx) => (
             <div className="card nested" key={idx}>
               <label>Title <input value={it.title} onChange={(e) => updateItem(idx, { title: e.target.value })} /></label>
               <label>One-liner <input value={it.description} onChange={(e) => updateItem(idx, { description: e.target.value })} placeholder="Short description" maxLength={500} /></label>
-              <label>Voucher PDF <input type="file" accept="application/pdf,.pdf" onChange={(e) => updateItem(idx, { voucher: e.target.files?.[0] ?? null })} required={idx === 0} /></label>
+              <label>
+                Type
+                <select value={it.kind} onChange={(e) => updateItem(idx, { kind: e.target.value as ItemKind })}>
+                  <option value="voucher">Voucher (PDF emailed after payment)</option>
+                  <option value="physical">Physical prize (collect at the desk)</option>
+                </select>
+              </label>
+              {it.kind === "voucher" && (
+                <label>
+                  Voucher PDF <span className="muted">(optional now — can be attached later)</span>
+                  <input type="file" accept="application/pdf,.pdf" onChange={(e) => updateItem(idx, { voucher: e.target.files?.[0] ?? null })} />
+                </label>
+              )}
+              <div className="row">
+                <label>
+                  Sponsor
+                  <input
+                    value={it.sponsorName}
+                    list="sponsor-names"
+                    onChange={(e) => updateItem(idx, { sponsorName: e.target.value })}
+                    placeholder="Optional"
+                  />
+                </label>
+                <label>
+                  Sponsor logo
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                    disabled={!it.sponsorName.trim()}
+                    onChange={(e) => updateItem(idx, { sponsorLogo: e.target.files?.[0] ?? null })}
+                  />
+                </label>
+              </div>
               <label>
                 Photo
                 <input

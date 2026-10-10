@@ -7,6 +7,20 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — event essentials (stacks on the pre-event fixes)
+- **Physical prizes:** items have a type `voucher` or `physical`. Voucher PDFs are optional at creation and can be attached later (`POST /api/host/events/:code/items/:itemId/voucher`); physical items reject a PDF. Winner emails handle mixed wins: one PDF per voucher, plus "please collect at the desk" for physical items. The bid page and invoice show the type.
+- **Phone is the guest key:** guests join with a mobile number (normalized to E.164 via `libphonenumber-js`; `DEFAULT_PHONE_COUNTRY`, default `TH`). Name optional (board shows `Guest …1234` if empty), email optional. Winners of vouchers without an email are asked for one on the invoice page (`PUT /api/events/:code/me/email`).
+- **Login codes for a number already in use:** sent to the guest's email on file when possible, and always listed on the new host **Help desk** card (`GET /api/host/events/:code/login-requests`); still logged on the server as a fallback. An email typed on the new device is never used for delivery.
+- **Payment desk:** mark paid with method cash / bank transfer / PromptPay (non-cash without payslip requires the host's explicit confirmation), per-item **handed over** checkbox with timestamp and host, **Send email** to (re)send winner emails, guest search. The event card shows paid / collected / handed-over totals.
+- **Results export:** Excel (`.xlsx`, via `exceljs`) and CSV (UTF-8 BOM, formula-injection safe) with lot, item, type, sponsor, winner, phone, email, amount, paid, method, handed over.
+- **Sponsors:** name + logo (image) per item, reused across items/events by name (`GET/POST /api/host/sponsors`, public `GET /api/sponsors/:id/logo`). Shown on the bid page, the big-screen engager (featured item + sponsor strip) and the invoice.
+- Tests for all of the above, including an upgrade test from a v0.2.0 database.
+
+### Changed
+- Guests are identified by phone instead of email. **Migration** (idempotent): adds `guests.phone` (unique per event when set), drops the per-event email uniqueness (a couple can share an email) and keeps existing email-keyed guests working with their current device tokens. Join/verify bodies are now `{ phone, name?, email? }` / `{ phone, code }`; host add-guest is `{ phone, name?, email? }`.
+- `confirm-payment` takes `{ method, confirmedWithoutSlip }` and no longer fails with 503 when SMTP is missing; it returns an `emailStatus` instead (`sent`, `no_email`, `smtp_not_configured`, `voucher_pdf_missing`, …).
+- Rate limits for join/verify are keyed per IP + phone.
+
 ### Security
 - **Guest impersonation fixed:** joining with an email that is already bidding no longer returns that guest's token. On a new device the guest gets a **6-digit code by email** (`POST /api/events/:code/join/verify`; valid 10 min, max 5 tries, one resend per 60 s). Without SMTP the code is written to the API log. Host-added guests that never joined can still join once without a code. Guest display names can no longer be changed by someone else re-joining with the email.
 - **Rate limits** (`@fastify/rate-limit`) on guest join and verify (per IP + email), bids (per guest), and host login. Limits can be tuned with `RATE_LIMIT_*` env vars.

@@ -215,3 +215,16 @@ textarea { min-height: 70px; }
   border-radius: 14px;
   padding: 0.65rem 0.85rem;
 }
+
+/* Sponsors + item kind */
+.sponsor { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.25rem 0; }
+.sponsor-logo { height: 28px; max-width: 120px; object-fit: contain; background: #fff; border-radius: 6px; padding: 2px 4px; }
+.sponsor-lg .sponsor-logo { height: 56px; max-width: 220px; }
+.sponsor-lg { font-size: 1.2rem; }
+.pill.kind-physical { background: rgba(250, 204, 21, 0.18); }
+.pill.kind-voucher { background: rgba(56, 189, 248, 0.15); }
+.desk-code { font-size: 1.8rem; letter-spacing: 0.2em; font-variant-numeric: tabular-nums; }
+.status-summary { display: flex; gap: 1rem; flex-wrap: wrap; }
+.line-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.sponsor-strip { margin-top: 1rem; }
+.sponsor-strip .sponsor-logo { height: 40px; }

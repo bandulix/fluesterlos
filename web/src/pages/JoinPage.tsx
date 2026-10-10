@@ -4,12 +4,19 @@ import { api, getGuestToken, setGuestToken } from "../lib/api";
 
 type JoinResponse =
   | { guest: { token: string } }
-  | { verificationRequired: true; email: string; resendInSeconds: number };
+  | {
+      verificationRequired: true;
+      phone: string;
+      delivery: "email" | "desk";
+      maskedEmail: string | null;
+      resendInSeconds: number;
+    };
 
 export function JoinPage() {
   const { code = "" } = useParams();
   const nav = useNavigate();
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -34,14 +41,20 @@ export function JoinPage() {
   async function requestJoin() {
     const res = await api<JoinResponse>(`/api/events/${code}/join`, {
       method: "POST",
-      body: JSON.stringify({ name, email }),
+      body: JSON.stringify({ name, phone, email }),
     });
     if ("guest" in res) {
       done(res.guest.token);
       return;
     }
     setStep("code");
-    setNotice(`This email is already bidding on another device. We sent a 6-digit code to ${res.email}.`);
+    setNotice(
+      res.delivery === "email" && res.maskedEmail
+        ? `This number is already bidding on another device. We emailed a 6-digit code to ${res.maskedEmail}. ` +
+            "No email? The help desk can give you the code."
+        : "This number is already bidding on another device. Please go to the help desk — " +
+            "a host will check who you are and give you a 6-digit code.",
+    );
   }
 
   async function onSubmit(e: FormEvent) {
@@ -64,7 +77,7 @@ export function JoinPage() {
     try {
       const res = await api<{ guest: { token: string } }>(`/api/events/${code}/join/verify`, {
         method: "POST",
-        body: JSON.stringify({ email, code: otp, name }),
+        body: JSON.stringify({ phone, code: otp, name }),
       });
       done(res.guest.token);
     } catch (err) {
@@ -114,7 +127,7 @@ export function JoinPage() {
               disabled={busy}
               onClick={() => { setStep("email"); setOtp(""); setNotice(null); setError(null); }}
             >
-              Use another email
+              Use another number
             </button>
           </div>
           {error && <p className="error" role="alert">{String(error)}</p>}
@@ -127,8 +140,23 @@ export function JoinPage() {
     <section className="card narrow">
       <h1>{title || "Join"}</h1>
       <form className="stack" onSubmit={onSubmit}>
-        <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
+        <label>
+          Mobile number
+          <input
+            type="tel"
+            inputMode="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+            autoComplete="tel"
+            placeholder="081 234 5678"
+          />
+        </label>
         <label>Name (on the board) <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Optional" /></label>
+        <label>
+          Email <span className="muted">(optional — only to receive voucher PDFs if you win)</span>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+        </label>
         <button className="button" disabled={busy}>Bid</button>
         {error && <p className="error" role="alert">{String(error)}</p>}
       </form>

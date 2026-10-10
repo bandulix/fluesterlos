@@ -1,4 +1,4 @@
-import { FormEvent } from "react";
+import { FormEvent, useState } from "react";
 import { API_BASE, uploadForm } from "../lib/api";
 import { formatMoney, parseCurrency } from "../lib/money";
 
@@ -8,18 +8,74 @@ export type HostSettings = {
   hasQrImage: boolean;
 };
 
+export type PaymentMethod = "cash" | "bank_transfer" | "promptpay";
+
+export const METHOD_LABEL: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  bank_transfer: "Bank transfer",
+  promptpay: "PromptPay",
+};
+
 export type HostInvoice = {
   id: string;
   guestId: string;
   guestName: string;
-  guestEmail: string;
+  guestEmail: string | null;
+  guestPhone: string | null;
   total: number;
   status: "unpaid" | "payslip_uploaded" | "paid";
+  paymentMethod: PaymentMethod | null;
+  paidBy: string | null;
   hasPayslip: boolean;
   paidAt: string | null;
   vouchersEmailedAt: string | null;
-  lines: Array<{ itemId: string; title: string; description: string; amount: number }>;
+  lines: Array<{
+    itemId: string;
+    title: string;
+    description: string;
+    amount: number;
+    kind: "voucher" | "physical";
+    hasVoucher: boolean;
+    sponsorName: string | null;
+    handedOverAt: string | null;
+  }>;
 };
+
+export type InvoiceSummary = {
+  invoices: number;
+  paid: number;
+  totalAmount: number;
+  paidAmount: number;
+  items: number;
+  handedOver: number;
+};
+
+export type EmailStatus =
+  | "sent"
+  | "already_sent"
+  | "no_email"
+  | "smtp_not_configured"
+  | "voucher_pdf_missing"
+  | "not_paid";
+
+export function emailStatusText(status: EmailStatus | undefined, emailed?: number): string {
+  switch (status) {
+    case "sent":
+      return `Winner email sent${emailed ? ` with ${emailed} voucher PDF(s)` : ""}.`;
+    case "already_sent":
+      return "Winner email was already sent.";
+    case "no_email":
+      return "No email on file — hand vouchers over at the desk or ask the guest to add an email on their invoice page.";
+    case "smtp_not_configured":
+      return "SMTP is not configured — no email sent.";
+    case "voucher_pdf_missing":
+      return "Email held: a voucher PDF is missing. Upload it on the item, then press “Send email”.";
+    case "not_paid":
+      return "Not paid yet — no email sent.";
+    default:
+      return "";
+  }
+}
 
 export async function uploadHostQr(file: File) {
   const form = new FormData();
@@ -91,67 +147,180 @@ export function PaymentSettingsCard(props: {
   );
 }
 
+function InvoiceRow(props: {
+  inv: HostInvoice;
+  busy: boolean;
+  ccy: ReturnType<typeof parseCurrency>;
+  onConfirm: (id: string, method: PaymentMethod, confirmedWithoutSlip: boolean) => void;
+  onHandover: (id: string, itemId: string, handedOver: boolean) => void;
+  onSendEmail: (id: string) => void;
+}) {
+  const { inv, busy, ccy, onConfirm, onHandover, onSendEmail } = props;
+  const [method, setMethod] = useState<PaymentMethod>(inv.hasPayslip ? "promptpay" : "cash");
+  const [withoutSlip, setWithoutSlip] = useState(false);
+  const paid = inv.status === "paid";
+  const needsSlipCheck = method !== "cash" && !inv.hasPayslip;
+  const hasVouchers = inv.lines.some((l) => l.kind === "voucher");
+  return (
+    <div className="card nested">
+      <p>
+        <strong>{inv.guestName}</strong>
+        {inv.guestPhone ? ` · ${inv.guestPhone}` : ""}
+        {inv.guestEmail ? ` · ${inv.guestEmail}` : ""} — <strong>{formatMoney(inv.total, ccy)}</strong> —{" "}
+        <span className={`pill status-${inv.status}`}>
+          {paid ? `paid${inv.paymentMethod ? ` · ${METHOD_LABEL[inv.paymentMethod]}` : ""}` : inv.status.replace("_", " ")}
+        </span>
+      </p>
+      <ul className="stack">
+        {inv.lines.map((l) => (
+          <li key={l.itemId} className="line-row">
+            <label className="line-row" title={paid ? "" : "Mark the invoice paid before handing over"}>
+              <input
+                type="checkbox"
+                checked={Boolean(l.handedOverAt)}
+                disabled={busy || !paid}
+                onChange={(e) => onHandover(inv.id, l.itemId, e.target.checked)}
+              />
+              Handed over
+            </label>
+            <span>
+              {l.title} — {formatMoney(l.amount, ccy)}
+              {l.sponsorName ? ` · ${l.sponsorName}` : ""}
+            </span>
+            <span className={`pill kind-${l.kind}`}>{l.kind === "physical" ? "physical" : "voucher"}</span>
+            {l.kind === "voucher" && !l.hasVoucher && <span className="pill">PDF missing</span>}
+            {l.handedOverAt && <span className="muted">{new Date(l.handedOverAt).toLocaleString()}</span>}
+          </li>
+        ))}
+      </ul>
+      <div className="row">
+        {inv.hasPayslip && (
+          <a
+            className="button secondary"
+            href={`${API_BASE}/api/host/invoices/${inv.id}/payslip`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View payslip
+          </a>
+        )}
+        {!paid && (
+          <>
+            <label>
+              Method
+              <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+                <option value="cash">Cash</option>
+                <option value="bank_transfer">Bank transfer</option>
+                <option value="promptpay">PromptPay</option>
+              </select>
+            </label>
+            {needsSlipCheck && (
+              <label className="line-row">
+                <input type="checkbox" checked={withoutSlip} onChange={(e) => setWithoutSlip(e.target.checked)} />
+                I checked the transfer arrived (no payslip)
+              </label>
+            )}
+            <button
+              type="button"
+              className="button"
+              disabled={busy || (needsSlipCheck && !withoutSlip)}
+              onClick={() => onConfirm(inv.id, method, needsSlipCheck && withoutSlip)}
+            >
+              Mark paid{hasVouchers ? " & email vouchers" : ""}
+            </button>
+          </>
+        )}
+        {paid && hasVouchers && (
+          <button type="button" className="button secondary" disabled={busy} onClick={() => onSendEmail(inv.id)}>
+            {inv.vouchersEmailedAt ? "Resend email" : "Send email"}
+          </button>
+        )}
+        {inv.paidAt && (
+          <span className="muted">
+            Paid {new Date(inv.paidAt).toLocaleString()}
+            {inv.paidBy ? ` by ${inv.paidBy}` : ""}
+          </span>
+        )}
+        {inv.vouchersEmailedAt && (
+          <span className="muted">Emailed {new Date(inv.vouchersEmailedAt).toLocaleString()}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function InvoicesCard(props: {
   invoices: HostInvoice[];
   busy: boolean;
   currency?: string;
   onRefresh: () => void;
-  onConfirm: (id: string) => void;
+  onConfirm: (id: string, method: PaymentMethod, confirmedWithoutSlip: boolean) => void;
+  onHandover: (id: string, itemId: string, handedOver: boolean) => void;
+  onSendEmail: (id: string) => void;
 }) {
-  const { invoices, busy, onRefresh, onConfirm } = props;
+  const { invoices, busy, onRefresh } = props;
   const ccy = parseCurrency(props.currency);
+  const [filter, setFilter] = useState("");
+  const q = filter.trim().toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  const shown = q
+    ? invoices.filter(
+        (i) =>
+          i.guestName.toLowerCase().includes(q) ||
+          (i.guestEmail ?? "").toLowerCase().includes(q) ||
+          (digits.length >= 3 && (i.guestPhone ?? "").replace(/\D/g, "").includes(digits)),
+      )
+    : invoices;
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2>Invoices (one per winning guest)</h2>
+        <h2>Payment desk</h2>
         <button type="button" className="button secondary" onClick={onRefresh} disabled={busy}>
           Refresh
         </button>
       </div>
-      {invoices.length === 0 && <p className="muted">No invoices yet (appear from winning bids).</p>}
-      {invoices.map((inv) => (
-        <div className="card nested" key={inv.id}>
-          <p>
-            <strong>{inv.guestName}</strong> ({inv.guestEmail}) —{" "}
-            <strong>{formatMoney(inv.total, ccy)}</strong> — {inv.status}
-            {inv.hasPayslip ? " · payslip uploaded" : ""}
-          </p>
-          <ul>
-            {inv.lines.map((l) => (
-              <li key={l.itemId}>
-                {l.title} — {formatMoney(l.amount, ccy)}
-              </li>
-            ))}
-          </ul>
-          <div className="row">
-            {inv.hasPayslip && (
-              <a
-                className="button secondary"
-                href={`${API_BASE}/api/host/invoices/${inv.id}/payslip`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View payslip
-              </a>
-            )}
-            {inv.status !== "paid" && (
-              <button
-                type="button"
-                className="button"
-                disabled={busy}
-                onClick={() => onConfirm(inv.id)}
-              >
-                Mark paid & email vouchers
-              </button>
-            )}
-            {inv.vouchersEmailedAt && (
-              <span className="muted">
-                Emailed {new Date(inv.vouchersEmailedAt).toLocaleString()}
-              </span>
-            )}
-          </div>
-        </div>
+      <p className="muted">One invoice per winning guest. Mark paid first, then tick each item as you hand it over.</p>
+      {invoices.length > 0 && (
+        <label>
+          Find guest
+          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Name, phone or email" />
+        </label>
+      )}
+      {invoices.length === 0 && <p className="muted">No invoices yet (created when the auction closes).</p>}
+      {shown.map((inv) => (
+        <InvoiceRow
+          key={inv.id}
+          inv={inv}
+          busy={busy}
+          ccy={ccy}
+          onConfirm={props.onConfirm}
+          onHandover={props.onHandover}
+          onSendEmail={props.onSendEmail}
+        />
       ))}
+    </div>
+  );
+}
+
+export function EventStatusSummary(props: { code: string; summary: InvoiceSummary | null; currency?: string }) {
+  const ccy = parseCurrency(props.currency);
+  const s = props.summary;
+  return (
+    <div className="stack">
+      {s ? (
+        <div className="status-summary">
+          <span><strong>{s.paid}/{s.invoices}</strong> invoices paid</span>
+          <span><strong>{formatMoney(s.paidAmount, ccy)}</strong> of {formatMoney(s.totalAmount, ccy)} collected</span>
+          <span><strong>{s.handedOver}/{s.items}</strong> items handed over</span>
+        </div>
+      ) : (
+        <p className="muted">Payment and handover status appears when the auction closes.</p>
+      )}
+      <p className="row">
+        <span className="muted">Results export:</span>
+        <a href={`${API_BASE}/api/host/events/${props.code}/results.xlsx`}>Excel (.xlsx)</a>
+        <a href={`${API_BASE}/api/host/events/${props.code}/results.csv`}>CSV</a>
+      </p>
     </div>
   );
 }
