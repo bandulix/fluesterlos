@@ -5,5 +5,9 @@
   "workspaces": [
     "api",
     "web"
-  ]
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck -w api && npm run typecheck -w web",
+    "test": "npm test -w api"
+  }
 }

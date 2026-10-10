@@ -20,6 +20,7 @@ export type LivePayload = {
     startingBid: number;
     minIncrement: number;
     buyNow: number | null;
+    soldViaBuyNow?: boolean;
     sortOrder: number;
     highBid: number;
     highBidder: string | null;

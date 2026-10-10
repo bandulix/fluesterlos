@@ -1,76 +1,114 @@
 import { pool } from "./db.js";
-import { formatMoney, money, parseCurrency } from "./auction.js";
+import { auctionStatus, formatMoney, money, parseCurrency } from "./auction.js";
 import { readDataFile } from "./storage.js";
 import { sendMail, smtpConfigured } from "./mail.js";
 
 export type InvoiceStatus = "unpaid" | "payslip_uploaded" | "paid";
 
-/** Create/refresh one invoice per winning guest (sum of winning bids). Skips paid invoices. */
-export async function ensureInvoicesForEvent(eventId: string) {
-  const winners = await pool.query(
-    `SELECT i.id AS item_id, i.title AS item_title, i.voucher_pdf_path,
-            b.guest_id, b.amount
-     FROM items i
-     JOIN LATERAL (
-       SELECT guest_id, amount FROM bids
-       WHERE item_id = i.id
-       ORDER BY amount DESC, created_at DESC
-       LIMIT 1
-     ) b ON true
-     WHERE i.event_id = $1`,
-    [eventId],
-  );
+function httpError(statusCode: number, message: string) {
+  return Object.assign(new Error(message), { statusCode });
+}
 
-  const byGuest = new Map<
-    string,
-    Array<{ item_id: string; item_title: string; amount: number; voucher_pdf_path: string | null }>
-  >();
-  for (const row of winners.rows) {
-    const gid = row.guest_id as string;
-    const list = byGuest.get(gid) ?? [];
-    list.push({
-      item_id: row.item_id,
-      item_title: row.item_title,
-      amount: money(row.amount),
-      voucher_pdf_path: row.voucher_pdf_path,
-    });
-    byGuest.set(gid, list);
+/** Invoices only exist for final results: the auction must be closed. */
+export async function assertEventClosed(eventId: string) {
+  const { rows } = await pool.query("SELECT starts_at, ends_at FROM events WHERE id = $1", [eventId]);
+  const ev = rows[0] as { starts_at: Date; ends_at: Date } | undefined;
+  if (!ev) throw httpError(404, "Event not found");
+  if (auctionStatus(ev.starts_at, ev.ends_at) !== "closed") {
+    throw httpError(409, "Invoices are available after the auction closes");
   }
+}
 
-  for (const [guestId, lines] of byGuest) {
-    const total = money(lines.reduce((s, l) => s + l.amount, 0));
-    const existing = await pool.query(
-      "SELECT id, status FROM invoices WHERE event_id = $1 AND guest_id = $2",
-      [eventId, guestId],
+/**
+ * Create/refresh one invoice per winning guest (sum of final winning bids).
+ * Only runs once the auction is closed. Paid invoices are never touched; unpaid invoices
+ * of guests who no longer win anything (e.g. created by an older version mid-auction) are removed.
+ */
+export async function ensureInvoicesForEvent(eventId: string) {
+  await assertEventClosed(eventId);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Serialize per event: many winners open their invoice right at close.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`invoices:${eventId}`]);
+
+    const winners = await client.query(
+      `SELECT i.id AS item_id, i.title AS item_title, i.voucher_pdf_path,
+              b.guest_id, b.amount
+       FROM items i
+       JOIN LATERAL (
+         SELECT guest_id, amount FROM bids
+         WHERE item_id = i.id
+         ORDER BY amount DESC, created_at ASC
+         LIMIT 1
+       ) b ON true
+       WHERE i.event_id = $1`,
+      [eventId],
     );
-    if (existing.rows[0]?.status === "paid") continue;
 
-    let invoiceId: string;
-    if (existing.rows[0]) {
-      invoiceId = existing.rows[0].id;
-      await pool.query(
-        `UPDATE invoices SET total = $1,
-           status = CASE WHEN status = 'payslip_uploaded' THEN status ELSE 'unpaid' END
-         WHERE id = $2`,
-        [total, invoiceId],
-      );
-      await pool.query("DELETE FROM invoice_lines WHERE invoice_id = $1", [invoiceId]);
-    } else {
-      const ins = await pool.query(
-        `INSERT INTO invoices (event_id, guest_id, total, status)
-         VALUES ($1, $2, $3, 'unpaid') RETURNING id`,
-        [eventId, guestId, total],
-      );
-      invoiceId = ins.rows[0].id;
+    const byGuest = new Map<
+      string,
+      Array<{ item_id: string; item_title: string; amount: number; voucher_pdf_path: string | null }>
+    >();
+    for (const row of winners.rows) {
+      const gid = row.guest_id as string;
+      const list = byGuest.get(gid) ?? [];
+      list.push({
+        item_id: row.item_id,
+        item_title: row.item_title,
+        amount: money(row.amount),
+        voucher_pdf_path: row.voucher_pdf_path,
+      });
+      byGuest.set(gid, list);
     }
-    for (const line of lines) {
-      await pool.query(
-        `INSERT INTO invoice_lines (invoice_id, item_id, amount)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (invoice_id, item_id) DO UPDATE SET amount = EXCLUDED.amount`,
-        [invoiceId, line.item_id, line.amount],
+
+    await client.query(
+      `DELETE FROM invoices
+       WHERE event_id = $1 AND status <> 'paid' AND NOT (guest_id = ANY($2::uuid[]))`,
+      [eventId, [...byGuest.keys()]],
+    );
+
+    for (const [guestId, lines] of byGuest) {
+      const total = money(lines.reduce((s, l) => s + l.amount, 0));
+      const existing = await client.query(
+        "SELECT id, status FROM invoices WHERE event_id = $1 AND guest_id = $2",
+        [eventId, guestId],
       );
+      if (existing.rows[0]?.status === "paid") continue;
+
+      let invoiceId: string;
+      if (existing.rows[0]) {
+        invoiceId = existing.rows[0].id;
+        await client.query(
+          `UPDATE invoices SET total = $1,
+             status = CASE WHEN status = 'payslip_uploaded' THEN status ELSE 'unpaid' END
+           WHERE id = $2`,
+          [total, invoiceId],
+        );
+        await client.query("DELETE FROM invoice_lines WHERE invoice_id = $1", [invoiceId]);
+      } else {
+        const ins = await client.query(
+          `INSERT INTO invoices (event_id, guest_id, total, status)
+           VALUES ($1, $2, $3, 'unpaid') RETURNING id`,
+          [eventId, guestId, total],
+        );
+        invoiceId = ins.rows[0].id;
+      }
+      for (const line of lines) {
+        await client.query(
+          `INSERT INTO invoice_lines (invoice_id, item_id, amount)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (invoice_id, item_id) DO UPDATE SET amount = EXCLUDED.amount`,
+          [invoiceId, line.item_id, line.amount],
+        );
+      }
     }
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
   }
 }
 
@@ -122,6 +160,9 @@ export async function listEventInvoices(eventId: string) {
 }
 
 export async function confirmPaymentAndEmailVouchers(invoiceId: string, eventTitle: string) {
+  const ev = await pool.query("SELECT event_id FROM invoices WHERE id = $1", [invoiceId]);
+  if (!ev.rows[0]) throw httpError(404, "Invoice not found");
+  await assertEventClosed(ev.rows[0].event_id as string);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

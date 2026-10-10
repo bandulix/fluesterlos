@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { pool } from "./db.js";
-import { money } from "./auction.js";
+import { auctionStatus, money } from "./auction.js";
 import {
   confirmPaymentAndEmailVouchers,
   listEventInvoices,
@@ -128,6 +128,13 @@ export function registerInvoiceHostRoutes(
     const code = codeOf((req.params as { code: string }).code);
     const event = await getEventByCode(code);
     if (!event) return reply.code(404).send({ error: "Event not found" });
+    if (auctionStatus(event.starts_at, event.ends_at) !== "closed") {
+      return {
+        event: { id: event.id, code: event.code, title: event.title },
+        invoices: [],
+        message: "Invoices are created when the auction closes",
+      };
+    }
     const list = await listEventInvoices(event.id);
     return {
       event: { id: event.id, code: event.code, title: event.title },

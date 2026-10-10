@@ -35,6 +35,14 @@ export function registerInvoiceGuestRoutes(
     }
     const status = auctionStatus(event.starts_at, event.ends_at);
     const currency = parseCurrency(event.currency);
+    if (status !== "closed") {
+      // No invoice while bids can still change the winners.
+      return {
+        event: { id: event.id, code: event.code, title: event.title, status, currency },
+        invoice: null,
+        message: "Invoices are available after the auction closes",
+      };
+    }
     const data = await getGuestInvoice(event.id, guest.id);
     if (!data) {
       return {
@@ -87,6 +95,9 @@ export function registerInvoiceGuestRoutes(
     const guest = await guestFromRequest(req as never);
     if (!guest || guest.event_id !== event.id) {
       return reply.code(401).send({ error: "Join the event first" });
+    }
+    if (auctionStatus(event.starts_at, event.ends_at) !== "closed") {
+      return reply.code(409).send({ error: "Invoices are available after the auction closes" });
     }
     const data = await getGuestInvoice(event.id, guest.id);
     if (!data) return reply.code(404).send({ error: "No invoice for this guest" });
