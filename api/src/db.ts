@@ -47,6 +47,22 @@ export async function migrate() {
       UNIQUE (event_id, email)
     );
 
+    -- Set when a device first receives this guest's token. Existing rows count as claimed
+    -- (DEFAULT fills them once); host-added guests stay NULL until they join themselves.
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ DEFAULT now();
+    ALTER TABLE guests ALTER COLUMN claimed_at DROP DEFAULT;
+
+    -- 6-digit codes emailed when an already-claimed email joins from a new device.
+    CREATE TABLE IF NOT EXISTS guest_login_codes (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      attempts INT NOT NULL DEFAULT 0,
+      used_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE TABLE IF NOT EXISTS bids (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
@@ -107,5 +123,6 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS host_sessions_user_idx ON host_sessions(host_user_id);
     CREATE INDEX IF NOT EXISTS host_sessions_expires_idx ON host_sessions(expires_at);
     CREATE INDEX IF NOT EXISTS invoices_event_idx ON invoices(event_id);
+    CREATE INDEX IF NOT EXISTS guest_login_codes_guest_idx ON guest_login_codes(guest_id, created_at DESC);
   `);
 }

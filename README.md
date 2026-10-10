@@ -46,6 +46,15 @@ Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloa
 
 API also on http://localhost:3000 (`/api/health`).
 
+### Development & tests
+```bash
+npm ci
+npm run typecheck
+# API tests need a Postgres database they can wipe:
+TEST_DATABASE_URL=postgres://fluesterlos:fluesterlos@localhost:5432/fluesterlos_test npm test
+```
+CI workflow (`ci/github-ci.yml`, to be moved to `.github/workflows/ci.yml`) runs typecheck, tests (Postgres service container) and the web build on every pull request.
+
 ### B) Prebuilt GHCR images
 
 After images are published to GitHub Container Registry (Actions workflow on `main`):
@@ -60,6 +69,8 @@ Pulls `ghcr.io/bandulix/fluesterlos-api:latest` and `ghcr.io/bandulix/fluesterlo
 ### Host vs guest auth
 - **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie. Owner may add more host logins by email.
 - **Guests** are keyed by **email** per auction (same email = same guest). Name is optional display on the board.
+- If an email is already bidding on another device, the new device must enter a **6-digit code** sent to that email (SMTP). Without SMTP the code appears in the API log (`docker compose logs api`), so a host can read it out at the help desk.
+- **CORS / proxy:** credentialed CORS is limited to the origin of `PUBLIC_URL` (override with `CORS_ORIGINS`). Rate limits on join, verify, bid and host login are set with `RATE_LIMIT_*` (see `.env.example`).
 
 ### Payment / vouchers / SMTP
 - **Invoice model:** exactly **one invoice per winning guest** = sum of all their winning bids (not one invoice per item). Itemized lines are detail under that invoice.

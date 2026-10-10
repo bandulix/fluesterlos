@@ -1,0 +1,43 @@
+# Move to .github/workflows/ci.yml to enable (pushing workflow files needs a token with `workflow` scope).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fluesterlos
+          POSTGRES_PASSWORD: fluesterlos
+          POSTGRES_DB: fluesterlos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fluesterlos -d fluesterlos_test"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://fluesterlos:fluesterlos@localhost:5432/fluesterlos_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck (api + web)
+        run: npm run typecheck
+      - name: API tests (Postgres)
+        run: npm test
+      - name: Build web
+        run: npm run build -w web

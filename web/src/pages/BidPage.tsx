@@ -40,8 +40,10 @@ export function BidPage() {
       }, token);
       setMsg(`You're in at ${formatMoney(amount, parseCurrency(live?.event.currency))}`);
     } catch (err) {
-      const body = (err as Error & { body?: { currentHigh?: number; minNext?: number; outbid?: boolean } }).body;
-      if (body?.outbid) {
+      const body = (err as Error & { body?: { currentHigh?: number; minNext?: number; outbid?: boolean; sold?: boolean } }).body;
+      if (body?.sold) {
+        setMsg("Sorry — this item was just sold via buy now.");
+      } else if (body?.outbid) {
         const ccy = parseCurrency(live?.event.currency);
         setMsg(`Outbid — high is ${formatMoney(Number(body.currentHigh), ccy)}. Next is ${formatMoney(Number(body.minNext), ccy)}.`);
       } else {
@@ -71,6 +73,10 @@ export function BidPage() {
       {live.items.map((it) => {
         const minNext = it.bidCount === 0 ? it.startingBid : it.highBid + it.minIncrement;
         const itemFlash = flashTitle === it.title ? " bid-flash" : "";
+        const sold = Boolean(it.soldViaBuyNow);
+        // When the next normal bid would reach buy-now, offer only buy-now (it is the cheaper way to win).
+        const showBid = !sold && (!open || !(it.buyNow != null && minNext >= it.buyNow));
+        const showBuyNow = open && !sold && it.buyNow != null;
         return (
           <article className={`card item${itemFlash}`} key={it.id}>
             {it.photoUrl && <img src={it.photoUrl} alt="" className="thumb" />}
@@ -78,20 +84,23 @@ export function BidPage() {
             {it.description ? <p>{it.description}</p> : null}
             <p className="high-bid">{formatMoney(it.highBid, ccy)}{it.highBidder ? ` · ${it.highBidder}` : ""}</p>
             <div className="row">
-              <button
-                className="button"
-                disabled={!open || busyId === it.id}
-                onClick={() => placeBid(it.id, minNext)}
-              >
-                {open ? `Bid ${formatMoney(minNext, ccy)}` : "Closed"}
-              </button>
-              {it.buyNow != null && open && (
+              {sold && <span className="pill status-closed">Sold (buy now)</span>}
+              {showBid && (
+                <button
+                  className="button"
+                  disabled={!open || busyId === it.id}
+                  onClick={() => placeBid(it.id, minNext)}
+                >
+                  {open ? `Bid ${formatMoney(minNext, ccy)}` : "Closed"}
+                </button>
+              )}
+              {showBuyNow && (
                 <button
                   className="button secondary"
                   disabled={busyId === it.id}
                   onClick={() => placeBid(it.id, it.buyNow!)}
                 >
-                  Buy now {formatMoney(it.buyNow, ccy)}
+                  Buy now {formatMoney(it.buyNow!, ccy)}
                 </button>
               )}
             </div>

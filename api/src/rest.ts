@@ -4,10 +4,14 @@ import { pool } from "./db.js";
 import { auctionStatus, money } from "./auction.js";
 import { publish, subscribe } from "./sse.js";
 import { contentTypeFor, readDataFile, saveUpload } from "./storage.js";
-import { guestFromRequest, upsertGuest } from "./guestAuth.js";
+import { guestFromRequest, joinGuest, tokenFromRequest, upsertGuest, verifyGuestCode } from "./guestAuth.js";
+import { isAllowedOrigin, rateLimitFor } from "./security.js";
+import { cookieSecure } from "./hostAuth.js";
 
 type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date; currency?: string };
 type LiveBuilder = (eventId: string, code: string) => Promise<unknown>;
+
+const PUBLIC_URL = () => process.env.PUBLIC_URL ?? "http://localhost:8080";
 
 async function readParts(req: import("fastify").FastifyRequest) {
   const fields: Record<string, string> = {};
@@ -81,6 +85,9 @@ export function registerRestRoutes(
     }
     if (!pdf) {
       return reply.code(400).send({ error: "voucher PDF is required (field voucherPdf)" });
+    }
+    if (buyNow != null && !(buyNow > startingBid)) {
+      return reply.code(400).send({ error: "buyNow must be greater than startingBid" });
     }
     if (photo && !isImageUpload(photo)) {
       return reply.code(400).send({ error: "photo must be jpg, png, webp, or gif" });
@@ -193,19 +200,67 @@ export function registerRestRoutes(
     name: z.string().max(120).optional().default(""),
   });
 
-  app.post("/api/events/:code/join", async (req, reply) => {
+  function setGuestCookie(reply: import("fastify").FastifyReply, token: string) {
+    reply.setCookie("fl_guest", token, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: cookieSecure(PUBLIC_URL()),
+      maxAge: 60 * 60 * 24 * 14,
+    });
+  }
+
+  app.post("/api/events/:code/join", { config: rateLimitFor("join") }, async (req, reply) => {
     const code = codeOf((req.params as { code: string }).code);
     const event = await getEventByCode(code);
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const parsed = joinSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
-    const guest = await upsertGuest(event.id, parsed.data.email, parsed.data.name);
-    reply.setCookie("fl_guest", guest.token, {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 14,
+    const result = await joinGuest({
+      eventId: event.id,
+      eventTitle: event.title,
+      email: parsed.data.email,
+      name: parsed.data.name,
+      presentedToken: tokenFromRequest(req as never),
+      log: req.log,
     });
+    if (result.kind === "code_sent") {
+      // Existing guest on a new device: never hand out their token here.
+      return reply.code(202).send({
+        verificationRequired: true,
+        email: result.email,
+        resendInSeconds: result.resendInSeconds,
+      });
+    }
+    const guest = result.guest;
+    setGuestCookie(reply, guest.token);
+    const live = await buildLivePayload(event.id, event.code);
+    publish(event.code, "update", live);
+    return {
+      guest: { id: guest.id, name: guest.name, email: guest.email, token: guest.token },
+      live,
+    };
+  });
+
+  const verifySchema = z.object({
+    email: z.string().email().max(200),
+    code: z.string().regex(/^\s*\d{6}\s*$/, "6-digit code required"),
+    name: z.string().max(120).optional().default(""),
+  });
+
+  app.post("/api/events/:code/join/verify", { config: rateLimitFor("verify") }, async (req, reply) => {
+    const code = codeOf((req.params as { code: string }).code);
+    const event = await getEventByCode(code);
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const parsed = verifySchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+    const guest = await verifyGuestCode({
+      eventId: event.id,
+      email: parsed.data.email,
+      code: parsed.data.code,
+      name: parsed.data.name,
+    });
+    setGuestCookie(reply, guest.token);
     const live = await buildLivePayload(event.id, event.code);
     publish(event.code, "update", live);
     return {
@@ -230,7 +285,7 @@ export function registerRestRoutes(
     amount: z.number().positive(),
   });
 
-  app.post("/api/events/:code/bids", async (req, reply) => {
+  app.post("/api/events/:code/bids", { config: rateLimitFor("bid") }, async (req, reply) => {
     const code = codeOf((req.params as { code: string }).code);
     const event = await getEventByCode(code);
     if (!event) return reply.code(404).send({ error: "Event not found" });
@@ -268,13 +323,22 @@ export function registerRestRoutes(
       );
       const currentHigh = money(highRes.rows[0].high);
       const bidCount = bidCountRes.rows[0].c as number;
-      const amount = money(parsed.data.amount);
+      const requested = money(parsed.data.amount);
       const buyNow = item.buy_now == null ? null : money(item.buy_now);
+      // Once a bid reaches the buy-now price the item is sold and takes no more bids.
+      if (buyNow != null && bidCount > 0 && currentHigh >= buyNow) {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({ error: "Item already sold (buy now)", currentHigh, sold: true });
+      }
       const minNext =
         bidCount === 0
           ? money(item.starting_bid)
           : money(currentHigh + Number(item.min_increment));
-      if (!(buyNow != null && amount >= buyNow) && amount < minNext) {
+      // Buy-now is only reachable while the high bid is below it (checked above), so it can
+      // never record less than the current high. Anything at or above buy-now is recorded at buy-now.
+      const isBuyNow = buyNow != null && requested >= buyNow;
+      const amount = isBuyNow ? buyNow! : requested;
+      if (!isBuyNow && amount < minNext) {
         await client.query("ROLLBACK");
         return reply.code(400).send({ error: "Bid too low", currentHigh, minNext, outbid: true });
       }
@@ -292,7 +356,7 @@ export function registerRestRoutes(
         guestName: guest.name,
         createdAt: new Date(ins.rows[0].created_at).toISOString(),
       });
-      return { ok: true, amount, currentHigh: amount, live };
+      return { ok: true, amount, currentHigh: amount, buyNow: isBuyNow, live };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -307,12 +371,15 @@ export function registerRestRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
 
     reply.hijack();
+    const origin = req.headers.origin;
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      "Access-Control-Allow-Origin": String(req.headers.origin ?? "*"),
-      "Access-Control-Allow-Credentials": "true",
+      // Same-origin EventSource sends no Origin; cross-origin only for CORS_ORIGINS / PUBLIC_URL.
+      ...(isAllowedOrigin(origin, PUBLIC_URL())
+        ? { "Access-Control-Allow-Origin": origin!, "Access-Control-Allow-Credentials": "true", Vary: "Origin" }
+        : {}),
     });
 
     const sse = {
