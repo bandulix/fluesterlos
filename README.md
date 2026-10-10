@@ -1,116 +1,154 @@
 # FlüsterLos
 
-Open-source, self-hosted **silent auction** for charity and event hosts.
+Open-source, self-hosted **silent auction** for charity events. Guests scan a QR code, type their phone number and bid from their own phone. The host runs the payment desk from a browser, and a big screen keeps the room bidding.
 
-> QR → PWA → bid; everyone sees the live board — and the big screen keeps the room bidding.
+**License:** [AGPL-3.0](./LICENSE) · **Changelog:** [CHANGELOG.md](./CHANGELOG.md) · **Stack:** Fastify + Postgres API, Vite + React PWA, Docker Compose
 
-**License:** [AGPL-3.0](./LICENSE)
-**Status:** host dashboard + guest bid PWA + vouchers / invoices / PromptPay
-**Changelog:** [CHANGELOG.md](./CHANGELOG.md)
+<p>
+  <img src="docs/screenshots/guest-01-join.png" width="200" alt="Join: phone number and Start bidding">
+  <img src="docs/screenshots/guest-03-bid-page.png" width="200" alt="Bid page: item card with one-tap bid">
+  <img src="docs/screenshots/guest-05-outbid.png" width="200" alt="Outbid banner and status">
+  <img src="docs/screenshots/guest-10-invoice.png" width="200" alt="Invoice with PromptPay QR and payslip upload">
+</p>
 
-## Why
-Closed SaaS silent-auction tools lock you into fees, vendor data, and suite bloat. FlüsterLos is Docker-first OSS you run yourself.
+---
 
-## MVP (locked)
-- Host dashboard: list of auctions, signed-in email in the top bar, create event, reopen past events
-- Scheduled start/end (auto open/close + countdowns) in the **event time zone** (default Asia/Bangkok, `DEFAULT_EVENT_TIMEZONE`); host can close now, extend, reopen (while nothing is paid) and edit times and items
-- Per-auction **currency:** USD, EUR, or THB
-- Installable PWA + QR join
-- Guest identity is the **mobile number** (E.164; numbers without `+` are read as `DEFAULT_PHONE_COUNTRY`, default Thailand). Name optional, shown on the board (defaults to `Guest …1234`); email optional, only needed for voucher PDFs
-- Guest bid UI: auction title + time left + one-tap bid (no product chrome)
-- Item **photo file upload** (not a URL); item type **voucher** (PDF emailed after payment, can be attached later) or **physical** (collected at the desk)
-- **Sponsors:** name + logo per item, shown on the bid page, big screen and invoice; sponsors are reused by name
-- Live mobile bidding; **live stats visible to everyone**
-- Big-screen engager view for the event room
-- Single `docker compose up`
-- Host auth: first registered host is owner (email + bcrypt password, httpOnly session cookie); one-time `BOOTSTRAP_TOKEN` gates that first registration
-- **Users:** guests are keyed by phone, extra hosts by email; owner can add/remove host logins
-- **Vouchers + invoices:** one invoice per winning guest (sum of all wins); Thai PromptPay QR (amount filled for THB); payslip upload; host confirms → SMTP emails voucher PDF(s) (one attachment per won item). **No card/Stripe checkout.**
-- **Payment desk:** mark each invoice paid by cash / bank transfer / PromptPay, tick each item when it is handed over, see paid/handed-over totals on the event card, export results as Excel or CSV
+## What it is, and who it's for
+
+FlüsterLos grew out of a charity gala that ran its silent auction on paper bid sheets plus an Excel workbook. Collecting the sheets, finding the winners, chasing payments and handing out vouchers all happened by hand. FlüsterLos replaces that with:
+
+- **Guests** bid on their phones. There is no app store, no account and no password.
+- **Hosts** (the organising team) create the event and items, watch the bidding, collect payments and hand over prizes.
+- **The room** watches a big-screen view with live totals and recent bids.
+
+It is aimed at small and medium charity events (Rotary/Lions clubs, school galas, NGO dinners) that want to run it themselves. It is built Thailand-first (PromptPay, `Asia/Bangkok`, Thai phone numbers) but works with USD and EUR and any time zone.
+
+## Guest flow
+
+| | |
+|---|---|
+| <img src="docs/screenshots/guest-01-join.png" width="220" alt="Join screen"> | **1. Scan → phone → bid.** The QR opens `/e/<code>`. The only screen asks for a **mobile number**: big field, numeric keypad, auto-formatted while typing (Thai default, e.g. `081 234 5678`; `+…` for other countries). One tap on **Start bidding** opens the items. No name, email or sign-up is asked here. |
+| <img src="docs/screenshots/guest-03-bid-page.png" width="220" alt="Bid page"> | **2. Bid.** Each item is a card with photo, sponsor logo, current bid and a big one-tap **Bid ฿X** for the next valid amount. A −/+ stepper lets guests bid more, and there is **Buy now** where the host set one. The countdown follows the server clock. Updates are live (SSE). Each bid is confirmed with a short toast; there are no dialogs. |
+| <img src="docs/screenshots/guest-05-outbid.png" width="220" alt="Outbid"> | **3. Winning / outbid.** Every item a guest bid on shows **✓ You're winning** (green) or **↑ Outbid** (red). When a guest is outbid, a banner appears with a one-tap re-bid, and the phone vibrates where supported. Filter chips: **All / My bids / Winning / Outbid**. After the first bid a small, dismissible card offers **"Show your name on the board?"**. Until then the board shows `Guest …1234`, never the full number. |
+| <img src="docs/screenshots/guest-08-new-device-code.png" width="220" alt="Code step"> | **4. A code only when it's really needed.** If the number is already bidding on *another* phone, the new phone asks for a 6-digit code. The code is emailed if the guest has an email on file and SMTP is set; otherwise the host reads it off the **Help desk** card. Logging in again on the *same* phone, even after "Not you?", happens silently. |
+| <img src="docs/screenshots/guest-09-closed.png" width="220" alt="Closed"> | **5. Closed.** The page switches at the closing second: **"You won 2 items — Pay now"**. |
+| <img src="docs/screenshots/guest-10-invoice.png" width="220" alt="Invoice"> | **6. Pay.** One screen with the total and a large **PromptPay QR**. The amount is filled in for THB. **Save QR** opens the share sheet or downloads the image, and a long-press on the QR saves it too (useful in LINE). The guest can **upload a payslip** (camera or gallery); it uploads as soon as it's picked. **Email is asked only here, and only if they won a voucher** (prefilled if known). Physical prizes say "collect at the desk". |
+
+More details:
+
+- **Add to home screen:** a non-blocking hint shows only after the first bid and never on the join screen. iOS gets Share → "Add to Home Screen" instructions; Android gets an install button when the browser offers one. It is never shown inside LINE or other in-app browsers, and dismissing it is permanent.
+- **Accessibility:** tap targets are at least 48 px, inputs use 16 px+ text (no iOS zoom), labels are accessible, focus rings are visible and `prefers-reduced-motion` is respected.
+- **Strings:** all guest text lives in a string table ([`web/src/i18n/en.ts`](web/src/i18n/en.ts)). Thai or German can be added as another table; only English ships today.
+
+## Host flow
+
+Open **`/host`**.
+
+1. **Register the owner.** The first registration needs the one-time `BOOTSTRAP_TOKEN` from your env; after that, registration is closed. Hosts sign in with email + password (bcrypt, httpOnly session cookie). The owner can add and remove more host logins by email.
+2. **Payment settings:** a PromptPay ID (phone or 13-digit national ID) and payee name, and/or an uploaded static QR image.
+3. **Create an event:** title, currency (USD / EUR / THB) and **time zone** (default `DEFAULT_EVENT_TIMEZONE`). Start/end are entered and shown in the event's zone, whatever zone the host's device is in. Start defaults to now and end to +2 h. Each item has:
+   - title, description, starting bid, increment, optional buy-now
+   - optional **photo** (uploaded file)
+   - type **voucher** (PDF emailed after payment; the PDF can be attached later) or **physical** (collected at the desk)
+   - optional **sponsor** name + logo. Sponsors are reused by name, and a sponsor typed for an earlier item is suggested for later ones.
+4. **Event card:** join QR + link, links to Stats and the big screen, and live totals (paid / handed over). Host controls:
+   - **close now**
+   - **extend** (up to 24 h at a time). On a closed event this **reopens** it, as long as nothing has been paid.
+   - **edit times**
+   - **edit / delete items**
+5. **Users:** list guests, or add them in advance by phone; such a guest's first join needs no code. Extra host logins are managed here too.
+6. **Help desk:** shows pending 6-digit login codes, so a host can check who someone is and read the code out.
+7. **Payment desk** (after close): one invoice per winning guest, totalling all their wins.
+   - Mark paid by **cash / bank transfer / PromptPay**. Transfers without a payslip need an explicit "I checked the transfer arrived".
+   - Marking paid emails the voucher PDFs (one attachment per won voucher). If a voucher PDF is missing, the desk warns ("voucher PDF missing") and holds the email until the PDF is attached; then press **Send email**.
+   - Tick **Handed over** per item (only after payment; time and host are recorded). A toast confirms it.
+8. **Export:** `results.xlsx` / `results.csv` with one row per lot, including unsold ones. Columns: lot, item, type, sponsor, winner, phone, email, amount, currency, paid, method, paid at, handed over, handed over at.
+   - Timestamps are in the event's time zone, which is named in the header.
+   - CSV phones are readable without a leading `+` (`081 234 5678` for the default country, `(+49) 1512 3456789` otherwise), so spreadsheets don't treat them as formulas.
+   - xlsx keeps E.164 as text.
+
+## Big screen
+
+- **`/e/<code>/engager`:** full-screen room display with total raised, a highlighted item, a recent-bids feed, a sponsor strip and the join link. It is live and animated (gala theme).
+- **`/e/<code>/stats`:** a simpler public stats page.
 
 ## Quickstart
 
-### A) Build from source
+### A) Build from source (Docker Compose)
 
-1. Copy env: `cp .env.example .env` and set a strong `BOOTSTRAP_TOKEN` (used only for the first owner register)
-2. Optionally set `SMTP_*` so voucher emails (and login codes) go out by email. Set `DEFAULT_PHONE_COUNTRY` if your guests are not in Thailand
-3. Start stack: `docker compose up --build`
-4. Open **Host UI** at http://localhost:8080/host
-   - **Fresh install:** register with email, password, and `BOOTSTRAP_TOKEN` from `.env`
-   - **Later visits:** log in with email + password
-5. Configure **Payment settings** (PromptPay ID and/or upload a static QR image)
-6. Create event: title, schedule, **currency** (USD / EUR / THB)
-7. Add items — type **voucher** (voucher PDF now or later) or **physical**; optional **photo file** and **sponsor name + logo** (stored under `DATA_DIR`, volume `appdata:/data`)
-8. Guest joins at `/e/<code>` with their **mobile number** (name and email optional), bids at `/e/<code>/bid`
-9. After close, winners open `/e/<code>/invoice` — combined total, PromptPay QR, payslip upload; winners of vouchers without an email on file are asked for one
-10. At the **Payment desk** the host picks the method (cash / bank transfer / PromptPay) and clicks **Mark paid** → voucher PDF(s) are emailed, physical items get a "collect at the desk" note. Tick **Handed over** per item as prizes leave the desk
-11. Event card shows paid / handed-over totals and links to the **Excel / CSV results export** (lot, sponsor, winner, phone, amount, paid, method, handed over)
-12. **Users** on Host: list/add auction guests by phone; owner can add extra host logins by email
-
-API also on http://localhost:3000 (`/api/health`).
-
-### Development & tests
 ```bash
-npm ci
-npm run typecheck
-# API tests need a Postgres database they can wipe:
-TEST_DATABASE_URL=postgres://fluesterlos:fluesterlos@localhost:5432/fluesterlos_test npm test
+cp .env.example .env        # set a strong BOOTSTRAP_TOKEN; optionally SMTP_* and DEFAULT_PHONE_COUNTRY
+docker compose up --build
 ```
-CI workflow (`ci/github-ci.yml`, to be moved to `.github/workflows/ci.yml`) runs typecheck, tests (Postgres service container) and the web build on every pull request.
 
-### B) Prebuilt GHCR images
+- Web (guest + host UI): http://localhost:8080. The host UI is at `/host`.
+- API: http://localhost:3000 (`/api/health`). The web container proxies `/api/` to it.
+- Data: Postgres in volume `pgdata`; uploads (photos, logos, voucher PDFs, payslips, host QR) in volume `appdata` (`/data`).
 
-After images are published to GitHub Container Registry (Actions workflow on `main`):
+For production, put it behind HTTPS and set `PUBLIC_URL` to the public origin. `PUBLIC_URL` is used in join links and QR codes, and https makes cookies `Secure`.
+
+### B) Prebuilt images (GHCR)
+
+`docker-compose.ghcr.yml` uses `ghcr.io/bandulix/fluesterlos-api` and `ghcr.io/bandulix/fluesterlos-web` (tag `FLUESTERLOS_TAG`, default `latest`) instead of building locally:
 
 ```bash
-cp .env.example .env   # set BOOTSTRAP_TOKEN (+ SMTP_* if needed)
+cp .env.example .env
 docker compose -f docker-compose.ghcr.yml up
 ```
 
-Pulls `ghcr.io/bandulix/fluesterlos-api:latest` and `ghcr.io/bandulix/fluesterlos-web:latest` (no local build). Optional pin: `FLUESTERLOS_TAG=<sha>`. If packages are private, `docker login ghcr.io` with a PAT that has `read:packages`.
+This only works once images have been published. The repository currently contains no publish workflow, so build them yourself or use option A. For private packages, `docker login ghcr.io` with a token that has `read:packages`.
 
-### Host vs guest auth
-- **Hosts** use email + password (bcrypt). Session is an httpOnly `fl_host_session` cookie. Owner may add more host logins by email.
-- **Guests** are keyed by **mobile number** per auction (same number = same guest). Name is optional display on the board; the full number is never shown publicly. Email is optional and may be shared (e.g. by a couple).
-- If a number is already bidding on another device, the new device must enter a **6-digit code**. It is emailed to the address on file (if the guest gave one and SMTP is set) and always shown on the host **Help desk** card, so a host can check who it is and read it out. When it cannot be emailed it is also written to the API log as a last resort. Codes are valid 10 min, max 5 tries.
-- **Upgrading from 0.2.x:** the migration keeps existing email-keyed guests; their devices keep working, and the phone is attached the next time they join from that device (or when a host adds the same email with a phone).
-- **CORS / proxy:** credentialed CORS is limited to the origin of `PUBLIC_URL` (override with `CORS_ORIGINS`). Rate limits on join, verify, bid and host login are set with `RATE_LIMIT_*` (see `.env.example`).
+## Configuration
 
-### Payment / vouchers / SMTP
-- **Invoice model:** exactly **one invoice per winning guest** = sum of all their winning bids (not one invoice per item). Itemized lines are detail under that invoice.
-- **PromptPay:** set phone or 13-digit national ID in Host → Payment settings. Guests get an EMV PromptPay QR; **amount is filled only when the auction currency is THB**. Optionally upload a static QR image instead/in addition.
-- **Payslip:** guest pays outside the app, uploads image/PDF in the invoice PWA view.
-- **Confirm:** host marks payment received once for the whole invoice with the method. Cash needs no payslip; bank transfer / PromptPay need a payslip or the host's explicit "I checked the transfer arrived". The server then emails **one PDF attachment per won voucher** and a "collect at the desk" line per physical item. If a voucher PDF is still missing the email is held; attach the PDF on the item and press **Send email**.
-- **Handover:** per item, only after the invoice is paid (timestamp + host recorded).
-- **Results export:** `GET /api/host/events/:code/results.xlsx` or `.csv` (host only), one row per lot including unsold lots. Timestamps are in the event time zone (named in the column header). CSV phones are written readably without a leading `+` (`081 234 5678` for `DEFAULT_PHONE_COUNTRY`, `(+49) 1512 3456789` otherwise), so spreadsheets neither run them as formulas nor show an apostrophe. xlsx keeps E.164 as text.
-- **Caching / updates:** serve `sw.js`, `index.html` and the manifest with `Cache-Control: no-cache` and `/assets/*` as immutable (see `web/nginx.conf`). Open tabs reload by themselves when a new version is deployed.
-- **Env:** `DATA_DIR=/data`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (see `.env.example`). Compose mounts volume `appdata` at `/data` on the API.
+API environment variables (see [`.env.example`](./.env.example)):
 
-### Break-glass (owner locked out)
-```bash
-docker compose exec db psql -U fluesterlos -d fluesterlos -c \
-  "DELETE FROM host_sessions; DELETE FROM host_users;"
-```
-Then register again at `/host` with the current `BOOTSTRAP_TOKEN`.
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | — (compose sets it) | Postgres connection string. |
+| `BOOTSTRAP_TOKEN` | `change-me-once` (compose) | One-time secret for registering the first owner. **Change it before first boot.** |
+| `PORT` | `3000` | API port. |
+| `PUBLIC_URL` | `http://localhost:8080` | Public web origin: join URLs/QR, CORS default, `Secure` cookies when https. |
+| `CORS_ORIGINS` | origin of `PUBLIC_URL` | Comma-separated browser origins allowed for credentialed CORS (e.g. `http://localhost:5173` for Vite dev). |
+| `TRUST_PROXY` | `loopback,linklocal,uniquelocal` | Proxy hops trusted for `X-Forwarded-For` (client IP for rate limits). |
+| `DEFAULT_PHONE_COUNTRY` | `TH` | Country for numbers typed without `+` (ISO 3166 alpha-2). |
+| `DEFAULT_EVENT_TIMEZONE` | `Asia/Bangkok` | Default IANA zone for new events. Times are stored in UTC. |
+| `DATA_DIR` | `/data` | Upload storage (mount a volume). |
+| `SMTP_HOST`, `SMTP_PORT` (`587`), `SMTP_SECURE` (`false`), `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | empty | Voucher emails and guest login codes. Without SMTP, codes appear on the Help desk card and in the API log, and voucher emails are not sent. |
+| `RATE_LIMIT_JOIN_PER_MIN` | `10` | Joins per IP + phone. |
+| `RATE_LIMIT_VERIFY_PER_10MIN` | `10` | Code checks per IP + phone (plus max 5 tries per code). |
+| `RATE_LIMIT_BID_PER_10S` | `20` | Bids per guest. |
+| `RATE_LIMIT_LOGIN_PER_MIN` | `10` | Host logins per IP + email. |
+| `PROMPTPAY_ID`, `PROMPTPAY_PAYEE_NAME` | empty | Fallback when nothing is saved in Host → Payment settings. |
 
-## Stack
-- API: Node.js + Fastify + Postgres + SSE + multipart + nodemailer
-- Web: Vite + React + TypeScript PWA
-- Compose: `api` + `web` (nginx) + `db` (postgres:16) + `appdata` volume
-- Optional: prebuilt images via GHCR + `docker-compose.ghcr.yml`
+Web build argument: `VITE_API_URL` (default empty = same origin, served via the `/api/` proxy).
 
-## Out of MVP
-Gala suite, native store apps, card checkout, multi-tenant SaaS, CRM, AI copy. Extra host *roles* beyond owner vs host later.
+> `docker-compose.yml` forwards the variables above except `RATE_LIMIT_*` and `PROMPTPAY_*`. To use those, add them under `api.environment`.
+
+## Updates and offline caching (PWA)
+
+- The web app is a PWA (vite-plugin-pwa / Workbox). App files are precached; `/api/` is never served from the app shell, so exports and PDFs always reach the API.
+- **Updates are picked up reliably:**
+  - `index.html`, routes, `sw.js`, the Workbox runtime and the manifest are sent with `Cache-Control: no-cache`; hashed `/assets/*` are cached forever (`immutable`). See [`web/nginx.conf`](web/nginx.conf); `vite preview` does the same.
+  - The app checks for a new version every 10 min and whenever the tab comes back into view, and **reloads itself** when one takes over. If someone is typing, the reload waits until the input is gone. Guests never get a prompt; host pages show a small "Update available" banner.
+- **Guests don't download host code:** host pages are lazy-loaded and not precached.
+
+## Security notes
+
+- **Guest identity = phone number per event.** The full number is never shown publicly; the board shows a chosen name or `Guest …1234`.
+- **New device → code:** a code is required when a number is already used on another phone. Codes are 6 digits, valid 10 minutes, at most 5 tries, and one can be re-sent after 60 s.
+- **Device trust (trade-off):** after a successful sign-in, the phone gets a long-lived httpOnly device cookie. The server stores only a hash, per guest. Re-login on that phone is silent, **including after "Not you?"**. So someone else using *that same phone* could sign in with the previous guest's number without a code. Another phone always needs a code, and a code request alone never makes a device trusted.
+- **Hosts:** bcrypt passwords, httpOnly `fl_host_session` cookie, and registration closed after the first owner (`BOOTSTRAP_TOKEN`).
+- **Rate limits** on join, code check, bids and host login (see the table). Credentialed CORS is limited to `PUBLIC_URL` / `CORS_ORIGINS`.
+- **Payments happen outside the app** (PromptPay, transfer, cash). There is no card processing.
+- **Spreadsheet safety:** exported cells starting with `= + - @` are neutralised.
 
 ## Theming
 
-Restyle with **CSS only** — no React edits required.
+Restyle with **CSS only**:
 
-1. **Default:** [`web/public/theme.css`](web/public/theme.css) — CSS variables on `:root` / `[data-theme="gala"]`, engager motion, bid flash.
-2. **Overrides:** edit or replace [`web/public/custom.css`](web/public/custom.css) (loaded **after** `theme.css` in `web/index.html`).
-3. **Variants:** `data-theme="gala"` (default on `<html>`) or `data-theme="calm"` for a quieter host-friendly palette.
-
-Docker mount example:
+1. [`web/public/theme.css`](web/public/theme.css) holds the defaults: CSS variables on `:root` / `[data-theme="gala"]`, plus animations for the big screen and bids.
+2. [`web/public/custom.css`](web/public/custom.css) is loaded after it; override variables there. Guest-specific tokens such as `--g-win`, `--g-lose` and `--g-radius` can be overridden too.
+3. `data-theme="calm"` on `<html>` gives a quieter palette.
 
 ```yaml
 services:
@@ -120,19 +158,58 @@ services:
 ```
 
 ```css
-/* my-brand.css */
-:root {
-  --accent: #ff6b9d;
-  --accent-2: #c084fc;
-  --bg: #0a0a12;
-}
+:root { --accent: #ff6b9d; --accent-2: #c084fc; --bg: #0a0a12; }
 ```
 
-Animations respect `prefers-reduced-motion: reduce`.
+## Backups and break-glass
+
+There is no built-in backup feature; back up the two volumes yourself:
+
+```bash
+# database
+docker compose exec -T db pg_dump -U fluesterlos -d fluesterlos > fluesterlos-$(date +%F).sql
+# uploads (photos, logos, voucher PDFs, payslips, host QR)
+docker run --rm -v "$(basename "$PWD")_appdata:/data" -v "$PWD:/backup" alpine tar czf /backup/appdata-$(date +%F).tgz -C /data .
+```
+
+(The volume name depends on the compose project name; check it with `docker volume ls`.)
+
+**Owner locked out?** Remove host logins and sessions, then register again at `/host` with the current `BOOTSTRAP_TOKEN`:
+
+```bash
+docker compose exec db psql -U fluesterlos -d fluesterlos -c "DELETE FROM host_sessions; DELETE FROM host_users;"
+```
+
+## Development
+
+```bash
+npm ci
+npm run typecheck                 # api + web
+# API tests need a Postgres database they may wipe:
+TEST_DATABASE_URL=postgres://fluesterlos:fluesterlos@localhost:5432/fluesterlos_test npm test
+npm run build -w web
+npm run dev -w web                # Vite dev server on :5173; proxies /api to API_PROXY_TARGET (default http://localhost:3000)
+```
+
+- API tests use Vitest with `fastify.inject` against a real Postgres. Web tests (Vitest) cover the logic: phone formatting, bid amounts and status, filters, the install hint, cache headers and the update/reload decision.
+- **CI:** the workflow lives at [`ci/github-ci.yml`](ci/github-ci.yml) (typecheck, tests with a Postgres service, web build). To activate it, move it to `.github/workflows/ci.yml`. That push needs a token with the `workflow` scope.
+- Layout: `api/` (Fastify, `src/`, `test/`), `web/` (Vite app, `src/pages`, `src/guest`, `src/i18n`, `public/theme.css`), `docs/`.
+
+## Out of scope / roadmap
+
+**Not planned:** card or Stripe checkout, native store apps, multi-tenant SaaS, CRM, AI copywriting, full gala-management suite.
+
+**Possible next steps:**
+- Thai/German string tables (the structure is ready)
+- host roles beyond owner vs. host
+- a published-image workflow for GHCR
 
 ## Docs
-- [`CHANGELOG.md`](./CHANGELOG.md)
-- [`docs/mvp-one-pager.md`](./docs/mvp-one-pager.md)
+
+- [CHANGELOG.md](./CHANGELOG.md)
+- [docs/mvp-one-pager.md](./docs/mvp-one-pager.md)
+- Guest screenshots: [docs/screenshots/](./docs/screenshots/)
 
 ## Name
+
 *Flüster* (whisper) + *Los* (auction lot). ASCII: **FluesterLos** / `fluesterlos`.

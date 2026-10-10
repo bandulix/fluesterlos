@@ -10,6 +10,8 @@ import {
   leaderKey,
   pendingLoginRequests,
   setGuestEmail,
+  setGuestName,
+  hasChosenName,
   tokenFromRequest,
   upsertGuest,
   verifyGuestCode,
@@ -51,7 +53,7 @@ function isImageUpload(file: { filename: string; mimetype: string }) {
 }
 
 function guestDto(g: { id: string; name: string; email: string | null; phone: string | null; token: string }) {
-  return { id: g.id, name: g.name, email: g.email, phone: g.phone, token: g.token };
+  return { id: g.id, name: g.name, nameSet: hasChosenName(g), email: g.email, phone: g.phone, token: g.token };
 }
 
 export function registerRestRoutes(
@@ -351,6 +353,22 @@ export function registerRestRoutes(
   app.post("/api/events/:code/logout", async (_req, reply) => {
     reply.clearCookie("fl_guest", { path: "/" });
     return { ok: true };
+  });
+
+  const nameSchema = z.object({ name: z.string().max(120) });
+
+  /** Guest sets their board name later (optional, inline on the bid page). */
+  app.put("/api/events/:code/me/name", async (req, reply) => {
+    const event = await getEventByCode(codeOf((req.params as { code: string }).code));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const parsed = nameSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Name is too long" });
+    const updated = await setGuestName(guest.id, parsed.data.name);
+    // The board shows the new name right away.
+    publish(event.code, "update", await buildLivePayload(event.id, event.code));
+    return { guest: guestDto(updated) };
   });
 
   const emailSchema = z.object({ email: z.string().email().max(200) });

@@ -95,3 +95,41 @@ describe("device marker: re-login on the same device", () => {
     expect((await join("081-000-0001", device)).statusCode).toBe(200);
   });
 });
+
+describe("name later (inline on the bid page)", () => {
+  it("guest joins with phone only, board shows Guest …1234 until they add a name", async () => {
+    const res = await join("081-000-1234");
+    const guest = res.json().guest;
+    // join() sends name "Anna" — use a fresh phone without a name instead:
+    const anon = await app.inject({ method: "POST", url: `/api/events/${code}/join`, payload: { phone: "081-000-4321" } });
+    expect(anon.statusCode).toBe(200);
+    const g = anon.json().guest;
+    expect(g.name).toBe("Guest …4321");
+    expect(g.nameSet).toBe(false);
+    expect(guest.nameSet).toBe(true);
+
+    const put = await app.inject({
+      method: "PUT",
+      url: `/api/events/${code}/me/name`,
+      headers: { "x-guest-token": g.token },
+      payload: { name: "  Ben   K. " },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json().guest).toMatchObject({ name: "Ben K.", nameSet: true });
+    const me = await app.inject({ method: "GET", url: `/api/events/${code}/me`, headers: { "x-guest-token": g.token } });
+    expect(me.json().guest).toMatchObject({ name: "Ben K.", nameSet: true });
+
+    const reset = await app.inject({
+      method: "PUT",
+      url: `/api/events/${code}/me/name`,
+      headers: { "x-guest-token": g.token },
+      payload: { name: "" },
+    });
+    expect(reset.json().guest).toMatchObject({ name: "Guest …4321", nameSet: false });
+  });
+
+  it("needs a guest session", async () => {
+    const res = await app.inject({ method: "PUT", url: `/api/events/${code}/me/name`, payload: { name: "X" } });
+    expect(res.statusCode).toBe(401);
+  });
+});

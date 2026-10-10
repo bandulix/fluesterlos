@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { API_BASE, LivePayload } from "./api";
+import { clockOffset } from "./bidLogic";
 
 export type BidFlash = {
   amount: number;
@@ -14,6 +15,8 @@ export function useLive(code: string | undefined) {
   const [error, setError] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState(0);
   const [lastBid, setLastBid] = useState<BidFlash | null>(null);
+  // Server clock minus device clock, refreshed with every update (countdowns use server time).
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
 
   useEffect(() => {
     if (!code) return;
@@ -24,7 +27,9 @@ export function useLive(code: string | undefined) {
       es = new EventSource(url, { withCredentials: true } as EventSourceInit);
       es.addEventListener("update", (ev) => {
         try {
-          setLive(JSON.parse((ev as MessageEvent).data));
+          const data = JSON.parse((ev as MessageEvent).data) as LivePayload;
+          setClockOffsetMs(clockOffset(data.serverNow, Date.now()));
+          setLive(data);
           setError(null);
         } catch { /* ignore */ }
       });
@@ -47,5 +52,5 @@ export function useLive(code: string | undefined) {
     };
   }, [code]);
 
-  return { live, error, flashKey, lastBid };
+  return { live, error, flashKey, lastBid, clockOffsetMs };
 }

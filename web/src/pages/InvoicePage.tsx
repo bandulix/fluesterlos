@@ -1,12 +1,13 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { QRCodeCanvas } from "qrcode.react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { API_BASE, api, getGuestToken, uploadForm } from "../lib/api";
-import { formatMoney, parseCurrency } from "../lib/money";
-import { KindPill, SponsorBadge } from "../components/SponsorBadge";
+import { api, assetUrl, getGuestToken, uploadForm } from "../lib/api";
 import type { ItemKind, Sponsor } from "../lib/api";
-
-const METHOD_LABEL: Record<string, string> = { cash: "cash", bank_transfer: "bank transfer", promptpay: "PromptPay" };
+import { formatAmount, parseCurrency } from "../lib/money";
+import { saveImage } from "../lib/saveImage";
+import { t } from "../i18n";
+import { Toast, ToastMessage } from "../components/Toast";
+import "../guest/guest.css";
 
 type InvoiceResponse = {
   event: { id: string; code: string; title: string; status: string; currency?: string };
@@ -39,20 +40,41 @@ type InvoiceResponse = {
   };
 };
 
+/** PromptPay QR drawn on a canvas, shown as an <img> so it can also be saved by long-press. */
+function PromptPayQr({ payload, label }: { payload: string; label: string }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setSrc(canvas.current?.toDataURL("image/png") ?? null));
+    return () => cancelAnimationFrame(id);
+  }, [payload]);
+  return (
+    <>
+      <QRCodeCanvas ref={canvas} value={payload} size={640} marginSize={4} level="M" style={{ display: "none" }} />
+      {src ? <img className="g-qr" src={src} alt={label} /> : <div className="g-qr g-qr-loading" aria-hidden="true" />}
+    </>
+  );
+}
+
 export function InvoicePage() {
   const { code = "" } = useParams();
   const nav = useNavigate();
   const token = getGuestToken(code);
   const [data, setData] = useState<InvoiceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
   const [email, setEmail] = useState("");
   const [editingEmail, setEditingEmail] = useState(false);
+  const qrWrap = useRef<HTMLDivElement>(null);
+  const clearToast = useCallback(() => setToast(null), []);
+  const say = (text: string) => setToast({ id: Date.now(), text });
 
   const load = useCallback(async () => {
     const res = await api<InvoiceResponse>(`/api/events/${code}/invoice`, {}, token);
     setData(res);
+    setEmail((prev) => prev || res.guest?.email || "");
   }, [code, token]);
 
   useEffect(() => {
@@ -63,193 +85,189 @@ export function InvoicePage() {
     load().catch((err) => setError((err as Error).message));
   }, [token, code, nav, load]);
 
-  async function onPayslip(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const input = e.currentTarget.elements.namedItem("payslip") as HTMLInputElement | null;
-    const file = input?.files?.[0];
-    if (!file) {
-      setMsg("Choose a payslip image or PDF");
-      return;
-    }
-    setBusy(true);
-    setMsg(null);
+  async function onPayslip(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
     setError(null);
     try {
       const form = new FormData();
       form.append("file", file);
       await uploadForm(`/api/events/${code}/invoice/payslip`, form, token);
-      setMsg("Payslip uploaded — waiting for host to confirm payment.");
+      say(t("inv.slipDone"));
       await load();
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setBusy(false);
+      setUploading(false);
     }
   }
 
   async function onEmail(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
-    setMsg(null);
+    setSavingEmail(true);
     setError(null);
     try {
       await api(`/api/events/${code}/me/email`, { method: "PUT", body: JSON.stringify({ email }) }, token);
-      setMsg(`Saved — vouchers go to ${email}.`);
+      say(t("inv.emailSaved", { email }));
       setEditingEmail(false);
       await load();
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setBusy(false);
+      setSavingEmail(false);
     }
   }
 
-  if (!data && !error) return <p className="muted">Loading invoice…</p>;
-  if (error && !data) return <p className="error">{error}</p>;
-  if (!data) return null;
+  async function onSaveQr(src: string | null | undefined) {
+    const img = src ?? qrWrap.current?.querySelector("img")?.getAttribute("src");
+    if (!img) return;
+    try {
+      await saveImage(img, `promptpay-${code}.png`);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  if (!data && !error) {
+    return (
+      <section className="g-page">
+        <p className="g-loading" role="status">{t("app.loading")}</p>
+      </section>
+    );
+  }
+  if (!data) {
+    return (
+      <section className="g-page">
+        <p className="g-error" role="alert">{error}</p>
+      </section>
+    );
+  }
 
   const inv = data.invoice;
   const pay = data.payment;
   const ccy = parseCurrency(data.event.currency);
-  const hostQrSrc = pay?.hostQrImageUrl ? `${API_BASE}${pay.hostQrImageUrl}` : null;
+  const fmt = (n: number) => formatAmount(n, ccy);
+  const hostQrSrc = assetUrl(pay?.hostQrImageUrl);
+  const hasVoucher = Boolean(inv?.lines.some((l) => l.kind === "voucher"));
+  const paid = inv?.status === "paid";
+  const knownEmail = data.guest?.email ?? null;
 
   return (
-    <section className="stack">
-      <div className="card">
-        <h1>{data.event.title}</h1>
-        <p className="row muted">
-          <Link to={`/e/${code}/bid`}>Back to bids</Link>
-          <span>Auction: {data.event.status}</span>
-        </p>
-        {data.message && !inv && <p className="muted">{data.message}</p>}
-        {msg && <p className="banner">{msg}</p>}
-        {error && <p className="error">{error}</p>}
-      </div>
+    <section className="g-page g-invoice">
+      <header className="g-header">
+        <div className="g-header-main">
+          <Link to={`/e/${code}/bid`} className="g-back" aria-label={t("inv.back")}>
+            ‹
+          </Link>
+          <h1 className="g-title">{data.event.title}</h1>
+        </div>
+      </header>
 
-      {inv && (
-        <>
-          <div className="card">
-            <h2>Your winning total</h2>
-            <p><strong>{formatMoney(inv.total, ccy)}</strong></p>
-            <p>
-              Status:{" "}
-              <strong>
-                {inv.status === "paid"
-                  ? `Paid${inv.paymentMethod ? ` (${METHOD_LABEL[inv.paymentMethod] ?? inv.paymentMethod})` : ""}`
-                  : inv.status === "payslip_uploaded"
-                    ? "Payslip uploaded — awaiting host"
-                    : "Unpaid"}
-              </strong>
-            </p>
-            <ul>
-              {inv.lines.map((l) => (
-                <li key={l.itemId}>
-                  <div className="line-row">
-                    <strong>{l.title}</strong> — {formatMoney(l.amount, ccy)} <KindPill kind={l.kind} />
-                    {l.handedOverAt && <span className="pill">Handed over</span>}
-                  </div>
-                  {l.description ? <p className="muted">{l.description}</p> : null}
-                  <SponsorBadge sponsor={l.sponsor} />
-                </li>
-              ))}
-            </ul>
-          </div>
+      <div className="g-content">
+        {!inv && <p className="g-info">{data.message || t("inv.nothing")}</p>}
 
-          {inv.lines.some((l) => l.kind === "voucher") && (
-            <div className="card">
-              <h2>Voucher email</h2>
-              {data.guest?.email && !editingEmail ? (
-                <p className="line-row">
-                  <span>
-                    {inv.vouchersEmailedAt ? "Vouchers were sent to" : "Vouchers will be sent to"} <strong>{data.guest.email}</strong>
-                  </span>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => {
-                      setEmail(data.guest?.email ?? "");
-                      setEditingEmail(true);
-                    }}
-                  >
-                    Change
-                  </button>
-                </p>
-              ) : (
-                <>
-                  <p className="muted">You won a voucher — we email the PDF after your payment is confirmed.</p>
-                  <form className="stack" onSubmit={onEmail}>
-                    <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></label>
-                    <div className="row">
-                      <button className="button" disabled={busy}>Save email</button>
-                      {data.guest?.email && (
-                        <button type="button" className="button secondary" onClick={() => setEditingEmail(false)}>
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  </form>
-                </>
-              )}
-              {inv.vouchersEmailedAt && editingEmail && (
-                <p className="muted">Already emailed once — after changing, ask the desk to resend.</p>
-              )}
+        {inv && (
+          <>
+            <div className={`g-total-card is-${inv.status}`}>
+              <span className="g-price-label">{paid ? t("inv.title") : t("inv.total")}</span>
+              <strong className="g-total">{fmt(inv.total)}</strong>
+              <span className={`g-pay-status is-${inv.status}`}>
+                {paid ? `✓ ${t("inv.statusPaid")}` : inv.status === "payslip_uploaded" ? t("inv.statusSlip") : t("inv.statusUnpaid")}
+              </span>
+              <ul className="g-lines">
+                {inv.lines.map((l) => (
+                  <li key={l.itemId}>
+                    <span>
+                      {l.title}
+                      <small>
+                        {l.kind === "physical" ? t("bid.physical") : t("bid.voucher")}
+                        {l.handedOverAt ? ` · ${t("inv.handedOver")}` : ""}
+                      </small>
+                    </span>
+                    <strong>{fmt(l.amount)}</strong>
+                  </li>
+                ))}
+              </ul>
             </div>
-          )}
 
-          {inv.status !== "paid" && (
-            <div className="card">
-              <h2>Pay via PromptPay</h2>
-              <p className="muted">Or pay cash / bank transfer at the desk.</p>
-              <p>Amount due: <strong>{formatMoney(inv.total, ccy)}</strong></p>
-              {ccy !== "THB" && (
-                <p className="muted">Enter {formatMoney(inv.total, ccy)} in your banking app. PromptPay amount is filled only for Thai baht auctions.</p>
-              )}
-              {pay?.payeeName && <p>Payee: {pay.payeeName}</p>}
-              {pay?.promptpayId && <p className="muted">PromptPay ID: {pay.promptpayId}</p>}
-              {pay?.promptpayPayload ? (
-                <div className="qr-block">
-                  <QRCodeSVG value={pay.promptpayPayload} size={280} />
+            {!paid && (
+              <div className="g-card g-pay">
+                <h2>{t("inv.payTitle")}</h2>
+                {pay?.payeeName && <p className="g-muted">{t("inv.payee", { name: pay.payeeName })}</p>}
+                <div className="g-qr-wrap" ref={qrWrap}>
+                  {pay?.promptpayPayload ? (
+                    <PromptPayQr payload={pay.promptpayPayload} label={t("inv.payTitle")} />
+                  ) : hostQrSrc ? (
+                    <img className="g-qr" src={hostQrSrc} alt={t("inv.payTitle")} />
+                  ) : null}
                 </div>
-              ) : hostQrSrc ? (
-                <div className="qr-block">
-                  <img src={hostQrSrc} alt="Payment QR" width={280} height={280} />
-                </div>
-              ) : (
-                <p className="muted">Host has not configured PromptPay / QR yet.</p>
-              )}
-              {pay?.hasHostQrImage && pay?.promptpayPayload && hostQrSrc && (
-                <p className="muted">
-                  Host also provided a static QR:{" "}
-                  <a href={hostQrSrc} target="_blank" rel="noreferrer">open image</a>
-                </p>
-              )}
-              <form className="stack" onSubmit={onPayslip}>
-                <label>
-                  Upload payslip (image or PDF)
-                  <input type="file" name="payslip" accept="image/*,.pdf,application/pdf" required />
+                {pay?.promptpayPayload || hostQrSrc ? (
+                  <>
+                    <p className="g-muted g-center">{ccy === "THB" ? t("inv.payHint") : t("inv.payAmountNote", { amount: fmt(inv.total) })}</p>
+                    <button type="button" className="g-secondary" onClick={() => onSaveQr(pay?.promptpayPayload ? null : hostQrSrc)}>
+                      ⬇ {t("inv.saveQr")}
+                    </button>
+                    <p className="g-muted g-small g-center">{t("inv.saveQrHint")} {t("inv.orDesk")}</p>
+                  </>
+                ) : (
+                  <p className="g-info">{t("inv.noQr")}</p>
+                )}
+
+                <h2 className="g-slip-title">{t("inv.slipTitle")}</h2>
+                <label className={`g-primary g-upload${uploading ? " is-busy" : ""}`}>
+                  <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={onPayslip} disabled={uploading} />
+                  📷 {uploading ? t("inv.slipUploading") : inv.hasPayslip ? t("inv.slipReplace") : t("inv.slipButton")}
                 </label>
-                <button className="button" disabled={busy}>
-                  {busy ? "Uploading…" : inv.hasPayslip ? "Replace payslip" : "Upload payslip"}
-                </button>
-              </form>
-            </div>
-          )}
+                {inv.hasPayslip && !uploading && <p className="g-ok">{t("inv.slipDone")}</p>}
+              </div>
+            )}
 
-          {inv.status === "paid" && (
-            <div className="card">
-              <p>Payment confirmed — thank you!</p>
-              {inv.lines.some((l) => l.kind === "voucher") && (
-                <p>
-                  {inv.vouchersEmailedAt
-                    ? `Voucher PDF(s) emailed to ${data.guest?.email ?? "you"}.`
-                    : "Your voucher PDF(s) will be emailed shortly."}
-                </p>
-              )}
-              {data.guest?.hasPhysical && <p>Please collect your item(s) at the desk.</p>}
-            </div>
-          )}
-        </>
-      )}
+            {hasVoucher && (
+              <div className="g-card">
+                <h2>{t("inv.emailTitle")}</h2>
+                {knownEmail && !editingEmail ? (
+                  <p className="g-email-row">
+                    <span>
+                      ✉ {inv.vouchersEmailedAt ? t("inv.emailSent", { email: knownEmail }) : t("inv.emailSaved", { email: knownEmail })}
+                    </span>
+                    {!inv.vouchersEmailedAt && (
+                      <button type="button" className="g-link" onClick={() => setEditingEmail(true)}>
+                        {t("inv.emailChange")}
+                      </button>
+                    )}
+                  </p>
+                ) : (
+                  <form className="g-email-form" onSubmit={onEmail}>
+                    <p className="g-muted">{t("inv.emailHint")}</p>
+                    <label className="sr-only" htmlFor="g-email">{t("inv.emailLabel")}</label>
+                    <input
+                      id="g-email"
+                      className="g-big-input"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      enterKeyHint="done"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                    <button className="g-primary" disabled={savingEmail || !email.trim()}>
+                      {t("inv.emailSave")}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {data.guest?.hasPhysical && <p className="g-info">🎁 {t("inv.collect")}</p>}
+          </>
+        )}
+        {error && <p className="g-error" role="alert">{error}</p>}
+      </div>
+      <Toast toast={toast} onDone={clearToast} ms={2600} />
     </section>
   );
 }

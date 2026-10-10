@@ -61,3 +61,22 @@ describe("per-event guest manifest", () => {
     expect(() => new URL(m.start_url)).not.toThrow();
   });
 });
+
+describe("guests don't download host code", () => {
+  it("host pages are lazy-loaded and not precached", () => {
+    const app = readFileSync(path.join(import.meta.dirname, "..", "src", "App.tsx"), "utf8");
+    expect(app).toMatch(/lazy\(\(\) => import\("\.\/HostShell"\)\)/);
+    expect(app).not.toMatch(/from "\.\/pages\/HostPage"/);
+    expect(pwaOptions.workbox?.globIgnores).toContain("**/HostShell-*.js");
+  });
+  const assets = path.join(import.meta.dirname, "..", "dist", "assets");
+  it.skipIf(!existsSync(assets))("built entry chunk contains no host UI", async () => {
+    const { readdirSync } = await import("node:fs");
+    const html = readFileSync(path.join(import.meta.dirname, "..", "dist", "index.html"), "utf8");
+    const entry = html.match(/src="\/assets\/([^"]+\.js)"/)![1];
+    const js = readFileSync(path.join(assets, entry), "utf8");
+    expect(js).not.toContain("Register owner");
+    expect(js).toContain("Start bidding");
+    expect(readdirSync(assets).some((f) => f.startsWith("HostShell-"))).toBe(true);
+  });
+});
