@@ -88,7 +88,7 @@ export async function joinGuest(app: FastifyInstance, code: string, phone: strin
     payload: { phone, name, ...(email ? { email } : {}) },
   });
   if (res.statusCode !== 200) throw new Error(`join failed: ${res.statusCode} ${res.body}`);
-  return (res.json() as { guest: { id: string; token: string; phone: string; email: string | null } }).guest;
+  return (res.json() as { guest: { id: string; token: string; name: string; phone: string; email: string | null } }).guest;
 }
 
 export function bid(app: FastifyInstance, code: string, token: string, itemId: string, amount: number) {

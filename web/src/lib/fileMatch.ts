@@ -117,3 +117,31 @@ export function matchFile(name: string, items: MatchItem[], mime = ""): FileMatc
 export function withLots<T extends { id: string; title: string; kind?: "voucher" | "physical" }>(items: T[]): MatchItem[] {
   return items.map((it, i) => ({ id: it.id, title: it.title, lot: i + 1, kind: it.kind ?? "voucher" }));
 }
+
+/** "Goes to" choices: a photo can go on any item, a voucher PDF only on voucher items. */
+export function targetsFor(kind: FileKind | null, items: MatchItem[]): MatchItem[] {
+  if (kind === "voucher") return items.filter((it) => it.kind === "voucher");
+  return kind === "photo" ? items : [];
+}
+
+/** Footer line under the bulk-media table. */
+export function bulkFooter(rows: Array<{ status?: "done" | "error"; itemIds: string[] }>): string {
+  if (!rows.length) return "Each item can also get its photo or PDF individually in the list below.";
+  const done = rows.filter((r) => r.status === "done");
+  const failed = rows.filter((r) => r.status === "error").length;
+  const ready = rows.filter((r) => r.status !== "done" && r.itemIds.length > 0).length;
+  const unmatched = rows.filter((r) => r.status !== "done" && r.status !== "error" && r.itemIds.length === 0).length;
+  const parts: string[] = [];
+  if (done.length) {
+    const items = done.reduce((n, r) => n + r.itemIds.length, 0);
+    parts.push(`✓ ${done.length} file${done.length === 1 ? "" : "s"} uploaded${items > done.length ? ` (${items} items)` : ""}`);
+  }
+  if (failed) parts.push(`${failed} failed`);
+  if (done.length) {
+    if (ready) parts.push(`${ready} more ready to upload`);
+    if (unmatched) parts.push(`${unmatched} not uploaded (no item chosen)`);
+  } else {
+    parts.push(`${ready} of ${rows.length} file${rows.length === 1 ? "" : "s"} matched — check the “Goes to” column`);
+  }
+  return parts.join(" · ");
+}

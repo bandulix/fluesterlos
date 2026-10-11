@@ -28,8 +28,8 @@ It is aimed at small and medium charity events (Rotary/Lions clubs, school galas
 | | |
 |---|---|
 | <img src="docs/screenshots/guest-01-join.png" width="220" alt="Join screen"> | **1. Scan → phone → bid.** The QR opens `/e/<code>`. The only screen asks for a **mobile number**: big field, numeric keypad, auto-formatted while typing (Thai default, e.g. `081 234 5678`; `+…` for other countries). One tap on **Start bidding** opens the items. No name, email or sign-up is asked here. |
-| <img src="docs/screenshots/guest-03-bid-page.png" width="220" alt="Bid page"> | **2. Bid.** Each item is a card with photo, sponsor logo, current bid and a big one-tap **Bid ฿X** for the next valid amount. A −/+ stepper lets guests bid more, and there is **Buy now** where the host set one. The countdown follows the server clock. Updates are live (SSE). Each bid is confirmed with a short toast with **Undo** (5 s), so a mis-tap costs nothing and there are no confirm dialogs. |
-| <img src="docs/screenshots/guest-05-outbid.png" width="220" alt="Outbid"> | **3. Winning / outbid.** Every item a guest bid on shows **✓ You're winning** (green) or **↑ Outbid** (red). When a guest is outbid, a compact one-line banner appears with a one-tap re-bid, and the phone vibrates where supported. Filter chips that fit any phone: **All / Mine / Winning / Outbid**. After the first bid a small, dismissible card offers **"Show your name on the board?"** (saving shows "✓ Saved"). Until then the board shows a neutral per-event number like `Guest 7`, never any digits of the phone number. The **⋯** menu shows who is bidding and offers "Change board name" and "Not you?" (with an inline confirm). |
+| <img src="docs/screenshots/guest-03-bid-page.png" width="220" alt="Bid page"> | **2. Bid.** Each item is a card with photo, sponsor logo, current bid and a big one-tap **Bid ฿X** for the next valid amount. A −/+ stepper lets guests bid more, and there is **Buy now** where the host set one. A **fixed-price** lot (buy-now = starting bid) shows just **Fixed price ฿3,000** and one **Buy for ฿3,000** button; afterwards the buyer sees **Yours ✓** and everybody else **Sold**. The countdown follows the server clock. Updates are live (SSE). Each bid — and each buy-now purchase — is confirmed with a short toast with **Undo** (5 s), so a mis-tap costs nothing and there are no confirm dialogs. |
+| <img src="docs/screenshots/guest-05-outbid.png" width="220" alt="Outbid"> | **3. Winning / outbid.** Every item a guest bid on shows **✓ You're winning** (green) or **↑ Outbid** (red). When a guest is outbid, a compact one-line banner appears with a one-tap re-bid, and the phone vibrates where supported. Filter chips that fit any phone: **All / Mine / Winning / Outbid**. After the first bid (once its toast is gone) a small, dismissible **bottom sheet** offers **"Show your name on the board?"**; it floats over the list, so no card moves under the guest's finger, and saving confirms with a toast. Until then the board shows a neutral per-event number like `Guest 7`, never any digits of the phone number. The **⋯** menu shows who is bidding and offers "Change board name" and "Not you?" (with an inline confirm). |
 | <img src="docs/screenshots/guest-08-new-device-code.png" width="220" alt="Code step"> | **4. A code only when it's really needed.** If the number is already bidding on *another* phone, the new phone asks for a 6-digit code. The code is emailed if the guest has an email on file and SMTP is set; otherwise the host reads it off the **Help desk** card ("Ask the desk for a new code"). The code step survives switching to the mail app or walking to the desk. Logging in again on the *same* phone, even after "Not you?", happens silently. |
 | <img src="docs/screenshots/guest-09-closed.png" width="220" alt="Closed"> | **5. Closed.** The page switches at the closing second: **"You won 2 items — Pay now"**. Items show **Won** (green) or a neutral grey **Not won**, prices read **Winning bid**, and the filters become **All / Won / Not won**. |
 | <img src="docs/screenshots/guest-10-invoice.png" width="220" alt="Invoice"> | **6. Pay.** One screen with the total and a large **PromptPay QR**. The amount is filled in for THB. **Save QR** opens the share sheet or downloads the image, and a long-press on the QR saves it too (useful in LINE). The guest can **upload a payslip** (camera or gallery); it uploads as soon as it's picked. **Email is asked only here, and only if they won a voucher**: then it comes first, above payment, so it isn't missed ("Later" skips it). Physical prizes name the item: "Collect Signed Jersey at the desk." |
@@ -45,7 +45,7 @@ More details:
 Open **`/host`**.
 
 1. **Register the owner.** The first registration needs the one-time `BOOTSTRAP_TOKEN` from your env; after that, registration is closed. Hosts sign in with email + password (bcrypt, httpOnly session cookie). The owner can add and remove more host logins by email.
-2. **Payment settings:** a PromptPay ID (phone or 13-digit national ID) and payee name, and/or an uploaded static QR image.
+2. **Payment settings:** a PromptPay ID (phone or 13-digit national ID) and payee name, and/or an uploaded static QR image. Saving shows "✓ Saved — PromptPay …" next to the button.
 3. **Create an event:** title, currency (USD / EUR / THB) and **time zone** (default `DEFAULT_EVENT_TIMEZONE`). Start/end are entered and shown in the event's zone, whatever zone the host's device is in. Start defaults to now and end to +2 h. Each item has:
    - title, description, starting bid, increment, optional buy-now (buy-now = starting bid makes a **fixed-price** lot: guests only see "Buy now")
    - optional **retail value** (guests see "Value ฿X"; also in the export) and host-only **notes**
@@ -56,40 +56,47 @@ Open **`/host`**.
    - **close now**
    - **extend** (up to 24 h at a time). On a closed event this **reopens** it, as long as nothing has been paid.
    - **edit times**
-   - **edit / delete items** (items are numbered **#1, #2, …** — the same lot numbers as the export)
+   - **edit / delete items** (items are numbered **#1, #2, …** — the same lot numbers as the export). Each line reads "Starting ฿2,000 · no bids", "High ฿2,400 · 3 bids" or "Sold ฿3,000"; fixed-price lots carry a **fixed price** tag.
    - **Import items** from Excel / CSV and **Photos & PDFs** in bulk (see below)
 5. **Users:** list guests, or add them in advance by phone; such a guest's first join needs no code. Extra host logins are managed here too.
 6. **Help desk:** shows pending 6-digit login codes, so a host can check who someone is and read the code out.
 7. **Payment desk** (after close): one invoice per winning guest, totalling all their wins.
    - Mark paid by **cash / bank transfer / PromptPay**. Transfers without a payslip need an explicit "I checked the transfer arrived".
    - Marking paid emails the voucher PDFs (one attachment per won voucher). If a voucher PDF is missing, the desk warns ("voucher PDF missing") and holds the email until the PDF is attached; then press **Send email**.
-   - Tick **Handed over** per item (only after payment; time and host are recorded). A toast confirms it.
-8. **Export:** `results.xlsx` / `results.csv` with one row per lot, including unsold ones. Columns: lot, item, type, sponsor, retail value, winner, phone, email, amount, currency, paid, method, paid at, handed over, handed over at, notes.
+   - Tick **Handed over** per item (only after payment; time and host are recorded). A toast confirms it, and the "At the desk — hand over: …" hint drops the item at once (and disappears when everything is handed over).
+8. **Export:** `results.xlsx` / `results.csv` with one row per lot, including unsold ones. Columns: lot, item, type, sponsor, retail value, winner, phone, email, amount, currency, paid, method, paid at, handed over, handed over at.
+   - Host-only **notes** (e.g. "Organized by: …") can contain names, so they are left out by default; tick **Include host notes** next to the export links to add them as the last column (`?notes=1`).
    - Timestamps are in the event's time zone, which is named in the header.
    - CSV phones are readable without a leading `+` (`081 234 5678` for the default country, `(+49) 1512 3456789` otherwise), so spreadsheets don't treat them as formulas.
    - xlsx keeps E.164 as text.
 
 ### Importing items from Excel / CSV
 
-**Event card → Items → Import items** (only before the first bid). Upload an `.xlsx` or `.csv`; nothing is created until you press **Import N items**.
+**Event card → Items → Import items** (only before the first bid). Upload an `.xlsx` or `.csv`; nothing is created until you press **Import N items**. The summary counts **rows to check** (exactly the rows the "only rows to check" filter shows), and the item count follows your edits as you type a price.
 
 <p align="center"><img src="docs/screenshots/host-import-preview.png" width="760" alt="Import preview: column mapping, summary, editable rows with warnings"></p>
 
 - **Sheet & columns:** the sheet named `Prizes` (also `Preise`, `Items`, `Lots`) is used, otherwise the first sheet that isn't a paper bid sheet (`Liste 1`, `Liste 2`, … are ignored). The header row is found automatically (last year's file has it in row 3). English and German headers are recognised (`No.`/`Nr.`, `Title`/`Titel`, `Description`/`Beschreibung`, `Sponsor Name`/`Spender`, `Approximate Value`/`Wert`, `Suggested Minimum`/`Mindestgebot`, `Minimum Steps`/`Schrittweite`, `Buy now`/`Sofortkauf`, `Quantity`/`Anzahl`, `Remark`/`Bemerkung`, `Organized by`, …). Result columns of a past auction (`Final Price achieved`, `Bought by`, `Money received?`, `Payment Method`, `Handed over?`) are never imported. Any column can be (re)mapped with a dropdown; unrecognised columns are highlighted.
 - **Defaults:** no title column → the first line of the description (dates in brackets stay in the description; a "retail value …" line is dropped because the card shows the value). Increment missing → **10 % of the starting bid** (last year's bid sheets used `=E11/10`). Starting bid missing but a value given → 20 % of the value (flagged). Type is guessed — **voucher** if the text mentions voucher / Gutschein / hotel / night / spa / brunch / dinner / restaurant / massage …, else **physical** — and can be changed per row. Sponsors are matched to existing ones by name (case-insensitive) and marked *new* / *existing*. "Organized by" goes into the host-only notes.
 - **Multi-unit lots:** `10x` in the quantity column, in the title (`10x Brunch`) or — as in last year's file — in the "Organized by" column becomes **10 separate items** `Brunch (1/10)` … `(10/10)` (warning in the preview).
-- **Messy cells:** `#VALUE!` and other error cells, numbers stored as text (`14.000`, `1,250`, `THB 2 500`), multi-line text and totals rows are handled. A lot marked *sold / not auctioned / Festpreis* is **skipped by default**; tick it and enter a price to sell it at a fixed price (buy-now only).
+- **Messy cells:** `#VALUE!` and other error cells, numbers stored as text (`14.000`, `1,250`, `THB 2 500`), multi-line text and totals rows are handled. A lot marked *sold / not auctioned / Festpreis* is **skipped by default**; tick it and enter a price to sell it at a fixed price (buy-now only). A description line that just repeats the title is dropped.
 - **Pictures from the workbook:** images on the item sheet, or on paper bid sheets that reference a `Prizes` row (`=Prizes!C4`), are attached as the item photo; the image next to a "Logo" label becomes the sponsor's logo if the sponsor has none yet.
 - **Template:** a blank `fluesterlos-items-template.xlsx` (columns *No., Title, Description, Type, Sponsor, Retail value, Starting bid, Increment, Buy now, Quantity, Notes* with explanations) is linked in the import panel.
 
-**Photos & PDFs** (offered right after an import, and as a button on the event card): drop many files at once. Each file is matched by **lot number** (`03-spa.jpg`, `Lot 3.pdf`) or **title** (`Spa Day.pdf`); every match can be changed in a dropdown before uploading. A photo named after a multi-unit lot goes to all of its units; a voucher PDF only ever goes to one item. Per-item upload in the item editor works as before.
+**Photos & PDFs** (offered right after an import, and as a button on the event card): drop many files at once. Each file is matched by **lot number** (`03-spa.jpg`, `Lot 3.pdf`) or **title** (`Spa Day.pdf`); every match can be changed in a dropdown before uploading (a PDF can only go to a voucher item; a photo to any item). A photo named after a multi-unit lot goes to all of its units; a voucher PDF only ever goes to one item. After the upload the footer reads "✓ 8 files uploaded". Per-item upload in the item editor works as before.
 
 ## Big screen
 
-- **`/e/<code>/engager`:** full-screen room display that fits one TV screen: **Raised so far**, a highlighted item, a **scannable join QR**, a board of all items with their current bid and leader, the latest bids, and a sponsor strip of same-size tiles (logo + name, or a styled name tile for sponsors without a logo). Amounts look like the guest app (`฿7,100`). It is live and animated (gala theme).
+- **`/e/<code>/engager`:** full-screen room display that fits one TV screen (tested at 1920×1080 and 1280×720 with 48 items):
+  - **Raised so far** — the sum of the current high bids of items that *have* bids (buy-now sales included; starting bids of unbid items never count), the bid and guest count;
+  - a highlighted item (rotates every 6 s, jumps to an item the moment it gets a bid), and a **scannable join QR**;
+  - the **item board, paged**: as many cards as fit (8–12 per page), advancing every 8 s with a page indicator ("13–24 of 48"); the 3 **🔥 Hot** items (most bids in the last 5 minutes, then most bids) are outlined;
+  - the latest bids;
+  - a **single compact sponsor row** (≤ ~12 % of the height): it scrolls as a slow marquee when the sponsors don't fit, or — with `prefers-reduced-motion` — shows them page by page.
+  Amounts look like the guest app (`฿7,100`). It is live and animated (gala theme).
 
 <p align="center"><img src="docs/screenshots/bigscreen.png" width="640" alt="Big screen: total, featured item, join QR, item board, latest bids, sponsors"></p>
-- **`/e/<code>/stats`:** a simpler public stats page.
+- **`/e/<code>/stats`:** a simpler public stats page (same "Raised so far" rule; items without bids are counted separately, not listed as leaders).
 
 ## Quickstart
 

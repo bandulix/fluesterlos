@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { assetUrl, LiveItem } from "../lib/api";
 import { Currency, formatAmount } from "../lib/money";
-import { canStepDown, canStepUp, effectiveAmount, ItemStatus, onlyBuyNow } from "../lib/bidLogic";
+import { canStepDown, canStepUp, effectiveAmount, isFixedPrice, ItemStatus, onlyBuyNow } from "../lib/bidLogic";
+import { dedupeDescription } from "../lib/text";
 import { plural, t } from "../i18n";
 
 export type ItemCardProps = {
@@ -25,10 +26,21 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
   const isBuyNow = it.buyNow != null && amount >= it.buyNow;
   const fmt = (n: number) => formatAmount(n, ccy);
   // After the close an outbid item is simply "Not won" — neutral grey, no red alarm, no arrow.
-  const shownStatus = closed && status === "outbid" ? "lost" : status;
-  const statusLabel =
-    status === "winning" ? t(closed ? "bid.won" : "bid.winning") : status === "outbid" ? t(closed ? "bid.lost" : "bid.outbid") : null;
-  const statusIcon = shownStatus === "winning" ? "✓ " : shownStatus === "outbid" ? "↑ " : "";
+  const fixed = isFixedPrice(it);
+  // Bought outright (buy-now / fixed price): the buyer owns it ("Yours ✓"), everyone else sees "Sold" —
+  // never "You're winning" / "Outbid", the item is over.
+  const shownStatus = sold ? (status === "winning" ? "winning" : "sold") : closed && status === "outbid" ? "lost" : status;
+  const statusLabel = sold
+    ? status === "winning"
+      ? t("bid.yours")
+      : t("bid.soldShort")
+    : status === "winning"
+      ? t(closed ? "bid.won" : "bid.winning")
+      : status === "outbid"
+        ? t(closed ? "bid.lost" : "bid.outbid")
+        : null;
+  const statusIcon = sold ? "" : shownStatus === "winning" ? "✓ " : shownStatus === "outbid" ? "↑ " : "";
+  const description = dedupeDescription(it.title, it.description);
   const titleId = `item-${it.id}-title`;
 
   return (
@@ -59,23 +71,34 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
             <span>{t("bid.donatedBy", { name: it.sponsor.name })}</span>
           </p>
         )}
-        {it.description ? <p className="g-desc">{it.description}</p> : null}
+        {description ? <p className="g-desc">{description}</p> : null}
         {it.retailValue != null && it.retailValue > 0 ? (
           <p className="g-value">{t("bid.value", { value: fmt(it.retailValue) })}</p>
         ) : null}
-        <div className="g-price">
-          <div>
-            <span className="g-price-label">{it.bidCount ? t(closed ? "bid.winningBid" : "bid.current") : t("bid.starting")}</span>
-            <strong className="g-price-value">{fmt(it.bidCount ? it.highBid : it.startingBid)}</strong>
+        {fixed ? (
+          <div className="g-price">
+            <div>
+              <span className="g-price-label">{t("bid.fixedPrice")}</span>
+              <strong className="g-price-value">{fmt(it.buyNow!)}</strong>
+            </div>
           </div>
-          <span className="g-price-meta">
-            {it.bidCount ? plural("bid.oneBid", "bid.bids", it.bidCount) : t("bid.noBids")}
-            {it.bidCount && it.highBidder ? ` · ${it.highBidder}` : ""}
-          </span>
-        </div>
+        ) : (
+          <div className="g-price">
+            <div>
+              <span className="g-price-label">{it.bidCount ? t(closed || sold ? "bid.winningBid" : "bid.current") : t("bid.starting")}</span>
+              <strong className="g-price-value">{fmt(it.bidCount ? it.highBid : it.startingBid)}</strong>
+            </div>
+            <span className="g-price-meta">
+              {it.bidCount ? plural("bid.oneBid", "bid.bids", it.bidCount) : t("bid.noBids")}
+              {it.bidCount && it.highBidder && !sold ? ` · ${it.highBidder}` : ""}
+            </span>
+          </div>
+        )}
 
         {sold ? (
-          <p className="g-done-label">{t("bid.soldBuyNow")}</p>
+          <p className={`g-done-label${status === "winning" ? " is-won" : ""}`}>
+            {status === "winning" ? t("bid.yoursDone") : fixed ? t("bid.soldShort") : t("bid.soldBuyNow")}
+          </p>
         ) : closed ? (
           <p className={`g-done-label${status === "winning" ? " is-won" : ""}`}>
             {status === "winning" ? t("bid.closedWon") : status === "outbid" ? t("bid.closedLost") : t("bid.closed")}
@@ -120,7 +143,15 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
                 disabled={!open || busy}
                 onClick={() => onBid(it, it.buyNow!)}
               >
-                {buyNowOnly ? t("bid.buyNow", { amount: fmt(it.buyNow) }) : t("bid.buyNowAlt", { amount: fmt(it.buyNow) })}
+                {busy
+                  ? t("bid.sending")
+                  : !open
+                    ? t("bid.notOpen")
+                    : fixed
+                      ? t("bid.buyFor", { amount: fmt(it.buyNow) })
+                      : buyNowOnly
+                        ? t("bid.buyNow", { amount: fmt(it.buyNow) })
+                        : t("bid.buyNowAlt", { amount: fmt(it.buyNow) })}
               </button>
             )}
           </div>

@@ -44,8 +44,11 @@ export type LivePayload = {
     totalHighBids: number;
     totalBids: number;
     itemCount: number;
+    /** Items with at least one bid (the total counts only these). */
+    itemsWithBids?: number;
   };
   recentBids: Array<{
+    itemId?: string;
     amount: number;
     createdAt: string;
     itemTitle: string;

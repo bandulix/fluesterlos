@@ -48,6 +48,8 @@ export function PaymentSettingsCard(props: {
   setPayeeName: (v: string) => void;
   onSave: (e: FormEvent) => void;
   onQrUpload: (file: File) => void;
+  /** Shown right under the Save button after a successful save. */
+  savedNote?: string | null;
 }) {
   const {
     promptpayId,
@@ -76,9 +78,16 @@ export function PaymentSettingsCard(props: {
           Payee name
           <input value={payeeName} onChange={(e) => setPayeeName(e.target.value)} />
         </label>
-        <button className="button secondary" disabled={busy}>
-          Save payment settings
-        </button>
+        <div className="row">
+          <button className="button secondary" disabled={busy}>
+            Save payment settings
+          </button>
+          {props.savedNote && (
+            <span className="saved-note" role="status">
+              {props.savedNote}
+            </span>
+          )}
+        </div>
       </form>
       <label>
         Optional static QR image
@@ -122,7 +131,15 @@ function InvoiceRow(props: {
   const paid = inv.status === "paid";
   const needsSlipCheck = method !== "cash" && !inv.hasPayslip;
   const hasVouchers = inv.lines.some((l) => l.kind === "voucher");
-  const desk = paid ? deskHandoverText(inv) : "";
+  // With the optimistic ticks applied, so the hint updates the moment a box is ticked.
+  const desk = paid
+    ? deskHandoverText({
+        ...inv,
+        lines: inv.lines.map((l) =>
+          l.itemId in optimistic ? { ...l, handedOverAt: optimistic[l.itemId] ? l.handedOverAt ?? "now" : null } : l,
+        ),
+      })
+    : "";
   const pdfWarning = voucherPdfWarning(inv);
   const missingPdfs = missingVoucherPdfs(inv).length;
 
@@ -308,6 +325,9 @@ export function InvoicesCard(props: {
 export function EventStatusSummary(props: { code: string; summary: InvoiceSummary | null; currency?: string }) {
   const ccy = parseCurrency(props.currency);
   const s = props.summary;
+  // Host notes may contain personal data: off by default, so a shared export doesn't leak names.
+  const [includeNotes, setIncludeNotes] = useState(false);
+  const notesQuery = includeNotes ? "?notes=1" : "";
   return (
     <div className="stack">
       {s ? (
@@ -319,10 +339,13 @@ export function EventStatusSummary(props: { code: string; summary: InvoiceSummar
       ) : (
         <p className="muted">Payment and handover status appears when the auction closes.</p>
       )}
-      <p className="row">
+      <p className="row export-row">
         <span className="muted">Results export:</span>
-        <a href={`${API_BASE}/api/host/events/${props.code}/results.xlsx`}>Excel (.xlsx)</a>
-        <a href={`${API_BASE}/api/host/events/${props.code}/results.csv`}>CSV</a>
+        <a href={`${API_BASE}/api/host/events/${props.code}/results.xlsx${notesQuery}`}>Excel (.xlsx)</a>
+        <a href={`${API_BASE}/api/host/events/${props.code}/results.csv${notesQuery}`}>CSV</a>
+        <label className="inline-check" title="Host-only notes can contain names (e.g. “Organized by …”). Leave off for exports you share.">
+          <input type="checkbox" checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} /> Include host notes
+        </label>
       </p>
     </div>
   );

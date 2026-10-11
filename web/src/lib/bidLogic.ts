@@ -67,6 +67,11 @@ export function canStepUp(current: number, it: Biddable): boolean {
   return it.buyNow == null || current < it.buyNow;
 }
 
+/** Fixed-price lot: buy-now equals the starting bid, so there is nothing to bid — only "Buy". */
+export function isFixedPrice(it: Pick<LiveItem, "buyNow" | "startingBid">): boolean {
+  return it.buyNow != null && it.buyNow === it.startingBid;
+}
+
 /** When the next normal bid reaches buy-now, buy-now is the only (and cheaper) way to win. */
 export function onlyBuyNow(it: Biddable): boolean {
   return it.buyNow != null && minNextBid(it) >= it.buyNow;

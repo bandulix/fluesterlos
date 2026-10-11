@@ -47,6 +47,14 @@ describe("payment desk texts", () => {
     expect(voucherPdfWarning(inv)).not.toContain("Jersey");
   });
 
+  it("drops handed-over items from the desk hint and disappears when all are handed over", () => {
+    const inv = invoice([{ itemId: "i1", title: "Spa", hasVoucher: true }, { itemId: "i2", title: "Jersey", kind: "physical", hasVoucher: false }]);
+    const one = { ...inv, lines: inv.lines.map((l) => (l.title === "Jersey" ? { ...l, handedOverAt: "2026-10-11T10:00:00Z" } : l)) };
+    expect(deskHandoverText(one)).toBe("At the desk — print/show voucher(s): Spa.");
+    const all = { ...inv, lines: inv.lines.map((l) => ({ ...l, handedOverAt: "2026-10-11T10:00:00Z" })) };
+    expect(deskHandoverText(all)).toBe("");
+  });
+
   it("email held because of a missing PDF: one clear message", () => {
     const inv = invoice([{ title: "Brunch", hasVoucher: false }], "g@example.org");
     const msg = afterPaidMessage(inv, "voucher_pdf_missing");

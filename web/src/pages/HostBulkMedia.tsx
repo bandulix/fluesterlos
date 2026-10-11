@@ -1,6 +1,6 @@
 import { DragEvent, useState } from "react";
 import { LiveItem, uploadForm } from "../lib/api";
-import { baseTitle, FileMatch, matchFile, withLots } from "../lib/fileMatch";
+import { baseTitle, bulkFooter, FileMatch, matchFile, targetsFor, withLots } from "../lib/fileMatch";
 
 type Row = FileMatch & { file: File; status?: "done" | "error"; error?: string };
 
@@ -121,7 +121,10 @@ export function HostBulkMedia(props: {
         onDrop={onDrop}
       >
         <strong>Choose or drop photos (jpg, png, webp) and voucher PDFs</strong>
+        <span className="button drop-button" aria-hidden="true">Choose files</span>
         <input
+          className="drop-input"
+          aria-label="Choose photos and voucher PDFs"
           type="file"
           multiple
           accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.jpg,.jpeg,.png,.webp,.gif,.pdf"
@@ -165,11 +168,11 @@ export function HostBulkMedia(props: {
                             groups.map((g) => (
                               <option key={g} value={`group:${g}`}>All units of “{g}”</option>
                             ))}
-                          {lots
-                            .filter((l) => r.kind === "photo" || l.kind === "voucher")
-                            .map((l) => (
+                          <optgroup label={r.kind === "voucher" ? "Voucher items" : "Items"}>
+                            {targetsFor(r.kind, lots).map((l) => (
                               <option key={l.id} value={l.id}>#{l.lot} {l.title}</option>
                             ))}
+                          </optgroup>
                         </select>
                       )}
                       {r.itemIds.length > 1 && <div className="muted import-hint">→ {r.itemIds.length} items</div>}
@@ -186,7 +189,7 @@ export function HostBulkMedia(props: {
         </div>
       )}
       <div className="row between">
-        <span className="muted">{progress ?? (rows.length ? `${readyFiles} of ${rows.length} file${rows.length === 1 ? "" : "s"} matched — check the “Goes to” column` : "Each item can also get its photo or PDF individually in the list below.")}</span>
+        <span className="muted" role="status">{progress ?? bulkFooter(rows)}</span>
         <button type="button" className="button" disabled={busy || uploads === 0} onClick={uploadAll}>
           {busy ? "Uploading…" : buttonLabel}
         </button>

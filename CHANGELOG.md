@@ -7,6 +7,22 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — click test round 4 (48-item event, real workbook import)
+- **"Raised so far" counted starting bids of unbid items** (big screen showed ฿64,300 while bids summed ฿7,200). The live total is now the sum of current high bids of items **with bids** (buy-now sales included); new `stats.itemsWithBids`. The stats page lists only items with bids as leaders and counts the rest separately.
+- **Big screen for large events:** the "All items" row (3 clipped cards, no scroll) is now a **paged grid** sized to the screen (8–12 cards, auto-advance every 8 s, page indicator; no fade with reduced motion). **🔥 Hot** items (recent + most bids; `recentBids[].itemId` added to the live payload) are outlined and the spotlight jumps to an item on a new bid. The 27-tile sponsor block (half the screen) is a **single compact row** (marquee when it overflows, static pages with reduced motion), ≤ ~12 % of the height. Compact layout for 1280×720; the header stays on one line.
+- **Import preview:** "⚠ N to check" counted warnings while the filter showed rows — both now count **rows to check** (`summary.rowsToCheck`). Price/increment/buy-now cells update the preview (and the item count) ~350 ms after typing stops, not only on blur; title edits keep focus.
+- **Bulk media:** the footer said "0 of 8 files matched" after a successful upload — it now says **"✓ 8 files uploaded"** (and what is left). The "Goes to" list for a PDF shows only voucher items (grouped), photos all items.
+- **Fixed-price lots (buy-now = starting bid):** the guest card shows **Fixed price ฿3,000** and **Buy for ฿3,000** (no "Starting bid · No bids yet"); after the purchase the buyer sees **Yours ✓**, others **Sold** (not "You're winning"). Still one tap + the Undo toast (no confirm); undoing a buy-now reopens the lot (tested). Host item list tags them **fixed price**.
+- **Host item list:** "high ฿2,000.00 · 0 bids" → **"Starting ฿2,000 · no bids"** (also "High ฿2,400 · 3 bids", "Sold ฿3,000").
+- **Payment desk:** the "At the desk — hand over: …" hint drops items as soon as they are ticked *Handed over* and disappears when all are.
+- **Payment settings:** saving shows "✓ Saved — PromptPay …" next to the button (plus a toast).
+- **Exports:** the host-only *Notes* column (may contain names) is now **off by default** and, when included via the new **Include host notes** checkbox (`?notes=1`), is the **last** column.
+- **Guest polish:** the event title wraps to two lines (the countdown pill stacks on phones to give it room); a description line or leading phrase repeating the title is stripped (accent/case/punctuation-insensitive, on import and on display); the name card is a **bottom sheet** shown after the bid toast — it no longer pushes cards under the guest's finger (saving confirms with a toast); the import and bulk-media drop zones have a styled **Choose file(s)** button instead of the native control.
+
+### Tests
+- API: totals ignore unbid items and include buy-now sales; buy-now undo reopens the lot; export without/with notes (CSV + XLSX); description dedupe; rows-to-check count; a synthetic **48-lot / 27-sponsor workbook** (`buildLargeWorkbook()`) imports with fixed-price lots included by typing their price.
+- Web: big-screen paging/fit/hot helpers, host price line, fixed-price detection, bulk-media targets and footer, desk hint after handover, description dedupe.
+
 ### Added — host item import (Excel / CSV)
 - **Import items** on the event card: upload `.xlsx` / `.csv` → preview → **Import N items**. Built around last year's `Prizes` workbook layout (header in row 3, bid sheets `Liste N` ignored, results/buyer columns never imported).
   - Column auto-detection for English and German headers; any column can be re-mapped in the preview (unmatched columns highlighted).

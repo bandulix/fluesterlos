@@ -1,4 +1,4 @@
-import { DragEvent, useMemo, useRef, useState } from "react";
+import { DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { api, API_BASE, assetUrl, LivePayload } from "../lib/api";
 import { Currency, formatAmount } from "../lib/money";
 
@@ -44,7 +44,7 @@ export type ImportPreview = {
   mapping: Array<Field | null>;
   rows: PreviewRow[];
   droppedTotals: number;
-  summary: { rows: number; items: number; skipped: number; blocked: number; warnings: number; errors: number; multiUnitLots: number; fixedPrice: number; photos: number };
+  summary: { rows: number; items: number; skipped: number; blocked: number; warnings: number; rowsToCheck?: number; errors: number; multiUnitLots: number; fixedPrice: number; photos: number };
   existingItems: number;
   locked: string | null;
 };
@@ -70,6 +70,77 @@ const num = (s: string): number | null => {
   const n = Number(t);
   return Number.isFinite(n) && n > 0 ? n : null;
 };
+
+const TYPE_DEBOUNCE_MS = 350;
+
+/**
+ * Price cell that keeps its own draft while focused and reports the parsed value ~350 ms after
+ * typing stops (and on blur), so the preview's item count follows the typing, not only the blur.
+ */
+function NumInput(props: { value: number | null; onValue: (v: number | null) => void; placeholder?: string; disabled?: boolean; "aria-label": string }) {
+  const { value, onValue } = props;
+  const [draft, setDraft] = useState(value == null ? "" : String(value));
+  const focused = useRef(false);
+  const timer = useRef<number | undefined>(undefined);
+  const lastSent = useRef<number | null>(value);
+  useEffect(() => {
+    lastSent.current = value;
+    if (!focused.current) setDraft(value == null ? "" : String(value));
+  }, [value]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const flush = (text: string) => {
+    window.clearTimeout(timer.current);
+    const v = num(text);
+    if (v !== lastSent.current) {
+      lastSent.current = v;
+      onValue(v);
+    }
+  };
+  return (
+    <input
+      className="import-num"
+      inputMode="decimal"
+      aria-label={props["aria-label"]}
+      placeholder={props.placeholder}
+      disabled={props.disabled}
+      value={draft}
+      onFocus={() => (focused.current = true)}
+      onChange={(e) => {
+        const text = e.target.value;
+        setDraft(text);
+        window.clearTimeout(timer.current);
+        timer.current = window.setTimeout(() => flush(text), TYPE_DEBOUNCE_MS);
+      }}
+      onBlur={(e) => {
+        focused.current = false;
+        flush(e.target.value);
+      }}
+    />
+  );
+}
+
+function TitleInput(props: { value: string; onValue: (v: string) => void }) {
+  const [draft, setDraft] = useState(props.value);
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focused.current) setDraft(props.value);
+  }, [props.value]);
+  return (
+    <input
+      value={draft}
+      maxLength={200}
+      aria-label="Title"
+      onFocus={() => (focused.current = true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        focused.current = false;
+        const v = draft.trim();
+        if (v && v !== props.value) props.onValue(v);
+        else setDraft(props.value);
+      }}
+    />
+  );
+}
 
 /**
  * Host import: upload .xlsx/.csv → preview with column mapping, per-row issues and edits
@@ -128,13 +199,24 @@ export function HostItemImport(props: {
     }
   }
 
+  // Refs so debounced edits (typed prices) never apply against a stale snapshot.
+  const overridesRef = useRef(overrides);
+  overridesRef.current = overrides;
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
+
   function setOverride(key: number, patch: Override) {
-    const next = { ...overrides, [key]: { ...overrides[key], ...patch } };
+    const cur = overridesRef.current;
+    const next = { ...cur, [key]: { ...cur[key], ...patch } };
+    overridesRef.current = next;
     setOverrides(next);
-    if (preview) {
-      // Optimistic: show the edit at once, then the server's recomputed row (defaults, issues).
-      setPreview({ ...preview, rows: preview.rows.map((r) => (r.key === key ? { ...r, ...stripUndefined(patch) } as PreviewRow : r)) });
-      void refresh(preview.mapping, next);
+    const pv = previewRef.current;
+    if (pv) {
+      // Optimistic: show the edit at once, then the server's recomputed row (defaults, issues, item count).
+      const optimistic = { ...pv, rows: pv.rows.map((r) => (r.key === key ? ({ ...r, ...stripUndefined(patch) } as PreviewRow) : r)) };
+      previewRef.current = optimistic;
+      setPreview(optimistic);
+      void refresh(pv.mapping, next);
     }
   }
 
@@ -168,6 +250,7 @@ export function HostItemImport(props: {
     if (f) void upload(f);
   }
 
+  const toCheck = preview ? preview.summary.rowsToCheck ?? preview.rows.filter((r) => r.issues.some((i) => i.level !== "info")).length : 0;
   const rows = useMemo(
     () => (preview ? (onlyIssues ? preview.rows.filter((r) => r.issues.some((i) => i.level !== "info")) : preview.rows) : []),
     [preview, onlyIssues],
@@ -214,7 +297,9 @@ export function HostItemImport(props: {
               One row per prize. Last year's “Prizes” sheet works as is — the paper bid sheets (“Liste 1”, …) are ignored, their
               photos and logos are picked up.
             </span>
+            <span className="button drop-button" aria-hidden="true">{busy ? "Reading…" : "Choose file"}</span>
             <input
+              className="drop-input"
               type="file"
               accept={ACCEPT}
               disabled={busy || Boolean(props.lockedReason)}
@@ -280,11 +365,15 @@ export function HostItemImport(props: {
             {s.multiUnitLots > 0 && <span>{s.multiUnitLots} multi-unit lot{s.multiUnitLots === 1 ? "" : "s"} split up</span>}
             {s.photos > 0 && <span>📷 {s.photos} photos from the workbook</span>}
             {s.skipped > 0 && <span>{s.skipped} skipped</span>}
-            {s.warnings > 0 && <span className="is-warning">⚠ {s.warnings} to check</span>}
+            {toCheck > 0 && (
+              <span className="is-warning" title={`${s.warnings} warning${s.warnings === 1 ? "" : "s"}, ${s.errors} error${s.errors === 1 ? "" : "s"}`}>
+                ⚠ {toCheck} row{toCheck === 1 ? "" : "s"} to check
+              </span>
+            )}
             {s.errors > 0 && <span className="is-error">✕ {s.errors} need a fix</span>}
             {preview.existingItems > 0 && <span className="muted">added after the {preview.existingItems} existing item{preview.existingItems === 1 ? "" : "s"}</span>}
             <label className="import-filter">
-              <input type="checkbox" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} /> only rows with warnings
+              <input type="checkbox" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} /> only rows to check{toCheck > 0 ? ` (${toCheck})` : ""}
             </label>
           </div>
 
@@ -324,16 +413,7 @@ export function HostItemImport(props: {
                       <td className="muted">{r.lot ?? ""}</td>
                       <td>{r.photoUrl ? <img className="import-thumb" src={assetUrl(r.photoUrl)} alt="" loading="lazy" /> : <span className="muted">—</span>}</td>
                       <td className="import-title">
-                        <input
-                          defaultValue={r.title}
-                          key={`t-${r.key}-${r.title}`}
-                          maxLength={200}
-                          aria-label="Title"
-                          onBlur={(e) => {
-                            const v = e.target.value.trim();
-                            if (v && v !== r.title) setOverride(r.key, { title: v });
-                          }}
-                        />
+                        <TitleInput value={r.title} onValue={(v) => setOverride(r.key, { title: v })} />
                         {r.description && <div className="import-desc" title={r.description}>{r.description}</div>}
                         {r.notes && <div className="import-notes" title={r.notes}>Notes (host only): {r.notes}</div>}
                       </td>
@@ -361,46 +441,28 @@ export function HostItemImport(props: {
                       </td>
                       <td className="num">{r.retailValue != null ? formatAmount(r.retailValue, ccy) : <span className="muted">—</span>}</td>
                       <td className="num">
-                        <input
-                          className="import-num"
-                          inputMode="decimal"
+                        <NumInput
                           aria-label="Starting bid"
-                          key={`s-${r.key}-${r.startingBid}`}
-                          defaultValue={r.startingBid ?? ""}
+                          value={r.startingBid}
                           placeholder={r.fixedPrice ? "—" : "required"}
                           disabled={r.fixedPrice}
-                          onBlur={(e) => {
-                            const v = num(e.target.value);
-                            if (v !== r.startingBid) setOverride(r.key, { startingBid: v });
-                          }}
+                          onValue={(v) => setOverride(r.key, { startingBid: v })}
                         />
                       </td>
                       <td className="num">
-                        <input
-                          className="import-num"
-                          inputMode="decimal"
+                        <NumInput
                           aria-label="Increment"
-                          key={`i-${r.key}-${r.increment}`}
-                          defaultValue={r.increment ?? ""}
+                          value={r.increment}
                           disabled={r.fixedPrice}
-                          onBlur={(e) => {
-                            const v = num(e.target.value);
-                            if (v !== r.increment) setOverride(r.key, { increment: v });
-                          }}
+                          onValue={(v) => setOverride(r.key, { increment: v })}
                         />
                       </td>
                       <td className="num">
-                        <input
-                          className="import-num"
-                          inputMode="decimal"
+                        <NumInput
                           aria-label={r.fixedPrice ? "Fixed price" : "Buy now"}
-                          key={`b-${r.key}-${r.buyNow}`}
-                          defaultValue={r.buyNow ?? ""}
+                          value={r.buyNow}
                           placeholder={r.fixedPrice ? "price" : ""}
-                          onBlur={(e) => {
-                            const v = num(e.target.value);
-                            if (v !== r.buyNow) setOverride(r.key, { buyNow: v });
-                          }}
+                          onValue={(v) => setOverride(r.key, { buyNow: v })}
                         />
                         {r.fixedPrice && <div className="muted import-hint">fixed price</div>}
                       </td>

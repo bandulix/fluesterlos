@@ -130,3 +130,57 @@ export async function buildImportWorkbook(): Promise<Buffer> {
   });
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
+
+const BIG_PRIZES = [
+  "Dinner for Two at Restaurant",
+  "Weekend Stay at Beach Resort",
+  "Spa Massage Voucher",
+  "Cooking Class for Two",
+  "Sunday Brunch for Two",
+  "Golf Round for Two",
+  "Wine Tasting Evening",
+  "Hand-made Ceramic Vase",
+  "Signed Football Jersey",
+  "Yoga Course (10 Sessions)",
+  "Kids Swimming Course",
+  "Bicycle Service Package",
+];
+const BIG_SPONSORS = Array.from({ length: 27 }, (_, i) => `Sponsor ${String.fromCharCode(65 + (i % 26))}${i >= 26 ? "2" : ""} Co.`);
+
+/**
+ * Synthetic "large event" workbook (round 4 big-screen smoke): `count` lots, 27 sponsors, values
+ * 1,000–15,000, the last two lots "sold not auctioned" (fixed price ฿3,000 once included), and a
+ * paper bid sheet with photo + logo for the first `withPhotos` lots. No real names or data.
+ */
+export async function buildLargeWorkbook(count = 48, withPhotos = 12): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const sheets = Array.from({ length: Math.min(withPhotos, count) }, (_, i) => wb.addWorksheet(`Liste ${i + 1}`));
+  const prizes = wb.addWorksheet("Prizes");
+  prizes.getCell("A1").value = "Synthetic Gala 2099 – Prizes";
+  prizes.getRow(3).values = HEADERS;
+  for (let i = 0; i < count; i++) {
+    const no = i + 1;
+    const r = prizes.getRow(4 + i);
+    const fixed = no > count - 2;
+    const title = `${BIG_PRIZES[i % BIG_PRIZES.length]} #${no}`;
+    r.getCell(1).value = no;
+    r.getCell(2).value = `Helper ${(i % 5) + 1}`;
+    r.getCell(3).value = BIG_SPONSORS[i % BIG_SPONSORS.length];
+    r.getCell(4).value = `${title}\n${title} – valid until 31 Dec 2099\nSynthetic test lot`;
+    r.getCell(5).value = fixed ? "sold not auctioned" : 1000 + ((i * 1370) % 14000);
+    r.getCell(6).value = fixed ? null : 200 + ((i * 290) % 3000);
+    if (fixed) r.getCell(12).value = "Fixed price 3000";
+  }
+  sheets.forEach((ws, i) => {
+    const row = 4 + i;
+    ws.getCell("A1").value = { formula: `Prizes!D${row}`, result: "…" } as ExcelJS.CellFormulaValue;
+    ws.getCell("C3").value = "Logo";
+    ws.getCell("C7").value = { formula: `Prizes!C${row}`, result: "…" } as ExcelJS.CellFormulaValue;
+    const hue: [number, number, number] = [(i * 53) % 255, (80 + i * 37) % 255, (160 + i * 71) % 255];
+    const logo = wb.addImage({ buffer: solidPng(24, 12, [255 - hue[0], hue[2], hue[1]]) as unknown as ExcelJS.Buffer, extension: "png" });
+    const photo = wb.addImage({ buffer: solidPng(64, 48, hue, 30) as unknown as ExcelJS.Buffer, extension: "png" });
+    ws.addImage(logo, { tl: { col: 1.2, row: 2.1 }, ext: { width: 60, height: 30 } });
+    ws.addImage(photo, { tl: { col: 4.1, row: 5.2 }, ext: { width: 200, height: 150 } });
+  });
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}

@@ -10,7 +10,7 @@ import {
   LivePayload,
   uploadForm,
 } from "../lib/api";
-import { Currency, CURRENCY_OPTIONS, formatAmount, formatMoney, parseCurrency } from "../lib/money";
+import { Currency, CURRENCY_OPTIONS, formatAmount, parseCurrency } from "../lib/money";
 import { Countdown } from "../components/Countdown";
 import {
   browserTimeZone,
@@ -25,6 +25,8 @@ import {
 } from "../lib/time";
 import { EventStatusSummary, InvoiceSummary } from "./HostPayments";
 import { HostItemForm } from "./HostItemForm";
+import { isFixedPrice } from "../lib/bidLogic";
+import { hostPriceLine } from "../lib/hostText";
 import { HostItemImport } from "./HostItemImport";
 import { HostBulkMedia } from "./HostBulkMedia";
 
@@ -327,10 +329,11 @@ export function HostEventCard(props: {
             {it.photoUrl && <img src={`${API_BASE}${it.photoUrl}`} alt="" className="thumb" />}
             <div className="line-row">
               <span>
-                <span className="muted lot-no">#{idx + 1}</span> <strong>{it.title}</strong> — high {formatMoney(it.highBid, ccy)} · {it.bidCount} bid{it.bidCount === 1 ? "" : "s"}
+                <span className="muted lot-no">#{idx + 1}</span> <strong>{it.title}</strong> — {hostPriceLine(it, ccy)}
                 {it.sponsor ? ` · ${it.sponsor.name}` : ""}
                 {it.retailValue != null ? ` · value ${formatAmount(it.retailValue, ccy)}` : ""}
               </span>
+              {isFixedPrice(it) && <span className="pill kind-fixed" title="Buy-now equals the starting bid: guests can only buy it">fixed price</span>}
               {it.kind === "physical" ? (
                 <span className="pill kind-physical">physical</span>
               ) : it.hasVoucher ? (
