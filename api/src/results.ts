@@ -10,6 +10,7 @@ export type ResultRow = {
   item: string;
   type: string;
   sponsor: string;
+  retailValue: number | null;
   winner: string;
   phone: string;
   email: string;
@@ -20,6 +21,7 @@ export type ResultRow = {
   paidAt: Date | null;
   handedOver: string;
   handedOverAt: Date | null;
+  notes: string;
 };
 
 export const RESULT_COLUMNS: Array<{ key: keyof ResultRow; header: string; width: number }> = [
@@ -27,6 +29,7 @@ export const RESULT_COLUMNS: Array<{ key: keyof ResultRow; header: string; width
   { key: "item", header: "Item", width: 40 },
   { key: "type", header: "Type", width: 10 },
   { key: "sponsor", header: "Sponsor", width: 28 },
+  { key: "retailValue", header: "Retail value", width: 12 },
   { key: "winner", header: "Winner", width: 24 },
   { key: "phone", header: "Phone", width: 16 },
   { key: "email", header: "Email", width: 28 },
@@ -37,6 +40,7 @@ export const RESULT_COLUMNS: Array<{ key: keyof ResultRow; header: string; width
   { key: "paidAt", header: "Paid at", width: 20 },
   { key: "handedOver", header: "Handed over", width: 12 },
   { key: "handedOverAt", header: "Handed over at", width: 20 },
+  { key: "notes", header: "Notes", width: 30 },
 ];
 
 const METHOD_LABEL: Record<string, string> = { cash: "Cash", bank_transfer: "Bank transfer", promptpay: "PromptPay" };
@@ -69,7 +73,7 @@ export async function eventResults(eventId: string): Promise<EventResults> {
   if (closed) await ensureInvoicesForEvent(eventId);
   const currency = parseCurrency(ev.rows[0].currency);
   const { rows } = await pool.query(
-    `SELECT i.sort_order, i.title, i.kind, s.name AS sponsor_name,
+    `SELECT i.sort_order, i.title, i.kind, i.retail_value, i.notes, s.name AS sponsor_name,
             w.amount, g.name AS guest_name, g.phone, g.email,
             inv.status, inv.payment_method, inv.paid_at, il.handed_over_at
      FROM items i
@@ -94,6 +98,7 @@ export async function eventResults(eventId: string): Promise<EventResults> {
       item: r.title,
       type: r.kind,
       sponsor: r.sponsor_name ?? "",
+      retailValue: r.retail_value == null ? null : money(r.retail_value),
       winner: r.guest_name ?? "",
       phone: r.phone ?? "",
       email: r.email ?? "",
@@ -104,6 +109,7 @@ export async function eventResults(eventId: string): Promise<EventResults> {
       paidAt: r.paid_at ? new Date(r.paid_at) : null,
       handedOver: r.amount == null ? "" : r.handed_over_at ? "yes" : "no",
       handedOverAt: r.handed_over_at ? new Date(r.handed_over_at) : null,
+      notes: r.notes ?? "",
     })),
   };
 }
@@ -152,6 +158,7 @@ export async function resultsXlsx(res: EventResults, title: string): Promise<Buf
     ws.addRow({ ...r, paidAt: wallDate(r.paidAt, timezone), handedOverAt: wallDate(r.handedOverAt, timezone) });
   }
   ws.getColumn("amount").numFmt = "#,##0.00";
+  ws.getColumn("retailValue").numFmt = "#,##0.00";
   ws.getColumn("paidAt").numFmt = "yyyy-mm-dd hh:mm";
   ws.getColumn("handedOverAt").numFmt = "yyyy-mm-dd hh:mm";
   // Phones are E.164 strings in a text-formatted column, so +66… stays intact (no apostrophe).

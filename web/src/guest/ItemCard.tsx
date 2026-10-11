@@ -60,6 +60,9 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
           </p>
         )}
         {it.description ? <p className="g-desc">{it.description}</p> : null}
+        {it.retailValue != null && it.retailValue > 0 ? (
+          <p className="g-value">{t("bid.value", { value: fmt(it.retailValue) })}</p>
+        ) : null}
         <div className="g-price">
           <div>
             <span className="g-price-label">{it.bidCount ? t(closed ? "bid.winningBid" : "bid.current") : t("bid.starting")}</span>

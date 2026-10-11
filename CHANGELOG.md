@@ -7,6 +7,27 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — host item import (Excel / CSV)
+- **Import items** on the event card: upload `.xlsx` / `.csv` → preview → **Import N items**. Built around last year's `Prizes` workbook layout (header in row 3, bid sheets `Liste N` ignored, results/buyer columns never imported).
+  - Column auto-detection for English and German headers; any column can be re-mapped in the preview (unmatched columns highlighted).
+  - Preview table per row: import yes/no, title (editable), type voucher/physical (guessed, editable), sponsor (*new* / *existing*), retail value, starting bid, increment, buy-now (editable), quantity, notes, and per-row errors/warnings. Rows with errors are not imported until fixed or unticked.
+  - Defaults: increment = 10 % of the starting bid (last year's `=E11/10`), starting bid = 20 % of the value when only a value is given (flagged), title from the first line of the description.
+  - Multi-unit lots (`10x` in a quantity column, title prefix, or misplaced in "Organized by") become N items `Title (1/N)` … `(N/N)`.
+  - `#VALUE!` cells, numbers stored as text, totals rows and a *sold / not auctioned* lot (skipped by default, or imported as fixed-price buy-now) are handled.
+  - Photos embedded in the workbook (also on bid sheets that reference a `Prizes` row) become item photos; logos next to a "Logo" label fill missing sponsor logos.
+  - Downloadable blank template (`GET /api/host/import/template.xlsx`).
+  - Only allowed while the auction has no bids and isn't closed (checked again inside the import transaction under the event lock).
+  - API: `POST /api/host/events/:code/import` (file → preview), `POST …/import/:session/preview` (re-map / row edits), `POST …/import/:session/commit`, `GET /api/host/import/:session/images/:file`. Upload sessions live in `DATA_DIR/imports/` and are removed after import or 24 h.
+- **Photos & PDFs** bulk upload (after an import, or any time from the event card): files are matched by lot number (`03-spa.jpg`) or title (`Spa Day.pdf`), every match can be corrected, then uploaded one by one via the existing per-item endpoints.
+- **Retail value** per item (`items.retail_value`): shown to guests as "Value ฿X", editable in the item form, new *Retail value* column in the results export.
+- Host-only **notes** per item (`items.notes`, e.g. "Organized by: …" from an import): item form + export *Notes* column; never in the public live payload (`GET /api/host/events/:code/item-notes`).
+- Host item list shows lot numbers **#1, #2, …** (same as the export).
+
+### Changed
+- Buy-now may now **equal** the starting bid (fixed-price lot: guests see only "Buy now"); before it had to be greater.
+- Guest item descriptions keep their line breaks.
+- Web test typecheck (`npm run typecheck`) passes again (duplicate import in a test, missing `__BUILD_ID__` declaration in the test tsconfig).
+
 ### Fixed — guest UX click test, round 3
 - **Privacy: no phone digits in public.** Board, big screen, stats and the live feed showed `Guest …2222` although the join page promises the number is never shown. Guests now get a neutral **per-event number** (`Guest 7`): new `guests.guest_no` column, assigned by a `BEFORE INSERT` trigger (per-event advisory lock, so numbers are unique and gap-free per event). The migration backfills existing guests and renames legacy `Guest …1234` / email-derived default names. Resetting the board name falls back to `Guest N`. Only the host desk still sees phone numbers.
 - **After the close:** lost items show a neutral grey **Not won** (no red "↑ Outbid"), won items **Won**, prices read **Winning bid**, and the filters become **All / Won / Not won**.

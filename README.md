@@ -47,7 +47,8 @@ Open **`/host`**.
 1. **Register the owner.** The first registration needs the one-time `BOOTSTRAP_TOKEN` from your env; after that, registration is closed. Hosts sign in with email + password (bcrypt, httpOnly session cookie). The owner can add and remove more host logins by email.
 2. **Payment settings:** a PromptPay ID (phone or 13-digit national ID) and payee name, and/or an uploaded static QR image.
 3. **Create an event:** title, currency (USD / EUR / THB) and **time zone** (default `DEFAULT_EVENT_TIMEZONE`). Start/end are entered and shown in the event's zone, whatever zone the host's device is in. Start defaults to now and end to +2 h. Each item has:
-   - title, description, starting bid, increment, optional buy-now
+   - title, description, starting bid, increment, optional buy-now (buy-now = starting bid makes a **fixed-price** lot: guests only see "Buy now")
+   - optional **retail value** (guests see "Value ฿X"; also in the export) and host-only **notes**
    - optional **photo** (uploaded file)
    - type **voucher** (PDF emailed after payment; the PDF can be attached later) or **physical** (collected at the desk)
    - optional **sponsor** name + logo. Sponsors are reused by name, and a sponsor typed for an earlier item is suggested for later ones.
@@ -55,17 +56,33 @@ Open **`/host`**.
    - **close now**
    - **extend** (up to 24 h at a time). On a closed event this **reopens** it, as long as nothing has been paid.
    - **edit times**
-   - **edit / delete items**
+   - **edit / delete items** (items are numbered **#1, #2, …** — the same lot numbers as the export)
+   - **Import items** from Excel / CSV and **Photos & PDFs** in bulk (see below)
 5. **Users:** list guests, or add them in advance by phone; such a guest's first join needs no code. Extra host logins are managed here too.
 6. **Help desk:** shows pending 6-digit login codes, so a host can check who someone is and read the code out.
 7. **Payment desk** (after close): one invoice per winning guest, totalling all their wins.
    - Mark paid by **cash / bank transfer / PromptPay**. Transfers without a payslip need an explicit "I checked the transfer arrived".
    - Marking paid emails the voucher PDFs (one attachment per won voucher). If a voucher PDF is missing, the desk warns ("voucher PDF missing") and holds the email until the PDF is attached; then press **Send email**.
    - Tick **Handed over** per item (only after payment; time and host are recorded). A toast confirms it.
-8. **Export:** `results.xlsx` / `results.csv` with one row per lot, including unsold ones. Columns: lot, item, type, sponsor, winner, phone, email, amount, currency, paid, method, paid at, handed over, handed over at.
+8. **Export:** `results.xlsx` / `results.csv` with one row per lot, including unsold ones. Columns: lot, item, type, sponsor, retail value, winner, phone, email, amount, currency, paid, method, paid at, handed over, handed over at, notes.
    - Timestamps are in the event's time zone, which is named in the header.
    - CSV phones are readable without a leading `+` (`081 234 5678` for the default country, `(+49) 1512 3456789` otherwise), so spreadsheets don't treat them as formulas.
    - xlsx keeps E.164 as text.
+
+### Importing items from Excel / CSV
+
+**Event card → Items → Import items** (only before the first bid). Upload an `.xlsx` or `.csv`; nothing is created until you press **Import N items**.
+
+<p align="center"><img src="docs/screenshots/host-import-preview.png" width="760" alt="Import preview: column mapping, summary, editable rows with warnings"></p>
+
+- **Sheet & columns:** the sheet named `Prizes` (also `Preise`, `Items`, `Lots`) is used, otherwise the first sheet that isn't a paper bid sheet (`Liste 1`, `Liste 2`, … are ignored). The header row is found automatically (last year's file has it in row 3). English and German headers are recognised (`No.`/`Nr.`, `Title`/`Titel`, `Description`/`Beschreibung`, `Sponsor Name`/`Spender`, `Approximate Value`/`Wert`, `Suggested Minimum`/`Mindestgebot`, `Minimum Steps`/`Schrittweite`, `Buy now`/`Sofortkauf`, `Quantity`/`Anzahl`, `Remark`/`Bemerkung`, `Organized by`, …). Result columns of a past auction (`Final Price achieved`, `Bought by`, `Money received?`, `Payment Method`, `Handed over?`) are never imported. Any column can be (re)mapped with a dropdown; unrecognised columns are highlighted.
+- **Defaults:** no title column → the first line of the description (dates in brackets stay in the description; a "retail value …" line is dropped because the card shows the value). Increment missing → **10 % of the starting bid** (last year's bid sheets used `=E11/10`). Starting bid missing but a value given → 20 % of the value (flagged). Type is guessed — **voucher** if the text mentions voucher / Gutschein / hotel / night / spa / brunch / dinner / restaurant / massage …, else **physical** — and can be changed per row. Sponsors are matched to existing ones by name (case-insensitive) and marked *new* / *existing*. "Organized by" goes into the host-only notes.
+- **Multi-unit lots:** `10x` in the quantity column, in the title (`10x Brunch`) or — as in last year's file — in the "Organized by" column becomes **10 separate items** `Brunch (1/10)` … `(10/10)` (warning in the preview).
+- **Messy cells:** `#VALUE!` and other error cells, numbers stored as text (`14.000`, `1,250`, `THB 2 500`), multi-line text and totals rows are handled. A lot marked *sold / not auctioned / Festpreis* is **skipped by default**; tick it and enter a price to sell it at a fixed price (buy-now only).
+- **Pictures from the workbook:** images on the item sheet, or on paper bid sheets that reference a `Prizes` row (`=Prizes!C4`), are attached as the item photo; the image next to a "Logo" label becomes the sponsor's logo if the sponsor has none yet.
+- **Template:** a blank `fluesterlos-items-template.xlsx` (columns *No., Title, Description, Type, Sponsor, Retail value, Starting bid, Increment, Buy now, Quantity, Notes* with explanations) is linked in the import panel.
+
+**Photos & PDFs** (offered right after an import, and as a button on the event card): drop many files at once. Each file is matched by **lot number** (`03-spa.jpg`, `Lot 3.pdf`) or **title** (`Spa Day.pdf`); every match can be changed in a dropdown before uploading. A photo named after a multi-unit lot goes to all of its units; a voucher PDF only ever goes to one item. Per-item upload in the item editor works as before.
 
 ## Big screen
 

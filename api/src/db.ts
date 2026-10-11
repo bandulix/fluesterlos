@@ -130,6 +130,9 @@ export async function migrate() {
     ALTER TABLE items DROP CONSTRAINT IF EXISTS items_kind_check;
     ALTER TABLE items ADD CONSTRAINT items_kind_check CHECK (kind IN ('voucher', 'physical'));
     ALTER TABLE items ADD COLUMN IF NOT EXISTS sponsor_id UUID REFERENCES sponsors(id) ON DELETE SET NULL;
+    -- Item import: retail value (shown to guests as "Value ฿X") and host-only notes.
+    ALTER TABLE items ADD COLUMN IF NOT EXISTS retail_value NUMERIC(12,2);
+    ALTER TABLE items ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT '';
 
     -- Guests are keyed by phone (E.164) per event; email is optional (voucher delivery).
     -- Older email-keyed guests keep their row and token; phone stays NULL until they add one.

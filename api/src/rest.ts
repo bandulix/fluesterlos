@@ -74,7 +74,7 @@ export function registerRestRoutes(
 
   /**
    * Multipart add-item. Fields: title, startingBid, minIncrement, optional description, buyNow,
-   * kind ("voucher" | "physical", default voucher), sponsorName or sponsorId.
+   * kind ("voucher" | "physical", default voucher), sponsorName or sponsorId, retailValue, notes (host-only).
    * Files: voucherPdf (optional — can be attached later), photo, sponsorLogo.
    */
   app.post("/api/host/events/:code/items", async (req, reply) => {
@@ -98,6 +98,8 @@ export function registerRestRoutes(
     const minIncrement = Number(fields.minIncrement);
     const buyNow = fields.buyNow?.trim() ? Number(fields.buyNow) : null;
     const kind = (fields.kind || "voucher").trim().toLowerCase();
+    const retailValue = fields.retailValue?.trim() ? Number(fields.retailValue) : null;
+    const notes = (fields.notes || "").slice(0, 2000);
     const pdf = files.find(
       (f) =>
         f.fieldname === "voucherPdf" ||
@@ -114,8 +116,12 @@ export function registerRestRoutes(
     if (kind !== "voucher" && kind !== "physical") {
       return reply.code(400).send({ error: "kind must be voucher or physical" });
     }
-    if (buyNow != null && !(buyNow > startingBid)) {
-      return reply.code(400).send({ error: "buyNow must be greater than startingBid" });
+    // buyNow == startingBid is a fixed-price lot: guests only see "Buy now".
+    if (buyNow != null && !(buyNow >= startingBid)) {
+      return reply.code(400).send({ error: "buyNow must be at least startingBid" });
+    }
+    if (retailValue != null && !(retailValue >= 0)) {
+      return reply.code(400).send({ error: "retailValue must be a positive number" });
     }
     if (photo && !isImageUpload(photo)) {
       return reply.code(400).send({ error: "photo must be jpg, png, webp, or gif" });
@@ -141,9 +147,9 @@ export function registerRestRoutes(
     );
     const ins = await pool.query(
       `INSERT INTO items
-        (event_id, title, description, photo_url, starting_bid, min_increment, buy_now, sort_order, kind, sponsor_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-      [event.id, title, description, null, startingBid, minIncrement, buyNow, sortRes.rows[0].n, kind, sponsorId],
+        (event_id, title, description, photo_url, starting_bid, min_increment, buy_now, sort_order, kind, sponsor_id, retail_value, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [event.id, title, description, null, startingBid, minIncrement, buyNow, sortRes.rows[0].n, kind, sponsorId, retailValue, notes],
     );
     const itemId = ins.rows[0].id as string;
     const voucherPath = pdf ? await saveUpload("vouchers", pdf.filename, pdf.buffer, itemId) : null;
