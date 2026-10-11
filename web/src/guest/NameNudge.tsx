@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { t } from "../i18n";
+import { useBottomBarSpace } from "./useBottomBarSpace";
 
 /** Small, dismissible "Show your name on the board?" — never asked up front. */
 export function NameNudge({
@@ -17,6 +18,7 @@ export function NameNudge({
   sheet?: boolean;
 }) {
   const [name, setName] = useState("");
+  const sheetRef = useBottomBarSpace<HTMLFormElement>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +40,7 @@ export function NameNudge({
   }
 
   return (
-    <form className={`g-nudge${sheet ? " is-sheet" : ""}`} onSubmit={submit} aria-label={t("name.prompt")}>
+    <form ref={sheet ? sheetRef : undefined} className={`g-nudge${sheet ? " is-sheet" : ""}`} onSubmit={submit} aria-label={t("name.prompt")}>
       <div className="g-nudge-text">
         <strong>{t("name.prompt")}</strong>
         <span>{t("name.current", { name: currentName })}</span>

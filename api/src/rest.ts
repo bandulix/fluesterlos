@@ -23,6 +23,8 @@ import { cookieSecure } from "./hostAuth.js";
 
 /** Seconds the guest app offers "Undo" after a bid. */
 export const BID_UNDO_SECONDS = 5;
+/** A purchase (buy-now / fixed price) is a bigger step: a little longer to take it back. */
+export const BUY_NOW_UNDO_SECONDS = 8;
 /** Server-side grace (covers network latency on top of the visible undo window). */
 const BID_UNDO_GRACE_SECONDS = 15;
 
@@ -534,7 +536,7 @@ export function registerRestRoutes(
         guestName: guest.name,
         createdAt: new Date(ins.rows[0].created_at).toISOString(),
       });
-      return { ok: true, bidId: ins.rows[0].id as string, amount, currentHigh: amount, buyNow: isBuyNow, live, undoSeconds: BID_UNDO_SECONDS };
+      return { ok: true, bidId: ins.rows[0].id as string, amount, currentHigh: amount, buyNow: isBuyNow, live, undoSeconds: isBuyNow ? BUY_NOW_UNDO_SECONDS : BID_UNDO_SECONDS };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;

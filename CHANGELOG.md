@@ -7,6 +7,17 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — click test round 5
+
+- **Undo after buy-now**: the Undo toast now lasts 8 s after a fixed-price purchase (5 s after a bid; the server-side undo grace stays 15 s). The toast timer is keyed to the toast and doesn't restart or close when the page re-renders or live updates arrive. It also pauses while the tab is hidden or the pointer is over the toast.
+- **Stray quotes in descriptions**: new `tidyDescription` drops description lines that are only punctuation or quotes. It also trims quotes that wrap a line and a single unmatched quote at the start or end. This runs on workbook import and when guest, host and import-preview screens show descriptions, so existing data is cleaned too.
+- **Host item list**: fixed-price items now read "Fixed price ฿3,000" or "Sold at fixed price ฿3,000".
+- **Guest**: the "Add to home screen" bar and the name prompt record their height in `--g-bottom-bar`, and the item list adds that much bottom padding so the last card is never covered.
+- **Big screen spotlight**: shows the featured item's real state (current bid with leader and bid count, starting bid with no bids, fixed price, sold, won). It prefers items with recent bids, shows an unbid item every third turn, and jumps to an item when it gets a new bid.
+- **Big screen grid**: cards stretch to fill the available height. At 1024×600 the layout is compact, so nothing is clipped and the page doesn't scroll.
+- **Big screen paging**: pages now turn every 8 s. Before, the timer restarted whenever the board resized, so pages turned every 10–15 s.
+- Tests: `api/test/round5.test.ts` and `web/test/round5.test.ts`. The synthetic import fixture now includes quoted fixed-price descriptions.
+
 ### Fixed — click test round 4 (48-item event, real workbook import)
 - **"Raised so far" counted starting bids of unbid items** (big screen showed ฿64,300 while bids summed ฿7,200). The live total is now the sum of current high bids of items **with bids** (buy-now sales included); new `stats.itemsWithBids`. The stats page lists only items with bids as leaders and counts the rest separately.
 - **Big screen for large events:** the "All items" row (3 clipped cards, no scroll) is now a **paged grid** sized to the screen (8–12 cards, auto-advance every 8 s, page indicator; no fade with reduced motion). **🔥 Hot** items (recent + most bids; `recentBids[].itemId` added to the live payload) are outlined and the spotlight jumps to an item on a new bid. The 27-tile sponsor block (half the screen) is a **single compact row** (marquee when it overflows, static pages with reduced motion), ≤ ~12 % of the height. Compact layout for 1280×720; the header stays on one line.

@@ -323,6 +323,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .engager header .countdown { font-size: 1.5rem; }
 .engager header .countdown-digits { font-size: 2.4rem; color: var(--accent); }
 .engager .highlight h2 { margin: 0.2rem 0; font-size: clamp(1.4rem, 2.4vw, 2.2rem); color: var(--text-strong); }
+.engager .spot-label { margin: 0.35rem 0 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .engager .big-amount { font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 800; margin: 0.3rem 0 0; color: var(--accent); font-variant-numeric: tabular-nums; }
 .engager .join-qr { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .engager .join-qr-title { margin: 0 0 0.5rem; font-size: 1.4rem; font-weight: 800; color: var(--text-strong); }
@@ -352,7 +353,9 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .board-item.is-flash { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .board-item.is-hot { border-color: #f97316; box-shadow: inset 0 0 0 1px #f97316; }
 .board-item.is-sold { opacity: 0.7; }
-.board-item img, .board-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; max-height: none; }
+/* Thumbnails follow the card height (cards stretch to fill the board, see gridFit). */
+.board-item { --thumb: min(96px, calc(var(--card-h, 80px) - 18px)); grid-template-columns: var(--thumb) minmax(0, 1fr); }
+.board-item img, .board-thumb { width: var(--thumb); height: var(--thumb); object-fit: cover; border-radius: 10px; max-height: none; }
 .board-thumb { display: flex; align-items: center; justify-content: center; font-size: 1.6rem; background: var(--card); }
 .board-item p { margin: 0; }
 .board-title { font-weight: 700; color: var(--text-strong); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -390,9 +393,10 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .board-grid, .sponsor-row { animation: none !important; }
 }
 /* On a TV / projector everything fits one screen: the paged item board takes the free middle. */
-@media (min-width: 1101px) and (min-height: 600px) {
+@media (min-width: 900px) and (min-height: 500px) {
   .engager { height: 100vh; box-sizing: border-box; overflow: hidden; padding: clamp(0.75rem, 1.6vh, 1.5rem); gap: clamp(0.5rem, 1.4vh, 1rem); }
-  .engager-top { flex: none; max-height: 34vh; }
+  /* Fixed height: the spotlight changing content must not resize (and re-page) the board. */
+  .engager-top { flex: none; height: 34vh; }
   .engager-top > .panel { padding: clamp(0.6rem, 1.6vh, 1.25rem); overflow: hidden; }
   .engager .highlight-row .highlight-photo { max-height: 26vh; }
   .engager .join-qr-code svg { width: clamp(110px, 20vh, 220px); }
@@ -413,9 +417,9 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .engager header .live-badge { margin-top: 0; flex: none; }
   .engager header .countdown { flex: none; }
 }
-/* 720p projectors: a tighter top row so the item board keeps ≥ 8 cards per page. */
-@media (min-width: 1101px) and (min-height: 600px) and (max-height: 820px) {
-  .engager-top { max-height: 28vh; }
+/* 720p / 1024×600 displays: a tighter top row so the item board keeps ≥ 8 cards per page. */
+@media (min-width: 900px) and (min-height: 500px) and (max-height: 820px) {
+  .engager-top { height: 28vh; }
   .engager .huge { font-size: 2.4rem; margin: 0.2rem 0; }
   .engager .highlight h2 { font-size: 1.25rem; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
   .engager .highlight .sponsor-logo { height: 26px; }
@@ -427,14 +431,29 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .engager .join-qr-title { font-size: 1rem; }
   .engager .join-qr-url { font-size: 0.8rem; }
   .engager h3 { margin-bottom: 0.4rem; font-size: 1.05rem; }
-  .board-item { grid-template-columns: 50px minmax(0, 1fr); padding: 0.3rem 0.5rem; }
-  .board-item img, .board-thumb { width: 50px; height: 50px; }
+  .board-item { padding: 0.3rem 0.5rem; }
   .board-amount { font-size: 1.1rem; }
   .engager .feed li { font-size: 1rem; padding: 0.3rem 0; }
   .engager .feed li.is-latest { font-size: 1.1rem; }
   .engager .feed li:nth-child(n + 7) { display: none; }
+  /* Spotlight: smaller photo, one-line title and sponsor, so the price + sub-line always fit. */
+  .engager .highlight-row { grid-template-columns: minmax(0, 0.55fr) minmax(0, 1.45fr); gap: 0.9rem; }
+  .engager .highlight .sponsor { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; margin: 0.1rem 0; }
+  .engager .highlight .sponsor strong { overflow: hidden; text-overflow: ellipsis; }
+  .engager .highlight .spot-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .engager .feed li span { white-space: nowrap; }
+  .engager .feed li span, .engager .feed li span small { overflow: hidden; text-overflow: ellipsis; }
 }
-@media (max-width: 1100px) {
+/* ~600px tall displays (1024×600): drop the spotlight kicker and keep the feed to what fits. */
+@media (min-width: 900px) and (min-height: 500px) and (max-height: 660px) {
+  .engager .highlight-text > p.muted:first-child { display: none; }
+  .engager .spot-label { margin-top: 0.15rem; }
+  .engager .big-amount { font-size: 1.6rem; line-height: 1.1; }
+  .engager .highlight .sponsor-logo { height: 22px; }
+  .engager .highlight .sponsor .muted { display: none; }
+  .engager .feed li:nth-child(n + 5) { display: none; }
+}
+@media (max-width: 899px) {
   .engager-top { grid-template-columns: 1fr 1fr; }
   .engager .join-qr { grid-column: span 2; }
   .engager-bottom { grid-template-columns: 1fr; }

@@ -149,7 +149,8 @@ const BIG_SPONSORS = Array.from({ length: 27 }, (_, i) => `Sponsor ${String.from
 
 /**
  * Synthetic "large event" workbook (round 4 big-screen smoke): `count` lots, 27 sponsors, values
- * 1,000–15,000, the last two lots "sold not auctioned" (fixed price ฿3,000 once included), and a
+ * 1,000–15,000, the last two lots "sold not auctioned" (fixed price ฿3,000 once included; their
+ * one-line description is a quoted name, `Candy Set "Sweet galore 47"`), and a
  * paper bid sheet with photo + logo for the first `withPhotos` lots. No real names or data.
  */
 export async function buildLargeWorkbook(count = 48, withPhotos = 12): Promise<Buffer> {
@@ -166,7 +167,8 @@ export async function buildLargeWorkbook(count = 48, withPhotos = 12): Promise<B
     r.getCell(1).value = no;
     r.getCell(2).value = `Helper ${(i % 5) + 1}`;
     r.getCell(3).value = BIG_SPONSORS[i % BIG_SPONSORS.length];
-    r.getCell(4).value = `${title}\n${title} – valid until 31 Dec 2099\nSynthetic test lot`;
+    // The fixed-price lots copy last year's "Chocolate Set "…"" shape: quotes in a one-line description.
+    r.getCell(4).value = fixed ? `Candy Set "Sweet galore ${no}"` : `${title}\n${title} – valid until 31 Dec 2099\nSynthetic test lot`;
     r.getCell(5).value = fixed ? "sold not auctioned" : 1000 + ((i * 1370) % 14000);
     r.getCell(6).value = fixed ? null : 200 + ((i * 290) % 3000);
     if (fixed) r.getCell(12).value = "Fixed price 3000";
