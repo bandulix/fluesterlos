@@ -2,14 +2,27 @@ import { FormEvent, useState } from "react";
 import { t } from "../i18n";
 
 /** Small, dismissible "Show your name on the board?" — never asked up front. */
-export function NameNudge({ currentName, onSave, onDismiss }: { currentName: string; onSave: (name: string) => Promise<void>; onDismiss: () => void }) {
+export function NameNudge({
+  currentName,
+  onSave,
+  onDismiss,
+  autoFocus = false,
+}: {
+  currentName: string;
+  onSave: (name: string) => Promise<void>;
+  onDismiss: () => void;
+  autoFocus?: boolean;
+}) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      document.getElementById("g-board-name")?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -37,9 +50,10 @@ export function NameNudge({ currentName, onSave, onDismiss }: { currentName: str
           autoComplete="nickname"
           enterKeyHint="done"
           placeholder={t("name.placeholder")}
+          autoFocus={autoFocus}
           onChange={(e) => setName(e.target.value)}
         />
-        <button type="submit" className="g-btn-small" disabled={busy || !name.trim()}>
+        <button type="submit" className="g-btn-small" disabled={busy}>
           {t("name.save")}
         </button>
       </div>
@@ -48,5 +62,14 @@ export function NameNudge({ currentName, onSave, onDismiss }: { currentName: str
         ×
       </button>
     </form>
+  );
+}
+
+/** Brief inline "✓ Saved" where the nudge was, so saving visibly worked. */
+export function NameSaved({ name }: { name: string }) {
+  return (
+    <p className="g-saved" role="status">
+      {t("name.savedInline", { name })}
+    </p>
   );
 }

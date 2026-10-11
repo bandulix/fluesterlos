@@ -4,7 +4,7 @@ import { pool } from "./db.js";
 import { sendMail, smtpConfigured } from "./mail.js";
 import { safeEqual } from "./hostAuth.js";
 import { isKnownDevice } from "./devices.js";
-import { maskEmail, normalizePhone, phoneTail } from "./phone.js";
+import { maskEmail, normalizePhone } from "./phone.js";
 
 export type GuestRow = {
   id: string;
@@ -14,6 +14,8 @@ export type GuestRow = {
   phone: string | null;
   token: string;
   claimed_at?: Date | null;
+  /** Per-event running number; the public default name is "Guest <guest_no>". */
+  guest_no?: number | null;
 };
 
 const CODE_TTL_MINUTES = 10;
@@ -54,12 +56,14 @@ function normalizeEmail(email: string | null | undefined): string | null {
   return e || null;
 }
 
-/** Name shown on the public board: given name, or "Guest …1234" (never the full phone). */
-export function displayName(name: string, phone: string | null, email?: string | null): string {
-  const n = name.trim();
-  if (n) return n;
-  if (phone) return `Guest …${phoneTail(phone)}`;
-  return (email ?? "").split("@")[0] || "Guest";
+/** Public default name: a neutral per-event number, never phone digits or email. */
+export function defaultGuestName(guestNo: number | null | undefined): string {
+  return guestNo ? `Guest ${guestNo}` : "Guest";
+}
+
+/** Chosen name, trimmed; "" means "use the default" (the DB trigger fills "Guest <n>"). */
+function cleanName(name: string | null | undefined): string {
+  return String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
 }
 
 async function findByPhone(eventId: string, phone: string): Promise<GuestRow | undefined> {
@@ -101,9 +105,10 @@ export async function upsertGuest(
   }
   const ins = await pool.query(
     `INSERT INTO guests (event_id, name, phone, email, token, claimed_at) VALUES ($1,$2,$3,$4,$5,NULL)
-     ON CONFLICT (event_id, phone) WHERE phone IS NOT NULL DO UPDATE SET name = EXCLUDED.name
+     ON CONFLICT (event_id, phone) WHERE phone IS NOT NULL
+       DO UPDATE SET name = CASE WHEN $2 <> '' THEN $2 ELSE guests.name END
      RETURNING *`,
-    [eventId, displayName(name, phone, email), phone, email, nanoid(24)],
+    [eventId, cleanName(name), phone, email, nanoid(24)],
   );
   return ins.rows[0] as GuestRow;
 }
@@ -154,15 +159,18 @@ export async function joinGuest(opts: {
     }
   }
 
-  const inserted = await pool.query(
-    `INSERT INTO guests (event_id, name, phone, email, token, claimed_at) VALUES ($1,$2,$3,$4,$5, now())
-     ON CONFLICT (event_id, phone) WHERE phone IS NOT NULL DO NOTHING
-     RETURNING *`,
-    [opts.eventId, displayName(opts.name, phone, email), phone, email, nanoid(24)],
-  );
-  if (inserted.rows[0]) return { kind: "joined", guest: inserted.rows[0] as GuestRow };
-
-  const row = (await findByPhone(opts.eventId, phone))!;
+  // Look up first so re-joins don't burn guest numbers; the insert still guards against races.
+  let row = await findByPhone(opts.eventId, phone);
+  if (!row) {
+    const inserted = await pool.query(
+      `INSERT INTO guests (event_id, name, phone, email, token, claimed_at) VALUES ($1,$2,$3,$4,$5, now())
+       ON CONFLICT (event_id, phone) WHERE phone IS NOT NULL DO NOTHING
+       RETURNING *`,
+      [opts.eventId, cleanName(opts.name), phone, email, nanoid(24)],
+    );
+    if (inserted.rows[0]) return { kind: "joined", guest: inserted.rows[0] as GuestRow };
+    row = (await findByPhone(opts.eventId, phone))!;
+  }
 
   if (opts.presentedToken && safeEqual(opts.presentedToken, row.token)) {
     return { kind: "joined", guest: await updateProfile(row, opts.name, email) };
@@ -205,22 +213,20 @@ async function updateProfile(row: GuestRow, name: string, email: string | null):
   return upd.rows[0] as GuestRow;
 }
 
-/** True when the guest chose a board name (not the default "Guest …1234"). */
-export function hasChosenName(g: { name: string; phone: string | null; email: string | null }): boolean {
+/** True when the guest chose a board name (not the default "Guest <n>"). */
+export function hasChosenName(g: { name: string; guest_no?: number | null }): boolean {
   const n = g.name.trim();
-  return n !== "" && n !== displayName("", g.phone, g.email);
+  return n !== "" && n !== defaultGuestName(g.guest_no);
 }
 
-/** Guest sets their board name later (inline on the bid page). Empty → back to "Guest …1234". */
+/** Guest sets their board name later (inline on the bid page). Empty → back to "Guest <n>". */
 export async function setGuestName(guestId: string, nameRaw: string): Promise<GuestRow> {
-  const cur = await pool.query("SELECT phone, email FROM guests WHERE id = $1", [guestId]);
-  const row = cur.rows[0] as { phone: string | null; email: string | null } | undefined;
-  if (!row) throw httpError(404, "Guest not found");
-  const name = String(nameRaw ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
-  const upd = await pool.query("UPDATE guests SET name = $2 WHERE id = $1 RETURNING *", [
-    guestId,
-    displayName(name, row.phone, row.email),
-  ]);
+  const name = cleanName(nameRaw);
+  const upd = await pool.query(
+    `UPDATE guests SET name = CASE WHEN $2 <> '' THEN $2 ELSE 'Guest ' || guest_no END WHERE id = $1 RETURNING *`,
+    [guestId, name],
+  );
+  if (!upd.rows[0]) throw httpError(404, "Guest not found");
   return upd.rows[0] as GuestRow;
 }
 

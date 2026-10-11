@@ -3,6 +3,11 @@ import type { GuestMe, LiveItem } from "./api";
 export type ItemStatus = "winning" | "outbid" | null;
 export type FilterKey = "all" | "mine" | "winning" | "outbid";
 export const FILTERS: FilterKey[] = ["all", "mine", "winning", "outbid"];
+/** After the close "Mine" is redundant: All / Won / Not won. */
+export const CLOSED_FILTERS: FilterKey[] = ["all", "winning", "outbid"];
+export function filtersFor(closed: boolean): FilterKey[] {
+  return closed ? CLOSED_FILTERS : FILTERS;
+}
 
 /** The next valid bid: starting bid when nobody bid yet, else high + increment. */
 export function minNextBid(it: Pick<LiveItem, "bidCount" | "startingBid" | "highBid" | "minIncrement">): number {

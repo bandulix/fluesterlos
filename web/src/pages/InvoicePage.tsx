@@ -5,6 +5,7 @@ import { api, assetUrl, getGuestToken, uploadForm } from "../lib/api";
 import type { ItemKind, Sponsor } from "../lib/api";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { saveImage } from "../lib/saveImage";
+import { listTitles } from "../lib/listTitles";
 import { t } from "../i18n";
 import { Toast, ToastMessage } from "../components/Toast";
 import "../guest/guest.css";
@@ -56,6 +57,8 @@ function PromptPayQr({ payload, label }: { payload: string; label: string }) {
   );
 }
 
+const emailLaterKey = (code: string) => `fl_email_later_${code.toLowerCase()}`;
+
 export function InvoicePage() {
   const { code = "" } = useParams();
   const nav = useNavigate();
@@ -67,6 +70,7 @@ export function InvoicePage() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [email, setEmail] = useState("");
   const [editingEmail, setEditingEmail] = useState(false);
+  const [emailLater, setEmailLater] = useState(() => sessionStorage.getItem(emailLaterKey(code)) === "1");
   const qrWrap = useRef<HTMLDivElement>(null);
   const clearToast = useCallback(() => setToast(null), []);
   const say = (text: string) => setToast({ id: Date.now(), text });
@@ -95,7 +99,7 @@ export function InvoicePage() {
       const form = new FormData();
       form.append("file", file);
       await uploadForm(`/api/events/${code}/invoice/payslip`, form, token);
-      say(t("inv.slipDone"));
+      say(t("inv.slipUploaded"));
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -153,6 +157,59 @@ export function InvoicePage() {
   const hasVoucher = Boolean(inv?.lines.some((l) => l.kind === "voucher"));
   const paid = inv?.status === "paid";
   const knownEmail = data.guest?.email ?? null;
+  const toCollect = (inv?.lines ?? []).filter((l) => l.kind === "physical" && !l.handedOverAt).map((l) => l.title);
+  // Voucher winners without an email: ask first (above payment) so it isn't missed — skippable.
+  const emailFirst = hasVoucher && !knownEmail && !emailLater && !inv?.vouchersEmailedAt;
+
+  const emailCard = hasVoucher && (
+    <div className={`g-card${emailFirst ? " g-card-ask" : ""}`}>
+      <h2>{t("inv.emailTitle")}</h2>
+      {knownEmail && !editingEmail ? (
+        <p className="g-email-row">
+          <span>
+            ✉ {inv?.vouchersEmailedAt ? t("inv.emailSent", { email: knownEmail }) : t("inv.emailSaved", { email: knownEmail })}
+          </span>
+          {!inv?.vouchersEmailedAt && (
+            <button type="button" className="g-link" onClick={() => setEditingEmail(true)}>
+              {t("inv.emailChange")}
+            </button>
+          )}
+        </p>
+      ) : (
+        <form className="g-email-form" onSubmit={onEmail}>
+          <p className="g-muted">{t("inv.emailHint")}</p>
+          <label className="sr-only" htmlFor="g-email">{t("inv.emailLabel")}</label>
+          <input
+            id="g-email"
+            className="g-big-input"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            enterKeyHint="done"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <button className="g-primary" disabled={savingEmail}>
+            {t("inv.emailSave")}
+          </button>
+          {emailFirst && (
+            <button
+              type="button"
+              className="g-link g-later"
+              onClick={() => {
+                sessionStorage.setItem(emailLaterKey(code), "1");
+                setEmailLater(true);
+              }}
+            >
+              {t("inv.emailLater")}
+            </button>
+          )}
+        </form>
+      )}
+    </div>
+  );
 
   return (
     <section className="g-page g-invoice">
@@ -192,6 +249,8 @@ export function InvoicePage() {
               </ul>
             </div>
 
+            {emailFirst && emailCard}
+
             {!paid && (
               <div className="g-card g-pay">
                 <h2>{t("inv.payTitle")}</h2>
@@ -220,49 +279,12 @@ export function InvoicePage() {
                   <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={onPayslip} disabled={uploading} />
                   📷 {uploading ? t("inv.slipUploading") : inv.hasPayslip ? t("inv.slipReplace") : t("inv.slipButton")}
                 </label>
-                {inv.hasPayslip && !uploading && <p className="g-ok">{t("inv.slipDone")}</p>}
               </div>
             )}
 
-            {hasVoucher && (
-              <div className="g-card">
-                <h2>{t("inv.emailTitle")}</h2>
-                {knownEmail && !editingEmail ? (
-                  <p className="g-email-row">
-                    <span>
-                      ✉ {inv.vouchersEmailedAt ? t("inv.emailSent", { email: knownEmail }) : t("inv.emailSaved", { email: knownEmail })}
-                    </span>
-                    {!inv.vouchersEmailedAt && (
-                      <button type="button" className="g-link" onClick={() => setEditingEmail(true)}>
-                        {t("inv.emailChange")}
-                      </button>
-                    )}
-                  </p>
-                ) : (
-                  <form className="g-email-form" onSubmit={onEmail}>
-                    <p className="g-muted">{t("inv.emailHint")}</p>
-                    <label className="sr-only" htmlFor="g-email">{t("inv.emailLabel")}</label>
-                    <input
-                      id="g-email"
-                      className="g-big-input"
-                      type="email"
-                      inputMode="email"
-                      autoComplete="email"
-                      enterKeyHint="done"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                    <button className="g-primary" disabled={savingEmail || !email.trim()}>
-                      {t("inv.emailSave")}
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
+            {!emailFirst && emailCard}
 
-            {data.guest?.hasPhysical && <p className="g-info">🎁 {t("inv.collect")}</p>}
+            {toCollect.length > 0 && <p className="g-info">🎁 {t("inv.collectItems", { items: listTitles(toCollect) })}</p>}
           </>
         )}
         {error && <p className="g-error" role="alert">{error}</p>}

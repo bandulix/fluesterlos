@@ -63,12 +63,18 @@ describe("guest join by phone", () => {
     expect(res.json().error).toMatch(/phone/i);
   });
 
-  it("board name defaults to the last 4 digits, never the full number", async () => {
+  it("board name defaults to a neutral per-event number, never phone digits", async () => {
     const g = await joinGuest(app, code, ph(1234));
     expect((await bid(app, code, g.token, itemId, 1000)).statusCode).toBe(200);
     const live = (await app.inject({ method: "GET", url: `/api/events/${code}` })).json();
-    expect(live.items[0].highBidder).toBe("Guest …1234");
+    expect(live.items[0].highBidder).toBe("Guest 1");
     expect(JSON.stringify(live)).not.toContain(e164(1234));
+    expect(JSON.stringify(live)).not.toContain("…");
+    // Numbers count up per event; re-joining does not use up a number.
+    const g2 = await joinGuest(app, code, ph(5678));
+    await joinGuest(app, code, ph(1234)).catch(() => undefined);
+    const g3 = await joinGuest(app, code, ph(9012));
+    expect([g.name, g2.name, g3.name]).toEqual(["Guest 1", "Guest 2", "Guest 3"]);
   });
 
   it("existing phone on a new device with an email on file: code is emailed, token not leaked", async () => {

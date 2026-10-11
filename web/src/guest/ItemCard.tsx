@@ -24,14 +24,17 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
   const buyNowOnly = onlyBuyNow(it);
   const isBuyNow = it.buyNow != null && amount >= it.buyNow;
   const fmt = (n: number) => formatAmount(n, ccy);
+  // After the close an outbid item is simply "Not won" — neutral grey, no red alarm, no arrow.
+  const shownStatus = closed && status === "outbid" ? "lost" : status;
   const statusLabel =
     status === "winning" ? t(closed ? "bid.won" : "bid.winning") : status === "outbid" ? t(closed ? "bid.lost" : "bid.outbid") : null;
+  const statusIcon = shownStatus === "winning" ? "✓ " : shownStatus === "outbid" ? "↑ " : "";
   const titleId = `item-${it.id}-title`;
 
   return (
     <article
       id={`item-${it.id}`}
-      className={`g-item${status ? ` is-${status}` : ""}${highlight ? " is-flash" : ""}${sold || (closed && !status) ? " is-done" : ""}`}
+      className={`g-item${shownStatus ? ` is-${shownStatus}` : ""}${highlight ? " is-flash" : ""}${sold || (closed && !status) ? " is-done" : ""}`}
       aria-labelledby={titleId}
     >
       <div className="g-item-media">
@@ -41,8 +44,8 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
           <div className="g-item-placeholder" aria-hidden="true">🎁</div>
         )}
         {statusLabel && (
-          <span className={`g-status g-status-${status}`} role="status">
-            {status === "winning" ? "✓ " : "↑ "}
+          <span className={`g-status g-status-${shownStatus}`} role="status">
+            {statusIcon}
             {statusLabel}
           </span>
         )}
@@ -52,14 +55,14 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
         <h2 id={titleId}>{it.title}</h2>
         {it.sponsor && (
           <p className="g-sponsor">
-            {it.sponsor.logoUrl && <img src={assetUrl(it.sponsor.logoUrl)} alt="" loading="lazy" />}
+            {it.sponsor.logoUrl && <img className="g-sponsor-logo" src={assetUrl(it.sponsor.logoUrl)} alt="" loading="lazy" />}
             <span>{t("bid.donatedBy", { name: it.sponsor.name })}</span>
           </p>
         )}
         {it.description ? <p className="g-desc">{it.description}</p> : null}
         <div className="g-price">
           <div>
-            <span className="g-price-label">{it.bidCount ? t("bid.current") : t("bid.starting")}</span>
+            <span className="g-price-label">{it.bidCount ? t(closed ? "bid.winningBid" : "bid.current") : t("bid.starting")}</span>
             <strong className="g-price-value">{fmt(it.bidCount ? it.highBid : it.startingBid)}</strong>
           </div>
           <span className="g-price-meta">
@@ -71,7 +74,9 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
         {sold ? (
           <p className="g-done-label">{t("bid.soldBuyNow")}</p>
         ) : closed ? (
-          <p className="g-done-label">{t("bid.closed")}</p>
+          <p className={`g-done-label${status === "winning" ? " is-won" : ""}`}>
+            {status === "winning" ? t("bid.closedWon") : status === "outbid" ? t("bid.closedLost") : t("bid.closed")}
+          </p>
         ) : (
           <div className="g-actions">
             {!buyNowOnly && (

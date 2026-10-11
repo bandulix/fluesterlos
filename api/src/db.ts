@@ -165,6 +165,36 @@ export async function migrate() {
       PRIMARY KEY (guest_id, device_hash)
     );
 
+    -- Round 3: neutral per-event guest number ("Guest 7") instead of phone digits on public views.
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS guest_no INT;
+    UPDATE guests g SET guest_no = sub.no
+    FROM (
+      SELECT x.id,
+             COALESCE((SELECT MAX(y.guest_no) FROM guests y WHERE y.event_id = x.event_id), 0)
+               + row_number() OVER (PARTITION BY x.event_id ORDER BY x.created_at, x.id) AS no
+      FROM guests x WHERE x.guest_no IS NULL
+    ) sub
+    WHERE g.id = sub.id;
+    CREATE UNIQUE INDEX IF NOT EXISTS guests_event_no_uq ON guests (event_id, guest_no);
+    -- Default board names that leaked phone digits ("Guest …1234") or email local parts.
+    UPDATE guests SET name = 'Guest ' || guest_no
+    WHERE name = '' OR name LIKE 'Guest …%' OR (email IS NOT NULL AND name = split_part(email, '@', 1));
+
+    CREATE OR REPLACE FUNCTION fl_guest_number() RETURNS trigger AS $fn$
+    BEGIN
+      IF NEW.guest_no IS NULL THEN
+        PERFORM pg_advisory_xact_lock(hashtext('fl_guest_no:' || NEW.event_id::text));
+        SELECT COALESCE(MAX(guest_no), 0) + 1 INTO NEW.guest_no FROM guests WHERE event_id = NEW.event_id;
+      END IF;
+      IF NEW.name IS NULL OR btrim(NEW.name) = '' THEN
+        NEW.name := 'Guest ' || NEW.guest_no;
+      END IF;
+      RETURN NEW;
+    END
+    $fn$ LANGUAGE plpgsql;
+    DROP TRIGGER IF EXISTS guests_number_trg ON guests;
+    CREATE TRIGGER guests_number_trg BEFORE INSERT ON guests FOR EACH ROW EXECUTE FUNCTION fl_guest_number();
+
     CREATE INDEX IF NOT EXISTS bids_item_created_idx ON bids(item_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS items_event_sort_idx ON items(event_id, sort_order);
     CREATE INDEX IF NOT EXISTS host_sessions_user_idx ON host_sessions(host_user_id);

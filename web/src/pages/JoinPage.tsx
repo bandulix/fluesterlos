@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, assetUrl, getGuestToken, GuestMe, LivePayload, setGuestToken } from "../lib/api";
 import { formatPhoneInput, phoneLooksComplete } from "../lib/phoneInput";
+import { clearPendingJoin, loadPendingJoin, savePendingJoin } from "../lib/pendingJoin";
 import { plural, t } from "../i18n";
 import "../guest/guest.css";
 
@@ -16,14 +17,20 @@ type JoinResponse =
 export function JoinPage() {
   const { code = "" } = useParams();
   const nav = useNavigate();
-  const [phone, setPhone] = useState("");
+  // Coming back from the mail app / the desk restores the code step instead of an empty form.
+  const [pending] = useState(() => loadPendingJoin(code));
+  const [phone, setPhone] = useState(pending?.phone ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [hint, setHint] = useState(false);
   const [event, setEvent] = useState<LivePayload | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [step, setStep] = useState<"phone" | "code">("phone");
+  const [step, setStep] = useState<"phone" | "code">(pending ? "code" : "phone");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
-  const [delivery, setDelivery] = useState<{ via: "email" | "desk"; email: string | null } | null>(null);
+  const [delivery, setDelivery] = useState<{ via: "email" | "desk"; email: string | null } | null>(
+    pending ? { via: pending.via, email: pending.email } : null,
+  );
   const verifying = useRef(false);
 
   useEffect(() => {
@@ -55,19 +62,44 @@ export function JoinPage() {
   }, [code, nav]);
 
   function done(token: string) {
+    clearPendingJoin(code);
     setGuestToken(code, token);
     nav(`/e/${code}/bid`, { replace: true });
   }
 
-  async function requestJoin() {
+  async function requestJoin(): Promise<"joined" | { resendInSeconds: number }> {
     const res = await api<JoinResponse>(`/api/events/${code}/join`, { method: "POST", body: JSON.stringify({ phone }) });
-    if ("guest" in res) return done(res.guest.token);
+    if ("guest" in res) {
+      done(res.guest.token);
+      return "joined";
+    }
     setDelivery({ via: res.delivery, email: res.maskedEmail });
+    savePendingJoin(code, { phone, via: res.delivery, email: res.maskedEmail });
     setStep("code");
+    return { resendInSeconds: res.resendInSeconds };
   }
 
-  async function run(fn: () => Promise<void>) {
+  async function resend() {
+    const via = delivery?.via;
+    const r = await requestJoin();
+    if (r === "joined") return;
+    // The server hands out a fresh code at most once a minute; within that minute the last one is still valid.
+    const fresh = r.resendInSeconds >= 60;
+    if (via === "email") setInfo(fresh ? t("code.resentEmail") : t("code.recentEmail", { n: r.resendInSeconds }));
+    else setInfo(fresh ? t("code.resentDesk") : t("code.recentDesk"));
+  }
+
+  function otherNumber() {
+    clearPendingJoin(code);
+    setStep("phone");
+    setOtp("");
     setError(null);
+    setInfo(null);
+  }
+
+  async function run(fn: () => Promise<unknown>) {
+    setError(null);
+    setInfo(null);
     setBusy(true);
     try {
       await fn();
@@ -137,20 +169,12 @@ export function JoinPage() {
             </button>
           </form>
           {error && <p className="g-error" role="alert">{error}</p>}
+          {info && <p className="g-ok" role="status">{info}</p>}
           <div className="g-join-links">
-            <button type="button" className="g-link" disabled={busy} onClick={() => run(requestJoin)}>
-              {t("code.resend")}
+            <button type="button" className="g-link" disabled={busy} onClick={() => run(resend)}>
+              {delivery?.via === "email" ? t("code.resendEmail") : t("code.resendDesk")}
             </button>
-            <button
-              type="button"
-              className="g-link"
-              disabled={busy}
-              onClick={() => {
-                setStep("phone");
-                setOtp("");
-                setError(null);
-              }}
-            >
+            <button type="button" className="g-link" disabled={busy} onClick={otherNumber}>
               {t("code.otherNumber")}
             </button>
           </div>
@@ -172,7 +196,14 @@ export function JoinPage() {
         <form
           onSubmit={(e: FormEvent) => {
             e.preventDefault();
-            if (ready && !busy) run(requestJoin);
+            if (busy) return;
+            if (!ready) {
+              // The button always looks tappable; an incomplete number gets a gentle inline hint instead.
+              setHint(true);
+              document.getElementById("g-phone")?.focus();
+              return;
+            }
+            run(requestJoin);
           }}
         >
           <label className="g-field-label" htmlFor="g-phone">{t("join.phoneLabel")}</label>
@@ -185,11 +216,17 @@ export function JoinPage() {
             enterKeyHint="go"
             value={phone}
             placeholder={t("join.phonePlaceholder")}
-            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+            onChange={(e) => {
+              setPhone(formatPhoneInput(e.target.value));
+              setHint(false);
+            }}
             aria-describedby="g-phone-hint"
+            aria-invalid={hint || undefined}
           />
-          <p id="g-phone-hint" className="g-muted g-small">{t("join.phoneHint")}</p>
-          <button className="g-primary" disabled={busy || !ready}>
+          <p id="g-phone-hint" className={hint ? "g-hint-warn g-small" : "g-muted g-small"} role={hint ? "alert" : undefined}>
+            {hint ? t("join.needFullNumber") : t("join.phoneHint")}
+          </p>
+          <button className="g-primary" disabled={busy}>
             {busy ? t("join.starting") : t("join.start")}
           </button>
         </form>
