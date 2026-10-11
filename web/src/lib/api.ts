@@ -126,7 +126,7 @@ export function clearGuestToken(code: string) {
 }
 
 export type GuestMe = {
-  guest: null | { id: string; name: string; email: string | null; phone: string | null };
+  guest: null | { id: string; name: string; nameSet?: boolean; email: string | null; phone: string | null; token?: string };
   leaderKey?: string;
   bidItemIds?: string[];
 };
@@ -211,3 +211,9 @@ export type LoginRequest = {
 };
 
 export type HostSponsor = Sponsor & { itemCount: number };
+
+/** API-relative asset path → URL (absolute URLs pass through). */
+export function assetUrl(u: string | null | undefined): string | undefined {
+  if (!u) return undefined;
+  return u.startsWith("/") ? `${API_BASE}${u}` : u;
+}

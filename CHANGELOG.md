@@ -7,6 +7,24 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed — guest experience redesign
+- **Join in one step:** `/e/<code>` asks only for the mobile number (big field, numeric keypad, auto-format with a Thai default) and has one **Start bidding** button. There are no name or email fields. A guest whose session cookie is still valid goes straight to the items. The code step appears only for a number already used on another phone, with friendlier wording, and submits automatically once 6 digits are in.
+- **Bid page (mobile-first):**
+  - Each item card has photo, sponsor logo, current bid and a big one-tap **Bid ฿X** with a −/+ stepper (clamped to the minimum and buy-now), plus buy-now.
+  - Clear **You're winning** (green) / **Outbid** (red) per item. Being outbid shows a non-blocking banner with a one-tap re-bid and a vibration where supported.
+  - Filter chips **All / My bids / Winning / Outbid**.
+  - Bids are confirmed with a toast instead of a dialog.
+  - The countdown and open/closed switch follow the **server clock**.
+  - Closed state: **"You won N items — Pay now"**.
+- **Name later:** a small, dismissible "Show your name on the board?" appears after the first bid. New endpoint `PUT /api/events/:code/me/name`; guest payloads include `nameSet`. The board shows `Guest …1234` until a name is set.
+- **Invoice on one screen:**
+  - Total, a large PromptPay QR with **Save QR** (share sheet / download; long-press also works in LINE) and a big payslip button that uploads as soon as a file is picked.
+  - Email is asked only when a voucher was won, prefilled if known.
+- **Add-to-home-screen hint:** non-blocking and dismissible, shown only after the first bid, with iOS-specific instructions. Never shown in LINE or other in-app browsers.
+- **Look and copy:** the design matches the big-screen theme (`theme.css` variables; CSS-only theming still works). Tap targets are at least 48 px, labels are accessible and `prefers-reduced-motion` is respected. Guest copy lives in a string table (`web/src/i18n`), ready for more languages; English only for now.
+- **Smaller download:** host pages, the invoice, stats and the big screen are lazy-loaded. Host code is excluded from the service-worker precache, so guests never download it. The entry JS went from 350.6 kB to 297.9 kB (gzip 109.1 → 95.3 kB).
+- **README** rewritten for the current app, with guest screenshots in `docs/screenshots/`.
+
 ### Fixed — browser click test, round 2
 - **Silent re-login on the same device:** after "Not you? Log out", logging back in with the same phone on the same device no longer asks for a help-desk code. The API issues a long-lived, httpOnly device cookie (`fl_device`, random id; only a SHA-256 hash is stored per guest in the new `guest_devices` table). A device is trusted for a guest only after successful sign-in (new join, verified code, own token, or a valid session via `/me`); asking for a code doesn't trust it. A new device (or a trusted device used with someone else's phone) still needs a code, so there's still no impersonation. Logout ends the session but keeps the device trusted.
 - **Updates after a deploy are reliable:** `index.html`, SPA routes, `sw.js`, the workbox runtime and the manifest are served with `Cache-Control: no-cache`, and hashed `/assets/*` with `public, max-age=31536000, immutable`. This applies in both `web/nginx.conf` and `vite preview` (new `web/cacheHeaders.ts` plugin). The app now registers the service worker itself (`updateViaCache: "none"`), checks for updates every 10 min and whenever the tab becomes visible, and **reloads automatically** when a new version takes control. If the user has unsaved input, the reload waits until the input is gone or the tab is hidden. Guests get no prompt; host pages also show a non-blocking "Update available — Reload" banner. `index.html` is precached with a content revision.

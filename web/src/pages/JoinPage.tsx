@@ -1,68 +1,76 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, getGuestToken, setGuestToken } from "../lib/api";
+import { api, assetUrl, getGuestToken, GuestMe, LivePayload, setGuestToken } from "../lib/api";
+import { formatPhoneInput, phoneLooksComplete } from "../lib/phoneInput";
+import { plural, t } from "../i18n";
+import "../guest/guest.css";
 
 type JoinResponse =
   | { guest: { token: string } }
-  | {
-      verificationRequired: true;
-      phone: string;
-      delivery: "email" | "desk";
-      maskedEmail: string | null;
-      resendInSeconds: number;
-    };
+  | { verificationRequired: true; phone: string; delivery: "email" | "desk"; maskedEmail: string | null; resendInSeconds: number };
 
+/**
+ * One screen: phone number + "Start bidding". No name, no email, no sign-up.
+ * A code is asked only when this number is already bidding on another phone.
+ */
 export function JoinPage() {
   const { code = "" } = useParams();
   const nav = useNavigate();
-  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [event, setEvent] = useState<LivePayload | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [step, setStep] = useState<"phone" | "code">("phone");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [delivery, setDelivery] = useState<{ via: "email" | "desk"; email: string | null } | null>(null);
+  const verifying = useRef(false);
 
   useEffect(() => {
-    const existing = getGuestToken(code);
-    if (existing) nav(`/e/${code}/bid`, { replace: true });
-    api<{ event: { title: string } }>(`/api/events/${code}`)
-      .then((d) => setTitle(d.event.title))
-      .catch((e) => setError(e.message));
+    let cancelled = false;
+    if (getGuestToken(code)) {
+      nav(`/e/${code}/bid`, { replace: true });
+      return;
+    }
+    // Still signed in via cookie (e.g. storage cleared, or opened from the home screen)? Go straight in.
+    api<GuestMe>(`/api/events/${code}/me`)
+      .then((me) => {
+        if (cancelled) return;
+        if (me.guest?.token) {
+          setGuestToken(code, me.guest.token);
+          nav(`/e/${code}/bid`, { replace: true });
+        }
+      })
+      .catch(() => undefined);
+    api<LivePayload>(`/api/events/${code}`)
+      .then((d) => !cancelled && setEvent(d))
+      .catch((e) => {
+        if (cancelled) return;
+        if ((e as { status?: number }).status === 404) setNotFound(true);
+        else setError((e as Error).message);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [code, nav]);
 
   function done(token: string) {
     setGuestToken(code, token);
-    nav(`/e/${code}/bid`);
+    nav(`/e/${code}/bid`, { replace: true });
   }
 
   async function requestJoin() {
-    const res = await api<JoinResponse>(`/api/events/${code}/join`, {
-      method: "POST",
-      body: JSON.stringify({ name, phone, email }),
-    });
-    if ("guest" in res) {
-      done(res.guest.token);
-      return;
-    }
+    const res = await api<JoinResponse>(`/api/events/${code}/join`, { method: "POST", body: JSON.stringify({ phone }) });
+    if ("guest" in res) return done(res.guest.token);
+    setDelivery({ via: res.delivery, email: res.maskedEmail });
     setStep("code");
-    setNotice(
-      res.delivery === "email" && res.maskedEmail
-        ? `This number is already bidding on another device. We emailed a 6-digit code to ${res.maskedEmail}. ` +
-            "No email? The help desk can give you the code."
-        : "This number is already bidding on another device. Please go to the help desk — " +
-            "a host will check who you are and give you a 6-digit code.",
-    );
   }
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function run(fn: () => Promise<void>) {
     setError(null);
     setBusy(true);
     try {
-      await requestJoin();
+      await fn();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -70,96 +78,124 @@ export function JoinPage() {
     }
   }
 
-  async function onVerify(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
+  async function verify(value: string) {
+    if (verifying.current) return;
+    verifying.current = true;
+    await run(async () => {
       const res = await api<{ guest: { token: string } }>(`/api/events/${code}/join/verify`, {
         method: "POST",
-        body: JSON.stringify({ phone, code: otp, name }),
+        body: JSON.stringify({ phone, code: value }),
       });
       done(res.guest.token);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    });
+    verifying.current = false;
   }
 
-  async function onResend() {
-    setError(null);
-    setBusy(true);
-    try {
-      await requestJoin();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const hero = event?.items.find((it) => it.photoUrl)?.photoUrl;
 
-  if (step === "code") {
+  if (notFound) {
     return (
-      <section className="card narrow">
-        <h1>{title || "Join"}</h1>
-        <form className="stack" onSubmit={onVerify}>
-          {notice && <p className="muted" role="status">{notice}</p>}
-          <label>
-            Code
-            <input
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="\d{6}"
-              placeholder="123456"
-              required
-              autoFocus
-            />
-          </label>
-          <button className="button" disabled={busy || otp.length !== 6}>Continue</button>
-          <div className="row">
-            <button type="button" className="button secondary" disabled={busy} onClick={onResend}>Send a new code</button>
-            <button
-              type="button"
-              className="button secondary"
-              disabled={busy}
-              onClick={() => { setStep("email"); setOtp(""); setNotice(null); setError(null); }}
-            >
-              Use another number
-            </button>
-          </div>
-          {error && <p className="error" role="alert">{String(error)}</p>}
-        </form>
+      <section className="g-page g-join">
+        <p className="g-error" role="alert">{t("join.notFound")}</p>
       </section>
     );
   }
 
+  if (step === "code") {
+    return (
+      <section className="g-page g-join">
+        <div className="g-join-card">
+          <h1 className="g-join-title">{t("code.title")}</h1>
+          <p className="g-join-text">
+            {delivery?.via === "email" && delivery.email ? t("code.introEmail", { email: delivery.email }) : t("code.introDesk")}
+          </p>
+          {delivery?.via === "email" && <p className="g-muted">{t("code.deskAlso")}</p>}
+          <form
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              if (otp.length === 6) verify(otp);
+            }}
+          >
+            <label className="g-field-label" htmlFor="g-otp">{t("code.label")}</label>
+            <input
+              id="g-otp"
+              className="g-big-input g-otp"
+              value={otp}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                setOtp(v);
+                if (v.length === 6) verify(v); // no extra tap needed
+              }}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="\d{6}"
+              placeholder="••••••"
+              autoFocus
+            />
+            <button className="g-primary" disabled={busy || otp.length !== 6}>
+              {busy ? t("join.starting") : t("code.continue")}
+            </button>
+          </form>
+          {error && <p className="g-error" role="alert">{error}</p>}
+          <div className="g-join-links">
+            <button type="button" className="g-link" disabled={busy} onClick={() => run(requestJoin)}>
+              {t("code.resend")}
+            </button>
+            <button
+              type="button"
+              className="g-link"
+              disabled={busy}
+              onClick={() => {
+                setStep("phone");
+                setOtp("");
+                setError(null);
+              }}
+            >
+              {t("code.otherNumber")}
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const ready = phoneLooksComplete(phone);
   return (
-    <section className="card narrow">
-      <h1>{title || "Join"}</h1>
-      <form className="stack" onSubmit={onSubmit}>
-        <label>
-          Mobile number
+    <section className="g-page g-join">
+      <div className="g-join-hero" aria-hidden="true">
+        {hero ? <img src={assetUrl(hero)} alt="" /> : null}
+      </div>
+      <div className="g-join-card">
+        <p className="g-kicker">{t("join.kicker")}</p>
+        <h1 className="g-join-title">{event?.event.title ?? "\u00a0"}</h1>
+        {event && <p className="g-muted">{plural("join.oneItem", "join.items", event.items.length)}</p>}
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            if (ready && !busy) run(requestJoin);
+          }}
+        >
+          <label className="g-field-label" htmlFor="g-phone">{t("join.phoneLabel")}</label>
           <input
+            id="g-phone"
+            className="g-big-input"
             type="tel"
             inputMode="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            required
             autoComplete="tel"
-            placeholder="081 234 5678"
+            enterKeyHint="go"
+            value={phone}
+            placeholder={t("join.phonePlaceholder")}
+            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+            aria-describedby="g-phone-hint"
           />
-        </label>
-        <label>Name (on the board) <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Optional" /></label>
-        <label>
-          Email <span className="muted">(optional — only to receive voucher PDFs if you win)</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-        </label>
-        <button className="button" disabled={busy}>Bid</button>
-        {error && <p className="error" role="alert">{String(error)}</p>}
-      </form>
+          <p id="g-phone-hint" className="g-muted g-small">{t("join.phoneHint")}</p>
+          <button className="g-primary" disabled={busy || !ready}>
+            {busy ? t("join.starting") : t("join.start")}
+          </button>
+        </form>
+        {error && <p className="g-error" role="alert">{error}</p>}
+        <p className="g-muted g-small g-center">🔒 {t("join.privacy")}</p>
+      </div>
     </section>
   );
 }

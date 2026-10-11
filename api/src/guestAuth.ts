@@ -205,6 +205,25 @@ async function updateProfile(row: GuestRow, name: string, email: string | null):
   return upd.rows[0] as GuestRow;
 }
 
+/** True when the guest chose a board name (not the default "Guest …1234"). */
+export function hasChosenName(g: { name: string; phone: string | null; email: string | null }): boolean {
+  const n = g.name.trim();
+  return n !== "" && n !== displayName("", g.phone, g.email);
+}
+
+/** Guest sets their board name later (inline on the bid page). Empty → back to "Guest …1234". */
+export async function setGuestName(guestId: string, nameRaw: string): Promise<GuestRow> {
+  const cur = await pool.query("SELECT phone, email FROM guests WHERE id = $1", [guestId]);
+  const row = cur.rows[0] as { phone: string | null; email: string | null } | undefined;
+  if (!row) throw httpError(404, "Guest not found");
+  const name = String(nameRaw ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
+  const upd = await pool.query("UPDATE guests SET name = $2 WHERE id = $1 RETURNING *", [
+    guestId,
+    displayName(name, row.phone, row.email),
+  ]);
+  return upd.rows[0] as GuestRow;
+}
+
 /** Guest sets/changes their own email (e.g. at invoice time, to receive voucher PDFs). */
 export async function setGuestEmail(guestId: string, emailRaw: string): Promise<GuestRow> {
   const email = normalizeEmail(emailRaw);

@@ -30,6 +30,8 @@ export const pwaOptions: Partial<VitePWAOptions> = {
   },
   workbox: {
     globPatterns: ["**/*.{js,css,html,svg,ico,png}"],
+    // Host code is lazy-loaded and not precached, so guests' phones never download it.
+    globIgnores: ["**/HostShell-*.js", "**/HostShell-*.css"],
     navigateFallback: "/index.html",
     navigateFallbackDenylist: NAVIGATE_FALLBACK_DENYLIST,
     // New service worker takes over open tabs right away, so old installs drop the bad fallback.
