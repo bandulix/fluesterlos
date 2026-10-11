@@ -95,7 +95,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
       [eventId],
     );
     const recentRes = await pool.query(
-      `SELECT b.amount, b.created_at, i.title AS item_title, g.name AS guest_name
+      `SELECT b.amount, b.created_at, b.item_id, i.title AS item_title, g.name AS guest_name
        FROM bids b
        JOIN items i ON i.id = b.item_id
        JOIN guests g ON g.id = b.guest_id
@@ -129,7 +129,9 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
         ? { id: row.sponsor_id as string, name: row.sponsor_name as string, logoUrl: sponsorLogoUrl(row.sponsor_id, row.sponsor_logo_path) }
         : null,
     }));
-    const totalHigh = items.reduce((sum, it) => sum + it.highBid, 0);
+    // "Raised so far": only items somebody actually bid on (a buy-now sale is a bid at the buy-now price).
+    // Items without bids carry their starting bid in highBid for display, which must not count.
+    const totalHigh = items.reduce((sum, it) => sum + (it.bidCount > 0 ? it.highBid : 0), 0);
     const totalBids = items.reduce((sum, it) => sum + it.bidCount, 0);
     return {
       event: {
@@ -150,10 +152,12 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
         totalHighBids: money(totalHigh),
         totalBids,
         itemCount: items.length,
+        itemsWithBids: items.filter((it) => it.bidCount > 0).length,
       },
       recentBids: recentRes.rows.map((r) => ({
         amount: money(r.amount),
         createdAt: new Date(r.created_at).toISOString(),
+        itemId: r.item_id as string,
         itemTitle: r.item_title,
         guestName: r.guest_name,
       })),

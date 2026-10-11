@@ -104,6 +104,7 @@ export function HostPage() {
   const [hostPassword, setHostPassword] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [settingsSaved, setSettingsSaved] = useState<string | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
   // Event just created: scroll its card into view and highlight it briefly.
   const [highlightCode, setHighlightCode] = useState<string | null>(null);
@@ -246,6 +247,7 @@ export function HostPage() {
 
   async function onSaveSettings(e: FormEvent) {
     e.preventDefault();
+    setSettingsSaved(null);
     setBusy(true);
     setError(null);
     setNote(null);
@@ -255,7 +257,9 @@ export function HostPage() {
         body: JSON.stringify({ promptpayId, payeeName }),
       });
       setSettings(s);
-      setNote("Payment settings saved.");
+      const saved = `✓ Saved — PromptPay ${s.promptpayId || "not set"}${s.payeeName ? ` · ${s.payeeName}` : ""}`;
+      setSettingsSaved(saved);
+      setToast({ id: Date.now(), text: "Payment settings saved." });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -805,6 +809,7 @@ export function HostPage() {
         setPayeeName={setPayeeName}
         onSave={onSaveSettings}
         onQrUpload={onQrUpload}
+        savedNote={settingsSaved}
       />
       <Toast toast={toast} onDone={clearToast} />
     </section>

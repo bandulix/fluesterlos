@@ -23,7 +23,7 @@ import { Toast, ToastMessage } from "../components/Toast";
 import { GuestHeader } from "../guest/GuestHeader";
 import { ItemCard } from "../guest/ItemCard";
 import { FilterChips } from "../guest/FilterChips";
-import { NameNudge, NameSaved } from "../guest/NameNudge";
+import { NameNudge } from "../guest/NameNudge";
 import { GuestMenu } from "../guest/GuestMenu";
 import { SwitchConfirm } from "../guest/SwitchConfirm";
 import { InstallHint } from "../guest/InstallHint";
@@ -189,6 +189,8 @@ export function BidPage() {
     setMe((m) => (m ? { ...m, guest: { ...m.guest!, ...res.guest } } : m));
     setEditName(false);
     setSavedName(res.guest.name);
+    // Confirmation as a toast (nothing in the list moves).
+    say(t("name.savedInline", { name: res.guest.name }));
   }
 
   function dismissNudge() {
@@ -216,7 +218,11 @@ export function BidPage() {
   const won = wonItems(live.items, me);
   const hasBid = (me?.bidItemIds?.length ?? 0) > 0;
   const showNudge = Boolean(
-    me?.guest && eventStatus !== "closed" && !savedName && (editName || (!me.guest.nameSet && !nudgeDismissed && hasBid)),
+    me?.guest &&
+      eventStatus !== "closed" &&
+      !savedName &&
+      // The sheet waits until the bid toast (with Undo) is gone, so the two never overlap.
+      (editName || (!me.guest.nameSet && !nudgeDismissed && hasBid && toast == null)),
   );
   const outbidItem = outbid ? live.items.find((x) => x.id === outbid) : undefined;
   // Only on the guest's own phone: their name plus the masked tail of their own number.
@@ -224,7 +230,7 @@ export function BidPage() {
   const outbidVisible = Boolean(outbidItem && eventStatus === "open");
 
   return (
-    <section className="g-page g-board">
+    <section className={`g-page g-board${showNudge ? " has-sheet" : ""}`}>
       <GuestHeader
         title={live.event.title}
         status={eventStatus}
@@ -279,13 +285,13 @@ export function BidPage() {
 
         {showNudge && me?.guest && (
           <NameNudge
+            sheet
             currentName={me.guest.name}
             onSave={saveName}
             autoFocus={editName}
             onDismiss={() => (editName ? setEditName(false) : dismissNudge())}
           />
         )}
-        {savedName && <NameSaved name={savedName} />}
 
         {(counts.mine > 0 || filter !== "all") && (
           <FilterChips value={filter} counts={counts} closed={eventStatus === "closed"} onChange={setFilter} />

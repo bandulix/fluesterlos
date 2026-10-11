@@ -135,7 +135,9 @@
 .g-header-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .g-title {
   margin: 0; font-size: 1.05rem; line-height: 1.25; color: var(--text-strong, #fff);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* Long event names wrap to two lines instead of being cut off. */
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
 }
 .g-back {
   display: inline-flex; align-items: center; justify-content: center;
@@ -460,3 +462,27 @@
 /* Invoice: the voucher email question sits above payment and stands out (still skippable). */
 .g-card-ask { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .g-later { display: block; margin: 6px auto 0; color: var(--muted); }
+
+/* —— Round 4 —— */
+.g-status-sold { background: rgba(15, 23, 42, 0.82); color: #e2e8f0; border: 1px solid rgba(255, 255, 255, 0.18); }
+/* Name card as a bottom sheet: it floats over the list and never pushes the cards under the finger. */
+.g-nudge.is-sheet {
+  position: fixed; left: 10px; right: 10px; z-index: 45;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  max-width: 560px; margin: 0 auto;
+  border-style: solid; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  animation: g-sheet-in 0.22s var(--ease-gala, ease-out);
+}
+@keyframes g-sheet-in { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+.g-board.has-sheet { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+@media (prefers-reduced-motion: reduce) { .g-nudge.is-sheet { animation: none; } }
+
+/* —— Round 4 —— */
+/* Phones: the countdown pill stacks "Ends in" over the digits, so the event title gets the width
+   it needs to show in full on (up to) two lines. */
+@media (max-width: 480px) {
+  .g-timer { flex-direction: column; align-items: center; gap: 0; padding: 4px 10px; line-height: 1.15; border-radius: 14px; }
+  .g-timer-label { font-size: 0.7rem; }
+  .g-timer-at { display: none; }
+  .g-title { font-size: 1rem; }
+}

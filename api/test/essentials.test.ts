@@ -270,17 +270,37 @@ describe("results export", () => {
     expect(res.headers["content-disposition"]).toMatch(/results-.*\.csv/);
     const lines = res.body.replace(/^\uFEFF/, "").trim().split("\r\n");
     expect(lines[0]).toBe(
-      '"Lot","Item","Type","Sponsor","Retail value","Winner","Phone","Email","Amount","Currency","Paid","Method","Paid at (Asia/Bangkok, UTC+7)","Handed over","Handed over at (Asia/Bangkok, UTC+7)","Notes"',
+      '"Lot","Item","Type","Sponsor","Retail value","Winner","Phone","Email","Amount","Currency","Paid","Method","Paid at (Asia/Bangkok, UTC+7)","Handed over","Handed over at (Asia/Bangkok, UTC+7)"',
     );
     expect(lines).toHaveLength(4);
     // Phones: readable national format, no leading + and no visible apostrophe.
-    expect(lines[1]).toMatch(/^"1","'=HYPERLINK\(""http:\/\/evil""\)","voucher","Grand Hotel","","Anna","081 000 0001","anna@example.org","1000","THB","yes","Cash","(\d{4}-\d\d-\d\d \d\d:\d\d)","yes","\d{4}-\d\d-\d\d \d\d:\d\d",""$/);
-    expect(lines[2]).toMatch(/^"2","Jersey","physical","","","Ben","081 000 0002","","1500","THB","no","","","no","",""$/);
+    expect(lines[1]).toMatch(/^"1","'=HYPERLINK\(""http:\/\/evil""\)","voucher","Grand Hotel","","Anna","081 000 0001","anna@example.org","1000","THB","yes","Cash","(\d{4}-\d\d-\d\d \d\d:\d\d)","yes","\d{4}-\d\d-\d\d \d\d:\d\d"$/);
+    expect(lines[2]).toMatch(/^"2","Jersey","physical","","","Ben","081 000 0002","","1500","THB","no","","","no",""$/);
     // Paid at is Bangkok wall time (UTC+7), not UTC.
     const paidAt = (await pool.query("SELECT paid_at FROM invoices WHERE status = 'paid'")).rows[0].paid_at as Date;
     const bkk = new Date(paidAt.getTime() + 7 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
     expect(lines[1]).toContain(`"Cash","${bkk}"`);
-    expect(lines[3]).toBe('"3","Unsold lot","voucher","","","","","","","THB","","","","","",""');
+    expect(lines[3]).toBe('"3","Unsold lot","voucher","","","","","","","THB","","","","",""');
+  });
+
+  it("host notes are personal data: left out unless 'Include host notes' (?notes=1), then the last column", async () => {
+    const code = await exportedEvent();
+    await pool.query("UPDATE items SET notes = 'Organized by: Dana' WHERE title = 'Jersey'");
+    const plain = await app.inject({ method: "GET", url: `/api/host/events/${code}/results.csv`, headers: { cookie } });
+    expect(plain.body).not.toContain("Notes");
+    expect(plain.body).not.toContain("Dana");
+    const withNotes = await app.inject({ method: "GET", url: `/api/host/events/${code}/results.csv?notes=1`, headers: { cookie } });
+    const lines = withNotes.body.replace(/^\uFEFF/, "").trim().split("\r\n");
+    expect(lines[0].endsWith(',"Handed over at (Asia/Bangkok, UTC+7)","Notes"')).toBe(true);
+    expect(lines[2].endsWith(',"Organized by: Dana"')).toBe(true);
+    const header = async (url: string) => {
+      const res = await app.inject({ method: "GET", url, headers: { cookie } });
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(res.rawPayload as unknown as ArrayBuffer);
+      return (wb.getWorksheet("Results")!.getRow(1).values as unknown[]).filter(Boolean);
+    };
+    expect(await header(`/api/host/events/${code}/results.xlsx`)).not.toContain("Notes");
+    expect((await header(`/api/host/events/${code}/results.xlsx?notes=true`)).at(-1)).toBe("Notes");
   });
 
   it("XLSX opens with the same data (phone kept as text) and a total row; host-only", async () => {

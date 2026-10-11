@@ -245,16 +245,19 @@ export function registerInvoiceHostRoutes(
     const event = await getEventByCode(codeOf(code));
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const results = await eventResults(event.id);
+    // ?notes=1 adds the host-only Notes column (may contain names); off by default so shared exports don't leak it.
+    const q = (req.query ?? {}) as { notes?: string };
+    const opts = { includeNotes: q.notes === "1" || q.notes === "true" };
     const base = `results-${event.code}`;
     if (format === "csv") {
       return reply
         .header("Content-Disposition", `attachment; filename="${base}.csv"`)
         .type("text/csv; charset=utf-8")
-        .send(resultsCsv(results));
+        .send(resultsCsv(results, opts));
     }
     return reply
       .header("Content-Disposition", `attachment; filename="${base}.xlsx"`)
       .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-      .send(await resultsXlsx(results, event.title));
+      .send(await resultsXlsx(results, event.title, opts));
   });
 }

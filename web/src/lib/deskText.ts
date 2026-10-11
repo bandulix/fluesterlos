@@ -71,8 +71,10 @@ export function voucherPdfWarning(inv: HostInvoice): string {
 
 /** What the desk has to hand over in person (vouchers with a PDF when there is no email; physical prizes). */
 export function deskHandoverText(inv: HostInvoice): string {
-  const vouchers = inv.lines.filter((l) => l.kind === "voucher" && l.hasVoucher).map((l) => l.title);
-  const physical = inv.lines.filter((l) => l.kind === "physical").map((l) => l.title);
+  // Items already ticked "Handed over" are done: they drop out, and the hint disappears when all are.
+  const open = inv.lines.filter((l) => !l.handedOverAt);
+  const vouchers = open.filter((l) => l.kind === "voucher" && l.hasVoucher).map((l) => l.title);
+  const physical = open.filter((l) => l.kind === "physical").map((l) => l.title);
   const parts: string[] = [];
   if (vouchers.length && !inv.guestEmail) parts.push(`print/show voucher(s): ${vouchers.join(", ")}`);
   if (physical.length) parts.push(`hand over: ${physical.join(", ")}`);

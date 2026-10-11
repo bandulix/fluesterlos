@@ -7,11 +7,14 @@ export function NameNudge({
   onSave,
   onDismiss,
   autoFocus = false,
+  sheet = false,
 }: {
   currentName: string;
   onSave: (name: string) => Promise<void>;
   onDismiss: () => void;
   autoFocus?: boolean;
+  /** Bottom sheet over the list (does not push content). */
+  sheet?: boolean;
 }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,7 +38,7 @@ export function NameNudge({
   }
 
   return (
-    <form className="g-nudge" onSubmit={submit} aria-label={t("name.prompt")}>
+    <form className={`g-nudge${sheet ? " is-sheet" : ""}`} onSubmit={submit} aria-label={t("name.prompt")}>
       <div className="g-nudge-text">
         <strong>{t("name.prompt")}</strong>
         <span>{t("name.current", { name: currentName })}</span>
@@ -62,14 +65,5 @@ export function NameNudge({
         ×
       </button>
     </form>
-  );
-}
-
-/** Brief inline "✓ Saved" where the nudge was, so saving visibly worked. */
-export function NameSaved({ name }: { name: string }) {
-  return (
-    <p className="g-saved" role="status">
-      {t("name.savedInline", { name })}
-    </p>
   );
 }

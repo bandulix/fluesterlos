@@ -475,6 +475,29 @@ export const MAX_QUANTITY = 50;
  * Title from a description-only sheet: the first line, without a trailing "(dates …)" or
  * "retail value THB …" part, at most ~80 characters.
  */
+/**
+ * Drops the title from the start of the description ("Spa Day for Two – full day incl. lunch"
+ * → "full day incl. lunch"; a first line that is just the title disappears). Case, accents
+ * and punctuation between the words don't matter.
+ */
+export function dedupeDescription(title: string, description: string): string {
+  const fold = (c: string) => c.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase() || c;
+  const words = fold(title).match(/[\p{L}\p{N}]+/gu);
+  const text = description.trim();
+  if (!words || !text) return text;
+  const lines = text.split("\n");
+  const first = [...lines[0]];
+  // Folded copy of the first line, one entry per original character (so indexes map back).
+  const folded = first.map((c) => (fold(c).length === 1 ? fold(c) : c.toLowerCase())).join("");
+  const sep = "[^\\p{L}\\p{N}]*";
+  const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = new RegExp(`^${sep}${words.map(esc).join(sep)}(?![\\p{L}\\p{N}])`, "u").exec(folded);
+  if (!m) return text;
+  const consumed = [...m[0]].length;
+  const rest = first.slice(consumed).join("").replace(/^[\s,;:.\u2013\u2014-]+/, "").trim();
+  return [rest, ...lines.slice(1)].filter((l, i) => i > 0 || l).join("\n").trim();
+}
+
 export function titleFromDescription(desc: string): string {
   const first = (desc.split(/\r?\n/).find((l) => l.trim()) ?? "").trim();
   let t = oneLine(first)
@@ -533,12 +556,8 @@ export function normalizeRows(
 
     let title = titleCell || titleFromDescription(descCell);
     let description = multiLine(descCell);
-    if (oneLine(description) === title) description = "";
-    // Title taken from the first line: don't repeat that line on the card.
-    if (!titleCell && description) {
-      const [first, ...rest] = description.split("\n");
-      if (oneLine(first) === title) description = rest.join("\n").trim();
-    }
+    // Don't repeat the title on the card (first line / leading phrase equal to the title).
+    description = dedupeDescription(title, description);
     if (!titleCell && descCell) {
       issues.push({ level: "info", field: "title", message: "Title taken from the description — edit it if needed." });
     }
@@ -591,10 +610,7 @@ export function normalizeRows(
         .map((l) => l.replace(/\s*[,;–-]?\s*(with an? )?(approx\.?\s*)?retail value\b[^a-z]*(of\s*)?[^a-z]*(thb|baht|eur|usd|€|\$|฿)?[^a-z]*$/i, "").trim())
         .join("\n")
         .trim();
-      if (!titleCell) {
-        const [first, ...rest] = description.split("\n");
-        if (oneLine(first) === title) description = rest.join("\n").trim();
-      }
+      description = dedupeDescription(title, description);
     }
     let startingBid = amount("startingBid");
     let increment = amount("increment");
@@ -739,6 +755,8 @@ export function summarize(rows: ImportRow[]) {
     skipped: rows.filter((r) => r.skip).length,
     blocked: rows.filter(rowBlocked).length,
     warnings: rows.reduce((n, r) => n + r.issues.filter((i) => i.level === "warning").length, 0),
+    /** Rows with at least one warning or error — what the "only rows to check" filter shows. */
+    rowsToCheck: rows.filter((r) => r.issues.some((i) => i.level !== "info")).length,
     errors: rows.reduce((n, r) => n + r.issues.filter((i) => i.level === "error").length, 0),
     multiUnitLots: rows.filter((r) => !r.skip && r.quantity > 1).length,
     fixedPrice: rows.filter((r) => r.fixedPrice).length,

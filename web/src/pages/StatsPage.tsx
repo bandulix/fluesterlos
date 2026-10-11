@@ -27,17 +27,23 @@ export function StatsPage() {
           <div className="stat"><span className="muted">Raised so far</span><strong>{formatAmount(live.stats.totalHighBids, ccy)}</strong></div>
           <div className="stat"><span className="muted">Bids</span><strong>{live.stats.totalBids}</strong></div>
           <div className="stat"><span className="muted">Guests</span><strong>{live.stats.guestCount}</strong></div>
-          <div className="stat"><span className="muted">Items</span><strong>{live.stats.itemCount}</strong></div>
+          <div className="stat"><span className="muted">Items with bids</span><strong>{live.stats.itemsWithBids ?? live.items.filter((i) => i.bidCount > 0).length} / {live.stats.itemCount}</strong></div>
         </div>
         <p className="row"><Link to={`/e/${code}/bid`}>Bid</Link></p>
       </div>
       <div className="card">
         <h2>Leaders</h2>
         <ol>
-          {[...live.items].sort((a, b) => b.highBid - a.highBid).map((it) => (
-            <li key={it.id}>{it.title}: {formatAmount(it.highBid, ccy)} {it.highBidder ? `— ${it.highBidder}` : ""}</li>
-          ))}
+          {live.items
+            .filter((it) => it.bidCount > 0)
+            .sort((a, b) => b.highBid - a.highBid)
+            .map((it) => (
+              <li key={it.id}>{it.title}: {formatAmount(it.highBid, ccy)} {it.highBidder ? `— ${it.highBidder}` : ""}</li>
+            ))}
         </ol>
+        {live.items.some((it) => it.bidCount === 0) && (
+          <p className="muted">{live.items.filter((it) => it.bidCount === 0).length} item(s) without bids yet (not counted in the total).</p>
+        )}
       </div>
       <div className="card">
         <h2>Recent bids</h2>

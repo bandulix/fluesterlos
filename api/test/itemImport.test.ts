@@ -18,7 +18,7 @@ import {
   titleFromDescription,
   type RawTable,
 } from "../src/itemImport.js";
-import { buildImportWorkbook } from "./fixtures/importWorkbook.js";
+import { buildImportWorkbook, buildLargeWorkbook } from "./fixtures/importWorkbook.js";
 import { bid, createOpenEvent, freshApp, hostCookie, joinGuest, multipart, ph, pool } from "./helpers.js";
 
 const csvTable = (text: string) => parseImportFile("items.csv", Buffer.from(text, "utf8"));
@@ -43,8 +43,9 @@ describe("item import: parsing last year's layout (synthetic fixture)", () => {
     const [hotel, choc, spa, candy, brunch, watch, golf] = rows;
 
     expect(hotel.title).toBe("1 Night for Two in a Deluxe Room including Breakfast");
-    // Line breaks kept; the "retail value …" line is dropped (the card shows "Value ฿6,000").
-    expect(hotel.description).toBe("1 Night for Two in a Deluxe Room including Breakfast (01MAR - 31JUL 2099)\nValid Sunday–Thursday");
+    // Line breaks kept; the "retail value …" line is dropped (the card shows "Value ฿6,000"), and the
+    // title isn't repeated at the start of the description (round 4) — the dates stay.
+    expect(hotel.description).toBe("(01MAR - 31JUL 2099)\nValid Sunday–Thursday");
     expect(hotel).toMatchObject({ kind: "voucher", sponsor: "Sunrise Hotel", retailValue: 6000, startingBid: 1000, increment: 100 });
     expect(hotel.notes).toBe("Organized by: Alex");
     // The buyer / payment columns never leak into notes or descriptions.
@@ -244,6 +245,27 @@ describe("item import: API", () => {
       payload: mp.payload,
     });
   }
+
+  it("large synthetic event: 48 lots, 27 sponsors, fixed-price lots included by typing their price", async () => {
+    const ev = await createOpenEvent(app, cookie, []);
+    const res = await upload(ev.code, await buildLargeWorkbook());
+    expect(res.statusCode).toBe(200);
+    const p = res.json();
+    expect(p.summary).toMatchObject({ rows: 48, items: 46, skipped: 2, fixedPrice: 2 });
+    const fixedKeys = p.rows.filter((r: { fixedPrice: boolean }) => r.fixedPrice).map((r: { key: number }) => r.key);
+    const overrides = Object.fromEntries(fixedKeys.map((k: number) => [k, { skip: false, buyNow: 3000 }]));
+    const pv = await app.inject({ method: "POST", url: `/api/host/events/${ev.code}/import/${p.sessionId}/preview`, headers: { cookie }, payload: { mapping: p.mapping, overrides } });
+    expect(pv.json().summary).toMatchObject({ items: 48, errors: 0 });
+    // The description no longer repeats the title.
+    expect(pv.json().rows[0].description).toBe("valid until 31 Dec 2099\nSynthetic test lot");
+    const commit = await app.inject({ method: "POST", url: `/api/host/events/${ev.code}/import/${p.sessionId}/commit`, headers: { cookie }, payload: { mapping: p.mapping, overrides } });
+    expect(commit.statusCode).toBe(200);
+    expect(commit.json().created).toBe(48);
+    const items = commit.json().live.items as Array<{ title: string; buyNow: number | null; startingBid: number; sponsor: { id: string } | null }>;
+    const fixed = items.filter((i) => i.buyNow != null && i.buyNow === i.startingBid);
+    expect(fixed).toHaveLength(2);
+    expect(new Set(items.filter((i) => i.sponsor).map((i) => i.sponsor!.id)).size).toBe(27);
+  });
 
   it("preview → commit: creates expanded items, reuses sponsors, stores retail value, notes stay host-only", async () => {
     const { code } = await createOpenEvent(app, cookie, [{ title: "Existing lot", startingBid: 100, minIncrement: 10 }]);

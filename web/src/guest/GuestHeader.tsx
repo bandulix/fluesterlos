@@ -24,7 +24,7 @@ export function GuestHeader(props: {
   return (
     <header className="g-header">
       <div className="g-header-main">
-        <h1 className="g-title">{title}</h1>
+        <h1 className="g-title" title={title}>{title}</h1>
         {right}
       </div>
       <div className={`g-timer g-timer-${status}${urgent ? " is-urgent" : ""}`} aria-live="off">

@@ -24,7 +24,8 @@ export type ResultRow = {
   notes: string;
 };
 
-export const RESULT_COLUMNS: Array<{ key: keyof ResultRow; header: string; width: number }> = [
+type ResultColumn = { key: keyof ResultRow; header: string; width: number };
+export const RESULT_COLUMNS: ResultColumn[] = [
   { key: "lot", header: "Lot", width: 6 },
   { key: "item", header: "Item", width: 40 },
   { key: "type", header: "Type", width: 10 },
@@ -40,8 +41,16 @@ export const RESULT_COLUMNS: Array<{ key: keyof ResultRow; header: string; width
   { key: "paidAt", header: "Paid at", width: 20 },
   { key: "handedOver", header: "Handed over", width: 12 },
   { key: "handedOverAt", header: "Handed over at", width: 20 },
+  // Host-only notes may hold personal data (e.g. "Organized by: <name>"): last, and only on request.
   { key: "notes", header: "Notes", width: 30 },
 ];
+
+export type ExportOptions = { includeNotes?: boolean };
+
+/** Columns of an export; the host-only Notes column only with includeNotes (default off). */
+export function resultColumns(opts: ExportOptions = {}): ResultColumn[] {
+  return opts.includeNotes ? RESULT_COLUMNS : RESULT_COLUMNS.filter((c) => c.key !== "notes");
+}
 
 const METHOD_LABEL: Record<string, string> = { cash: "Cash", bank_transfer: "Bank transfer", promptpay: "PromptPay" };
 
@@ -127,10 +136,11 @@ export function csvCell(v: unknown): string {
  * "(+49) 151 23456789" otherwise — so they never start with + (which Excel reads as a formula)
  * and need no visible apostrophe. Other cells starting with = + - @ are still neutralised.
  */
-export function resultsCsv(res: Pick<EventResults, "rows" | "timezone" | "zoneLabel">): string {
-  const head = RESULT_COLUMNS.map((c) => csvCell(header(c, res.zoneLabel))).join(",");
+export function resultsCsv(res: Pick<EventResults, "rows" | "timezone" | "zoneLabel">, opts: ExportOptions = {}): string {
+  const cols = resultColumns(opts);
+  const head = cols.map((c) => csvCell(header(c, res.zoneLabel))).join(",");
   const body = res.rows.map((r) =>
-    RESULT_COLUMNS.map((c) => {
+    cols.map((c) => {
       const v = r[c.key];
       if (c.key === "phone") return csvCell(csvPhone(String(v ?? "")));
       if (TIME_KEYS.has(c.key)) return csvCell(formatWallTime(v as Date | null, res.timezone));
@@ -141,12 +151,12 @@ export function resultsCsv(res: Pick<EventResults, "rows" | "timezone" | "zoneLa
   return "\uFEFF" + [head, ...body].join("\r\n") + "\r\n";
 }
 
-export async function resultsXlsx(res: EventResults, title: string): Promise<Buffer> {
+export async function resultsXlsx(res: EventResults, title: string, opts: ExportOptions = {}): Promise<Buffer> {
   const { rows, timezone, zoneLabel } = res;
   const wb = new ExcelJS.Workbook();
   wb.creator = "FlüsterLos";
   const ws = wb.addWorksheet("Results");
-  ws.columns = RESULT_COLUMNS.map((c) => ({
+  ws.columns = resultColumns(opts).map((c) => ({
     header: header(c, zoneLabel),
     key: c.key,
     width: TIME_KEYS.has(c.key) ? 30 : c.width,
