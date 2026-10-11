@@ -9,6 +9,7 @@ import { auctionStatus, money, parseCurrency } from "./auction.js";
 import { publish } from "./sse.js";
 import { registerRestRoutes } from "./rest.js";
 import { registerInvoiceRoutes } from "./invoiceRoutes.js";
+import { registerItemImportRoutes } from "./itemImportRoutes.js";
 import { registerSponsorRoutes, sponsorLogoUrl, upsertSponsor } from "./sponsors.js";
 import { defaultEventTimeZone, isValidTimeZone, parseInstant } from "./eventTime.js";
 import { registerEventControlRoutes, rescheduleEvent } from "./eventControls.js";
@@ -114,6 +115,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
       startingBid: money(row.starting_bid),
       minIncrement: money(row.min_increment),
       buyNow: row.buy_now == null ? null : money(row.buy_now),
+      retailValue: row.retail_value == null ? null : money(row.retail_value),
       soldViaBuyNow: row.buy_now != null && row.bid_count > 0 && money(row.high_bid) >= money(row.buy_now),
       sortOrder: row.sort_order,
       highBid: money(row.high_bid),
@@ -468,6 +470,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   registerInvoiceRoutes(app, { codeOf, getEventByCode, requireHost });
   registerSponsorRoutes(app, { requireHost });
   registerEventControlRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
+  registerItemImportRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as Error & { statusCode?: number };

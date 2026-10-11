@@ -24,7 +24,6 @@ import { formatAmount, formatMoney } from "../src/lib/money";
 import { clearPendingJoin, loadPendingJoin, PENDING_JOIN_TTL_MS, savePendingJoin } from "../src/lib/pendingJoin";
 import { listTitles } from "../src/lib/listTitles";
 import { en } from "../src/i18n/en";
-import { en } from "../src/i18n/en";
 import { plural, t } from "../src/i18n";
 
 describe("phone input auto-format (Thai default)", () => {

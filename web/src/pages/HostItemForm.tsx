@@ -1,4 +1,4 @@
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { HostSponsor, ItemKind, LiveItem } from "../lib/api";
 import { SponsorField } from "../components/SponsorField";
 import { FilePreview } from "../components/FilePreview";
@@ -12,6 +12,8 @@ const PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,
  */
 export function HostItemForm(props: {
   item?: LiveItem;
+  /** Host-only notes of the item being edited. */
+  notes?: string;
   sponsors: HostSponsor[];
   pricingLocked?: string | null;
   submitLabel: string;
@@ -25,6 +27,13 @@ export function HostItemForm(props: {
   const [startingBid, setStartingBid] = useState(String(item?.startingBid ?? 10));
   const [minIncrement, setMinIncrement] = useState(String(item?.minIncrement ?? 5));
   const [buyNow, setBuyNow] = useState(item?.buyNow != null ? String(item.buyNow) : "");
+  const [retailValue, setRetailValue] = useState(item?.retailValue != null ? String(item.retailValue) : "");
+  const [notes, setNotes] = useState(props.notes ?? "");
+  const notesTouched = useRef(false);
+  // Notes arrive from a host-only endpoint after the editor opens.
+  useEffect(() => {
+    if (!notesTouched.current && props.notes !== undefined) setNotes(props.notes);
+  }, [props.notes]);
   const [sponsorName, setSponsorName] = useState(item?.sponsor?.name ?? "");
   const [sponsorLogo, setSponsorLogo] = useState<File | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
@@ -53,6 +62,8 @@ export function HostItemForm(props: {
         form.append("buyNow", buyNow.trim() ? String(Number(buyNow)) : "");
         form.append("kind", kind);
       }
+      form.append("retailValue", retailValue.trim() ? String(Number(retailValue)) : "");
+      if (!item || notesTouched.current) form.append("notes", notes.trim());
       form.append("sponsorName", sponsorName.trim());
       if (sponsorName.trim() && sponsorLogo) form.append("sponsorLogo", sponsorLogo, sponsorLogo.name);
       if (photo) form.append("photo", photo, photo.name);
@@ -103,7 +114,20 @@ export function HostItemForm(props: {
         <label>Starting <input type="number" step="0.01" min="0.01" value={startingBid} disabled={Boolean(pricingLocked)} onChange={(e) => setStartingBid(e.target.value)} required /></label>
         <label>Min + <input type="number" step="0.01" min="0.01" value={minIncrement} disabled={Boolean(pricingLocked)} onChange={(e) => setMinIncrement(e.target.value)} required /></label>
         <label>Buy now <input type="number" step="0.01" value={buyNow} disabled={Boolean(pricingLocked)} onChange={(e) => setBuyNow(e.target.value)} placeholder="Optional" /></label>
+        <label>Retail value <input type="number" step="0.01" min="0" value={retailValue} onChange={(e) => setRetailValue(e.target.value)} placeholder="Optional" /></label>
       </div>
+      <label>
+        Notes <span className="muted">(host only — never shown to guests)</span>
+        <input
+          value={notes}
+          maxLength={2000}
+          onChange={(e) => {
+            notesTouched.current = true;
+            setNotes(e.target.value);
+          }}
+          placeholder="e.g. pick-up details, who organised it"
+        />
+      </label>
       {error && <p className="error">{error}</p>}
       <div className="row">
         <button className="button" disabled={busy}>{busy ? "Saving…" : props.submitLabel}</button>

@@ -10,7 +10,7 @@ import {
   LivePayload,
   uploadForm,
 } from "../lib/api";
-import { Currency, CURRENCY_OPTIONS, formatMoney, parseCurrency } from "../lib/money";
+import { Currency, CURRENCY_OPTIONS, formatAmount, formatMoney, parseCurrency } from "../lib/money";
 import { Countdown } from "../components/Countdown";
 import {
   browserTimeZone,
@@ -25,6 +25,8 @@ import {
 } from "../lib/time";
 import { EventStatusSummary, InvoiceSummary } from "./HostPayments";
 import { HostItemForm } from "./HostItemForm";
+import { HostItemImport } from "./HostItemImport";
+import { HostBulkMedia } from "./HostBulkMedia";
 
 /** Runs a host action: busy state, error/note banner, reloads. With rethrow the caller shows the error inline. */
 export type RunAction = (
@@ -69,6 +71,23 @@ export function HostEventCard(props: {
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [panel, setPanel] = useState<null | "import" | "media">(null);
+  const [mediaIntro, setMediaIntro] = useState<string | undefined>();
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const anyBids = live.items.some((it) => it.bidCount > 0);
+  const importLocked = anyBids
+    ? "This auction already has bids — import items only into an auction before bidding starts (or create a new event)."
+    : closed
+      ? "This auction is closed — reopen it, or create a new event, to import items."
+      : null;
+
+  // Host-only notes (e.g. "Organized by …" from an import) for the item editor.
+  useEffect(() => {
+    if (!editing) return;
+    api<{ notes: Record<string, string> }>(`/api/host/events/${code}/item-notes`)
+      .then((r) => setNotes(r.notes))
+      .catch(() => undefined);
+  }, [editing, code]);
 
   // Settings form (schedule in the event zone + currency).
   const [formTz, setFormTz] = useState(tz);
@@ -231,12 +250,65 @@ export function HostEventCard(props: {
 
       <div className="row between">
         <h3>Items</h3>
-        {!adding && (
-          <button type="button" className="button secondary" disabled={busy} onClick={() => setAdding(true)}>
-            Add item
-          </button>
-        )}
+        <div className="row">
+          {!adding && (
+            <button type="button" className="button secondary" disabled={busy} onClick={() => setAdding(true)}>
+              Add item
+            </button>
+          )}
+          {panel !== "import" && (
+            <button
+              type="button"
+              className="button secondary"
+              disabled={busy}
+              title={importLocked ?? "Import prizes from an Excel or CSV file"}
+              onClick={() => setPanel("import")}
+            >
+              Import items
+            </button>
+          )}
+          {panel !== "media" && live.items.length > 0 && (
+            <button
+              type="button"
+              className="button secondary"
+              disabled={busy}
+              onClick={() => {
+                setMediaIntro(undefined);
+                setPanel("media");
+              }}
+            >
+              Photos &amp; PDFs
+            </button>
+          )}
+        </div>
       </div>
+      {panel === "import" && (
+        <HostItemImport
+          code={code}
+          ccy={ccy}
+          lockedReason={importLocked}
+          onClose={() => setPanel(null)}
+          onImported={async (res) => {
+            await run(async () => res.live, `Imported ${res.created} item${res.created === 1 ? "" : "s"}.`);
+            setMediaIntro(
+              `${res.created} item${res.created === 1 ? "" : "s"} imported (lots #${res.items[0]?.lot}–#${res.items[res.items.length - 1]?.lot}). ` +
+                "Add photos and voucher PDFs now, or later via “Photos & PDFs”.",
+            );
+            setPanel("media");
+          }}
+        />
+      )}
+      {panel === "media" && (
+        <HostBulkMedia
+          code={code}
+          items={live.items}
+          intro={mediaIntro}
+          onClose={() => setPanel(null)}
+          onDone={async (note) => {
+            await run(async () => undefined, note);
+          }}
+        />
+      )}
       {adding && (
         <HostItemForm
           sponsors={sponsors}
@@ -250,13 +322,14 @@ export function HostEventCard(props: {
         />
       )}
       <ul className="stack">
-        {live.items.map((it) => (
+        {live.items.map((it, idx) => (
           <li key={it.id} className="stack">
             {it.photoUrl && <img src={`${API_BASE}${it.photoUrl}`} alt="" className="thumb" />}
             <div className="line-row">
               <span>
-                <strong>{it.title}</strong> — high {formatMoney(it.highBid, ccy)} · {it.bidCount} bid{it.bidCount === 1 ? "" : "s"}
+                <span className="muted lot-no">#{idx + 1}</span> <strong>{it.title}</strong> — high {formatMoney(it.highBid, ccy)} · {it.bidCount} bid{it.bidCount === 1 ? "" : "s"}
                 {it.sponsor ? ` · ${it.sponsor.name}` : ""}
+                {it.retailValue != null ? ` · value ${formatAmount(it.retailValue, ccy)}` : ""}
               </span>
               {it.kind === "physical" ? (
                 <span className="pill kind-physical">physical</span>
@@ -321,6 +394,7 @@ export function HostEventCard(props: {
               <HostItemForm
                 key={it.id}
                 item={it}
+                notes={notes[it.id] ?? ""}
                 sponsors={sponsors}
                 pricingLocked={lockReason(it)}
                 submitLabel="Save item"

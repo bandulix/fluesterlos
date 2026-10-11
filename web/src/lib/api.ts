@@ -26,6 +26,8 @@ export type LivePayload = {
     startingBid: number;
     minIncrement: number;
     buyNow: number | null;
+    /** Retail value of the prize (shown to guests as "Value ฿X"). */
+    retailValue?: number | null;
     soldViaBuyNow?: boolean;
     sortOrder: number;
     highBid: number;

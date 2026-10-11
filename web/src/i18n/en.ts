@@ -98,6 +98,7 @@ export const en = {
   "bid.voucher": "Voucher",
   "bid.physical": "Collect at desk",
   "bid.donatedBy": "Donated by {name}",
+  "bid.value": "Value {value}",
   "bid.wonCta": "You won {n} items",
   "bid.wonCtaOne": "You won 1 item",
   "bid.payNow": "Pay now",

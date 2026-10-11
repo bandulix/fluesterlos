@@ -184,7 +184,8 @@ export function registerEventControlRoutes(app: FastifyInstance, deps: Deps) {
 
   /**
    * Edit an item (multipart or JSON). Fields: title, description, startingBid, minIncrement,
-   * buyNow ("" clears), kind, sponsorName ("" removes the sponsor); files: photo, sponsorLogo.
+   * buyNow ("" clears), kind, sponsorName ("" removes the sponsor), retailValue ("" clears), notes;
+   * files: photo, sponsorLogo.
    * After bids: price fields and type are locked. After close: only title, description, sponsor, photo.
    */
   app.patch("/api/host/events/:code/items/:itemId", async (req, reply) => {
@@ -229,6 +230,9 @@ export function registerEventControlRoutes(app: FastifyInstance, deps: Deps) {
     const startingBid = num("startingBid");
     const minIncrement = num("minIncrement");
     const buyNow = num("buyNow");
+    const retailValue = num("retailValue");
+    if (retailValue != null && retailValue < 0) return reply.code(400).send({ error: "retailValue must be a positive number" });
+    const notes = str("notes")?.slice(0, 2000);
     if (startingBid === null || minIncrement === null) {
       return reply.code(400).send({ error: "startingBid and minIncrement are required" });
     }
@@ -260,8 +264,8 @@ export function registerEventControlRoutes(app: FastifyInstance, deps: Deps) {
     if (pricingChanged && item.bid_count > 0) {
       return reply.code(409).send({ error: "This item has bids: prices and type can't change any more" });
     }
-    if (next.buyNow != null && !(next.buyNow > next.startingBid)) {
-      return reply.code(400).send({ error: "buyNow must be greater than startingBid" });
+    if (next.buyNow != null && !(next.buyNow >= next.startingBid)) {
+      return reply.code(400).send({ error: "buyNow must be at least startingBid" });
     }
 
     const photo = files.find((f) => f.fieldname === "photo");
@@ -285,7 +289,9 @@ export function registerEventControlRoutes(app: FastifyInstance, deps: Deps) {
          starting_bid = $4, min_increment = $5, buy_now = $6, kind = $7,
          voucher_pdf_path = CASE WHEN $7 = 'physical' THEN NULL ELSE voucher_pdf_path END,
          sponsor_id = CASE WHEN $8::boolean THEN $9::uuid ELSE sponsor_id END,
-         photo_url = COALESCE($10, photo_url)
+         photo_url = COALESCE($10, photo_url),
+         retail_value = CASE WHEN $11::boolean THEN $12::numeric ELSE retail_value END,
+         notes = COALESCE($13, notes)
        WHERE id = $1`,
       [
         itemId,
@@ -298,6 +304,9 @@ export function registerEventControlRoutes(app: FastifyInstance, deps: Deps) {
         sponsorId !== undefined,
         sponsorId ?? null,
         photoPath ?? null,
+        retailValue !== undefined,
+        retailValue ?? null,
+        notes ?? null,
       ],
     );
     return publishAndReturn(ctx.event);
