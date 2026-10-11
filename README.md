@@ -28,15 +28,15 @@ It is aimed at small and medium charity events (Rotary/Lions clubs, school galas
 | | |
 |---|---|
 | <img src="docs/screenshots/guest-01-join.png" width="220" alt="Join screen"> | **1. Scan → phone → bid.** The QR opens `/e/<code>`. The only screen asks for a **mobile number**: big field, numeric keypad, auto-formatted while typing (Thai default, e.g. `081 234 5678`; `+…` for other countries). One tap on **Start bidding** opens the items. No name, email or sign-up is asked here. |
-| <img src="docs/screenshots/guest-03-bid-page.png" width="220" alt="Bid page"> | **2. Bid.** Each item is a card with photo, sponsor logo, current bid and a big one-tap **Bid ฿X** for the next valid amount. A −/+ stepper lets guests bid more, and there is **Buy now** where the host set one. The countdown follows the server clock. Updates are live (SSE). Each bid is confirmed with a short toast; there are no dialogs. |
-| <img src="docs/screenshots/guest-05-outbid.png" width="220" alt="Outbid"> | **3. Winning / outbid.** Every item a guest bid on shows **✓ You're winning** (green) or **↑ Outbid** (red). When a guest is outbid, a banner appears with a one-tap re-bid, and the phone vibrates where supported. Filter chips: **All / My bids / Winning / Outbid**. After the first bid a small, dismissible card offers **"Show your name on the board?"**. Until then the board shows `Guest …1234`, never the full number. |
-| <img src="docs/screenshots/guest-08-new-device-code.png" width="220" alt="Code step"> | **4. A code only when it's really needed.** If the number is already bidding on *another* phone, the new phone asks for a 6-digit code. The code is emailed if the guest has an email on file and SMTP is set; otherwise the host reads it off the **Help desk** card. Logging in again on the *same* phone, even after "Not you?", happens silently. |
-| <img src="docs/screenshots/guest-09-closed.png" width="220" alt="Closed"> | **5. Closed.** The page switches at the closing second: **"You won 2 items — Pay now"**. |
-| <img src="docs/screenshots/guest-10-invoice.png" width="220" alt="Invoice"> | **6. Pay.** One screen with the total and a large **PromptPay QR**. The amount is filled in for THB. **Save QR** opens the share sheet or downloads the image, and a long-press on the QR saves it too (useful in LINE). The guest can **upload a payslip** (camera or gallery); it uploads as soon as it's picked. **Email is asked only here, and only if they won a voucher** (prefilled if known). Physical prizes say "collect at the desk". |
+| <img src="docs/screenshots/guest-03-bid-page.png" width="220" alt="Bid page"> | **2. Bid.** Each item is a card with photo, sponsor logo, current bid and a big one-tap **Bid ฿X** for the next valid amount. A −/+ stepper lets guests bid more, and there is **Buy now** where the host set one. The countdown follows the server clock. Updates are live (SSE). Each bid is confirmed with a short toast with **Undo** (5 s), so a mis-tap costs nothing and there are no confirm dialogs. |
+| <img src="docs/screenshots/guest-05-outbid.png" width="220" alt="Outbid"> | **3. Winning / outbid.** Every item a guest bid on shows **✓ You're winning** (green) or **↑ Outbid** (red). When a guest is outbid, a compact one-line banner appears with a one-tap re-bid, and the phone vibrates where supported. Filter chips that fit any phone: **All / Mine / Winning / Outbid**. After the first bid a small, dismissible card offers **"Show your name on the board?"** (saving shows "✓ Saved"). Until then the board shows a neutral per-event number like `Guest 7`, never any digits of the phone number. The **⋯** menu shows who is bidding and offers "Change board name" and "Not you?" (with an inline confirm). |
+| <img src="docs/screenshots/guest-08-new-device-code.png" width="220" alt="Code step"> | **4. A code only when it's really needed.** If the number is already bidding on *another* phone, the new phone asks for a 6-digit code. The code is emailed if the guest has an email on file and SMTP is set; otherwise the host reads it off the **Help desk** card ("Ask the desk for a new code"). The code step survives switching to the mail app or walking to the desk. Logging in again on the *same* phone, even after "Not you?", happens silently. |
+| <img src="docs/screenshots/guest-09-closed.png" width="220" alt="Closed"> | **5. Closed.** The page switches at the closing second: **"You won 2 items — Pay now"**. Items show **Won** (green) or a neutral grey **Not won**, prices read **Winning bid**, and the filters become **All / Won / Not won**. |
+| <img src="docs/screenshots/guest-10-invoice.png" width="220" alt="Invoice"> | **6. Pay.** One screen with the total and a large **PromptPay QR**. The amount is filled in for THB. **Save QR** opens the share sheet or downloads the image, and a long-press on the QR saves it too (useful in LINE). The guest can **upload a payslip** (camera or gallery); it uploads as soon as it's picked. **Email is asked only here, and only if they won a voucher**: then it comes first, above payment, so it isn't missed ("Later" skips it). Physical prizes name the item: "Collect Signed Jersey at the desk." |
 
 More details:
 
-- **Add to home screen:** a non-blocking hint shows only after the first bid and never on the join screen. iOS gets Share → "Add to Home Screen" instructions; Android gets an install button when the browser offers one. It is never shown inside LINE or other in-app browsers, and dismissing it is permanent.
+- **Add to home screen:** a small dismissible bottom bar, shown only after the first bid, never on the join screen and never at the same time as the outbid banner, a bid toast or the name card. iOS gets Share → "Add to Home Screen" instructions; Android gets an install button when the browser offers one. It is never shown inside LINE or other in-app browsers, and dismissing it is permanent.
 - **Accessibility:** tap targets are at least 48 px, inputs use 16 px+ text (no iOS zoom), labels are accessible, focus rings are visible and `prefers-reduced-motion` is respected.
 - **Strings:** all guest text lives in a string table ([`web/src/i18n/en.ts`](web/src/i18n/en.ts)). Thai or German can be added as another table; only English ships today.
 
@@ -69,7 +69,9 @@ Open **`/host`**.
 
 ## Big screen
 
-- **`/e/<code>/engager`:** full-screen room display with total raised, a highlighted item, a recent-bids feed, a sponsor strip and the join link. It is live and animated (gala theme).
+- **`/e/<code>/engager`:** full-screen room display that fits one TV screen: **Raised so far**, a highlighted item, a **scannable join QR**, a board of all items with their current bid and leader, the latest bids, and a sponsor strip of same-size tiles (logo + name, or a styled name tile for sponsors without a logo). Amounts look like the guest app (`฿7,100`). It is live and animated (gala theme).
+
+<p align="center"><img src="docs/screenshots/bigscreen.png" width="640" alt="Big screen: total, featured item, join QR, item board, latest bids, sponsors"></p>
 - **`/e/<code>/stats`:** a simpler public stats page.
 
 ## Quickstart
@@ -129,12 +131,13 @@ Web build argument: `VITE_API_URL` (default empty = same origin, served via the 
 - The web app is a PWA (vite-plugin-pwa / Workbox). App files are precached; `/api/` is never served from the app shell, so exports and PDFs always reach the API.
 - **Updates are picked up reliably:**
   - `index.html`, routes, `sw.js`, the Workbox runtime and the manifest are sent with `Cache-Control: no-cache`; hashed `/assets/*` are cached forever (`immutable`). See [`web/nginx.conf`](web/nginx.conf); `vite preview` does the same.
-  - The app checks for a new version every 10 min and whenever the tab comes back into view, and **reloads itself** when one takes over. If someone is typing, the reload waits until the input is gone. Guests never get a prompt; host pages show a small "Update available" banner.
+  - Page navigations are **network-first** (the cached app shell is only the offline / slow-network fallback), so a deploy shows up on the **first load**. The precache name is versioned and old caches are deleted when the new service worker activates.
+  - Every build publishes `/version.json` with its build id; if a page runs an older bundle it reloads once (guarded, never loops). The app also checks for a new service worker on every load, every 10 min and whenever the tab comes back into view, and **reloads itself** when one takes over and the running bundle is outdated. If someone is typing, the reload waits until the input is gone. Guests never get a prompt; host pages show a small "Update available" banner.
 - **Guests don't download host code:** host pages are lazy-loaded and not precached.
 
 ## Security notes
 
-- **Guest identity = phone number per event.** The full number is never shown publicly; the board shows a chosen name or `Guest …1234`.
+- **Guest identity = phone number per event.** The full number is never shown publicly; the board, big screen and stats show a chosen name or a neutral per-event `Guest 7`. Only the host desk sees phone numbers.
 - **New device → code:** a code is required when a number is already used on another phone. Codes are 6 digits, valid 10 minutes, at most 5 tries, and one can be re-sent after 60 s.
 - **Device trust (trade-off):** after a successful sign-in, the phone gets a long-lived httpOnly device cookie. The server stores only a hash, per guest. Re-login on that phone is silent, **including after "Not you?"**. So someone else using *that same phone* could sign in with the previous guest's number without a code. Another phone always needs a code, and a code request alone never makes a device trusted.
 - **Hosts:** bcrypt passwords, httpOnly `fl_host_session` cookie, and registration closed after the first owner (`BOOTSTRAP_TOKEN`).
@@ -191,7 +194,7 @@ npm run build -w web
 npm run dev -w web                # Vite dev server on :5173; proxies /api to API_PROXY_TARGET (default http://localhost:3000)
 ```
 
-- API tests use Vitest with `fastify.inject` against a real Postgres. Web tests (Vitest) cover the logic: phone formatting, bid amounts and status, filters, the install hint, cache headers and the update/reload decision.
+- API tests use Vitest with `fastify.inject` against a real Postgres. Web tests (Vitest) cover the logic: phone formatting, bid amounts and status, filters, the install hint, the restored code step, cache headers, the service worker strategy and the update/reload kill-switch.
 - **CI:** the workflow lives at [`ci/github-ci.yml`](ci/github-ci.yml) (typecheck, tests with a Postgres service, web build). To activate it, move it to `.github/workflows/ci.yml`. That push needs a token with the `workflow` scope.
 - Layout: `api/` (Fastify, `src/`, `test/`), `web/` (Vite app, `src/pages`, `src/guest`, `src/i18n`, `public/theme.css`), `docs/`.
 

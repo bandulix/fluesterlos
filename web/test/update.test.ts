@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { cacheControlFor, IMMUTABLE, NO_CACHE } from "../cacheHeaders";
-import { decideOnControllerChange, hasUnsavedInput, showsUpdateBanner } from "../src/lib/swUpdate";
+import { cacheControlFor, IMMUTABLE, NO_CACHE, NO_STORE } from "../cacheHeaders";
+import { decideOnControllerChange, decideOnVersion, fetchDeployedBuild, hasUnsavedInput, showsUpdateBanner } from "../src/lib/swUpdate";
 
 describe("cache headers (vite preview + nginx)", () => {
   it("revalidates everything that decides the running version", () => {
@@ -23,10 +23,45 @@ describe("cache headers (vite preview + nginx)", () => {
       expect(block(loc)).toContain('Cache-Control "no-cache"');
     }
     expect(block("/api/")).not.toContain("Cache-Control");
+    expect(block("= /version.json")).toContain('Cache-Control "no-store"');
+  });
+  it("never stores version.json", () => {
+    expect(cacheControlFor("/version.json")).toBe(NO_STORE);
+  });
+});
+
+describe("stale bundle kill-switch", () => {
+  const base = { running: "b1", triedReloadFor: null, dirty: false };
+  it("does nothing when the running bundle is the deployed one (or offline / dev)", () => {
+    expect(decideOnVersion({ ...base, deployed: "b1" })).toBe("current");
+    expect(decideOnVersion({ ...base, deployed: null })).toBe("current");
+    expect(decideOnVersion({ ...base, running: "dev", deployed: "b2" })).toBe("current");
+  });
+  it("reloads once when a newer build is deployed, defers while the guest is typing", () => {
+    expect(decideOnVersion({ ...base, deployed: "b2" })).toBe("reload");
+    expect(decideOnVersion({ ...base, deployed: "b2", dirty: true })).toBe("prompt");
+  });
+  it("never loops: one reload per deployed build", () => {
+    expect(decideOnVersion({ ...base, deployed: "b2", triedReloadFor: "b2" })).toBe("gave-up");
+    expect(decideOnVersion({ ...base, deployed: "b3", triedReloadFor: "b2" })).toBe("reload");
+  });
+  it("reads the build id without caches and tolerates failures", async () => {
+    const calls: Array<RequestInit | undefined> = [];
+    const ok = (async (_u: string, init?: RequestInit) => {
+      calls.push(init);
+      return new Response(JSON.stringify({ build: "b9" }), { status: 200 });
+    }) as unknown as typeof fetch;
+    expect(await fetchDeployedBuild(ok)).toBe("b9");
+    expect(calls[0]?.cache).toBe("no-store");
+    expect(await fetchDeployedBuild((async () => new Response("<html>", { status: 200 })) as unknown as typeof fetch)).toBeNull();
+    expect(await fetchDeployedBuild((async () => { throw new Error("offline"); }) as unknown as typeof fetch)).toBeNull();
   });
 });
 
 describe("reload on service worker update", () => {
+  it("skips the reload when the page already runs the deployed build (network-first load)", () => {
+    expect(decideOnControllerChange({ hadController: true, dirty: false, alreadyReloading: false, alreadyCurrent: true })).toBe("ignore");
+  });
   it("reloads when a new version takes over an already-controlled page", () => {
     expect(decideOnControllerChange({ hadController: true, dirty: false, alreadyReloading: false })).toBe("reload");
   });

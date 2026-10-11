@@ -21,6 +21,11 @@ import { ensureDeviceId, rememberDevice } from "./devices.js";
 import { isAllowedOrigin, rateLimitFor } from "./security.js";
 import { cookieSecure } from "./hostAuth.js";
 
+/** Seconds the guest app offers "Undo" after a bid. */
+export const BID_UNDO_SECONDS = 5;
+/** Server-side grace (covers network latency on top of the visible undo window). */
+const BID_UNDO_GRACE_SECONDS = 15;
+
 type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date; currency?: string };
 type LiveBuilder = (eventId: string, code: string) => Promise<unknown>;
 
@@ -52,8 +57,8 @@ function isImageUpload(file: { filename: string; mimetype: string }) {
   return /\.(jpe?g|png|webp|gif)$/i.test(file.filename || "");
 }
 
-function guestDto(g: { id: string; name: string; email: string | null; phone: string | null; token: string }) {
-  return { id: g.id, name: g.name, nameSet: hasChosenName(g), email: g.email, phone: g.phone, token: g.token };
+function guestDto(g: { id: string; name: string; email: string | null; phone: string | null; token: string; guest_no?: number | null }) {
+  return { id: g.id, name: g.name, nameSet: hasChosenName(g), guestNo: g.guest_no ?? null, email: g.email, phone: g.phone, token: g.token };
 }
 
 export function registerRestRoutes(
@@ -384,6 +389,60 @@ export function registerRestRoutes(
     return { guest: guestDto(await setGuestEmail(guest.id, parsed.data.email)) };
   });
 
+  /**
+   * Accidental-bid protection: the bidder can take back their own bid for a few seconds,
+   * but only while it is still the top bid on its item and the auction is open — so an
+   * undo can never resurrect a lower bid over someone else's newer one.
+   */
+  app.delete("/api/events/:code/bids/:bidId", { config: rateLimitFor("bid") }, async (req, reply) => {
+    const { code: rawCode, bidId } = req.params as { code: string; bidId: string };
+    if (!z.string().uuid().safeParse(bidId).success) return reply.code(404).send({ error: "Bid not found" });
+    const event = await getEventByCode(codeOf(rawCode));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const evNow = await client.query("SELECT starts_at, ends_at FROM events WHERE id = $1 FOR SHARE", [event.id]);
+      if (auctionStatus(evNow.rows[0].starts_at, evNow.rows[0].ends_at) !== "open") {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({ error: "Auction is closed", tooLate: true });
+      }
+      const bidRes = await client.query(
+        `SELECT b.id, b.item_id, b.guest_id, b.created_at FROM bids b JOIN items i ON i.id = b.item_id
+          WHERE b.id = $1 AND i.event_id = $2`,
+        [bidId, event.id],
+      );
+      const b = bidRes.rows[0];
+      if (!b || b.guest_id !== guest.id) {
+        await client.query("ROLLBACK");
+        return reply.code(404).send({ error: "Bid not found" });
+      }
+      await client.query("SELECT id FROM items WHERE id = $1 FOR UPDATE", [b.item_id]);
+      const top = await client.query(
+        "SELECT id FROM bids WHERE item_id = $1 ORDER BY amount DESC, created_at DESC LIMIT 1",
+        [b.item_id],
+      );
+      const ageMs = Date.now() - new Date(b.created_at).getTime();
+      if (top.rows[0]?.id !== b.id || ageMs > BID_UNDO_GRACE_SECONDS * 1000) {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({ error: "This bid can no longer be undone", tooLate: true });
+      }
+      await client.query("DELETE FROM bids WHERE id = $1", [b.id]);
+      await client.query("COMMIT");
+      const live = await buildLivePayload(event.id, event.code);
+      publish(event.code, "update", live);
+      publish(event.code, "bid-undone", { itemId: b.item_id, createdAt: new Date(b.created_at).toISOString() });
+      return { ok: true, live };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
   const bidSchema = z.object({
     itemId: z.string().uuid(),
     amount: z.number().positive(),
@@ -469,7 +528,7 @@ export function registerRestRoutes(
         guestName: guest.name,
         createdAt: new Date(ins.rows[0].created_at).toISOString(),
       });
-      return { ok: true, amount, currentHigh: amount, buyNow: isBuyNow, live };
+      return { ok: true, bidId: ins.rows[0].id as string, amount, currentHigh: amount, buyNow: isBuyNow, live, undoSeconds: BID_UNDO_SECONDS };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;

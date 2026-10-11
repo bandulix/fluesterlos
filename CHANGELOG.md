@@ -7,6 +7,27 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — guest UX click test, round 3
+- **Privacy: no phone digits in public.** Board, big screen, stats and the live feed showed `Guest …2222` although the join page promises the number is never shown. Guests now get a neutral **per-event number** (`Guest 7`): new `guests.guest_no` column, assigned by a `BEFORE INSERT` trigger (per-event advisory lock, so numbers are unique and gap-free per event). The migration backfills existing guests and renames legacy `Guest …1234` / email-derived default names. Resetting the board name falls back to `Guest N`. Only the host desk still sees phone numbers.
+- **After the close:** lost items show a neutral grey **Not won** (no red "↑ Outbid"), won items **Won**, prices read **Winning bid**, and the filters become **All / Won / Not won**.
+- **Stale app after a deploy (root cause + fix).** The old service worker answered every navigation with its precached `index.html` (cache-first) and pre-round-2 pages had no reload handler; Chrome also postpones its own service-worker update check while navigations keep coming, so impatient reloads kept showing the old app (reproduced in headless Chrome: old build still shown after 8 quick reloads). Now:
+  - navigations are **network-first** (`NetworkFirst`, 4 s timeout; precached `index.html` only as the offline fallback) instead of the cache-first `navigateFallback`;
+  - versioned precache (`cacheId: fluesterlos-v3`), so the old precache is deleted on activate; `skipWaiting` + `clientsClaim` as before;
+  - **kill-switch:** each build publishes `/version.json` (build id also compiled into the bundle); a page running an older bundle reloads once (guarded per build in `sessionStorage`, never loops; waits while the guest is typing). `nginx.conf` / `vite preview` send it with `no-store`;
+  - `reg.update()` on every load; `controllerchange` reloads only when the running bundle is actually outdated (no needless second reload).
+  - Measured with real headless Chrome (install old build, deploy new, reopen): pre-fix 2b0a114 → 9337ca4 needed 1 manual reload after waiting ~3 s and was **still old after 8 quick reloads**; with this release a later deploy is live on the **first load (0 reloads, ~0.25 s)**. The one-time switch from 9337ca4 to this release is still driven by the old worker: one automatic reload.
+- **Code screen:** the pending code step (number + delivery) is kept for 15 min, so switching to the mail app or walking to the desk no longer loses it. "Send a new code" is now **"Ask the desk for a new code"** for desk codes and **"Email me a new code"** for emailed ones, with honest feedback when the last code is still valid.
+- **Banners:** the outbid banner is a compact one-line bar; the add-to-home-screen hint is a small dismissible **bottom bar** and is never shown together with the outbid banner, a bid toast or the name card.
+- **Filter chips fit 390 px:** shorter labels (**All / Mine / Winning / Outbid**), smaller padding, wrap instead of a hidden horizontal scroll.
+- **Invoice:** "Payslip received" appears once; for voucher winners without an email the email card comes **first, above payment** (highlighted, "Later" skips it); the desk note names the prizes ("Collect Signed Jersey at the desk.").
+- **Big screen:** money formatted like the guest app (`฿7,100`), a real **QR code** for the join URL, **"Raised so far"** instead of "Live total (sum of high bids)", a board of all items with current bid and leader in the former empty half, larger latest bids, and same-size sponsor tiles (logo + name, or a styled name tile). Fits one TV screen. Host screens (`formatMoney`) now use thousands separators too (`฿7,100.00`); stats use the guest format.
+- **Small things:**
+  - **Undo** for 5 s on the bid toast (with a shrinking timer line). New `DELETE /api/events/:code/bids/:bidId`: only the bidder, only while the auction is open, only while it is still the top bid on the item, within a 15 s server window; publishes a live update.
+  - **"Not you?"** asks inline ("Use a different number on this phone? Your bids stay safe.") and also lives in a new **⋯ header menu** (who is bidding, change board name, pay link after the close).
+  - Saving the board name shows **"✓ Saved — you appear as Anna"** in place of the card.
+  - Bigger sponsor logos on item cards (40 px).
+  - **Start bidding** (and the Save buttons) never look disabled; an incomplete number gets an inline hint instead.
+
 ### Changed — guest experience redesign
 - **Join in one step:** `/e/<code>` asks only for the mobile number (big field, numeric keypad, auto-format with a Thai default) and has one **Start bidding** button. There are no name or email fields. A guest whose session cookie is still valid goes straight to the items. The code step appears only for a number already used on another phone, with friendlier wording, and submits automatically once 6 digits are in.
 - **Bid page (mobile-first):**

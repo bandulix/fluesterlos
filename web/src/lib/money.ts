@@ -12,10 +12,11 @@ export function parseCurrency(raw: unknown): Currency {
   return v === "USD" || v === "EUR" || v === "THB" ? v : "THB";
 }
 
+/** Host/accounting amount: always two decimals, with thousands separators ("฿7,100.00"). */
 export function formatMoney(amount: number, currency: Currency = "THB"): string {
   const n = Number.isFinite(amount) ? amount : 0;
   const symbol: Record<Currency, string> = { USD: "$", EUR: "€", THB: "฿" };
-  return `${symbol[currency]}${n.toFixed(2)}`;
+  return `${symbol[currency]}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /** Guest-facing amount: "฿2,000" (no decimals for whole amounts), "฿2,000.50" otherwise. */

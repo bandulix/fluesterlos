@@ -5,8 +5,10 @@ import {
   canStepUp,
   clockOffset,
   effectiveAmount,
+  CLOSED_FILTERS,
   filterCounts,
   filterItems,
+  filtersFor,
   formatRemaining,
   itemStatus,
   minNextBid,
@@ -18,7 +20,10 @@ import {
   wonItems,
 } from "../src/lib/bidLogic";
 import { detectPlatform, shouldShowInstallHint } from "../src/lib/installHint";
-import { formatAmount } from "../src/lib/money";
+import { formatAmount, formatMoney } from "../src/lib/money";
+import { clearPendingJoin, loadPendingJoin, PENDING_JOIN_TTL_MS, savePendingJoin } from "../src/lib/pendingJoin";
+import { listTitles } from "../src/lib/listTitles";
+import { en } from "../src/i18n/en";
 import { en } from "../src/i18n/en";
 import { plural, t } from "../src/i18n";
 
@@ -159,5 +164,64 @@ describe("i18n string table", () => {
   });
   it("every string is non-empty (ready for translation tables)", () => {
     for (const [k, v] of Object.entries(en)) expect(v.trim(), k).not.toBe("");
+  });
+});
+
+describe("round 3", () => {
+  it("after the close the filters are All / Won / Not won", () => {
+    expect(filtersFor(true)).toEqual(CLOSED_FILTERS);
+    expect(filtersFor(true)).toEqual(["all", "winning", "outbid"]);
+    expect(filtersFor(false)).toEqual(["all", "mine", "winning", "outbid"]);
+    expect(en["bid.filter.closed.winning"]).toBe("Won");
+    expect(en["bid.filter.closed.outbid"]).toBe("Not won");
+    expect(en["bid.lost"]).toBe("Not won");
+    expect(en["bid.winningBid"]).toBe("Winning bid");
+  });
+
+  it("short chip labels so all four fit a 390px phone", () => {
+    const labels = ["all", "mine", "winning", "outbid"].map((f) => en[`bid.filter.${f}` as keyof typeof en]);
+    expect(labels.join("").length).toBeLessThanOrEqual(22);
+  });
+
+  it("host money has thousands separators", () => {
+    expect(formatMoney(7100, "THB")).toBe("฿7,100.00");
+    expect(formatMoney(1234567.5, "USD")).toBe("$1,234,567.50");
+    expect(formatAmount(7100, "THB")).toBe("฿7,100");
+  });
+
+  it("collect note names the physical prizes", () => {
+    expect(listTitles(["Signed Jersey"])).toBe("Signed Jersey");
+    expect(listTitles(["Signed Jersey", "Wine"])).toBe("Signed Jersey and Wine");
+    expect(en["inv.collectItems"].replace("{items}", "Signed Jersey")).toBe("Collect Signed Jersey at the desk.");
+  });
+
+  it("install hint never shows while something more important is on screen", () => {
+    const s = { platform: "ios" as const, standalone: false, dismissed: false, hasBid: true, canPrompt: false };
+    expect(shouldShowInstallHint(s)).toBe(true);
+    expect(shouldShowInstallHint({ ...s, suppressed: true })).toBe(false);
+  });
+
+  it("desk-only code screens never promise an email", () => {
+    expect(en["code.resendDesk"]).toMatch(/desk/i);
+    expect(en["code.resendDesk"]).not.toMatch(/send|email/i);
+  });
+
+  describe("pending code step survives an app switch", () => {
+    const mem = new Map<string, string>();
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => void mem.set(k, v),
+      removeItem: (k: string) => void mem.delete(k),
+    };
+    it("restores phone + delivery, expires, and clears", () => {
+      savePendingJoin("AbC", { phone: "081 234 5678", via: "desk", email: null }, 1_000);
+      expect(loadPendingJoin("abc", 2_000)).toMatchObject({ phone: "081 234 5678", via: "desk", email: null });
+      expect(loadPendingJoin("abc", 1_000 + PENDING_JOIN_TTL_MS + 1)).toBeNull();
+      savePendingJoin("abc", { phone: "0812345678", via: "email", email: "a•••@x.org" }, 5_000);
+      clearPendingJoin("abc");
+      expect(loadPendingJoin("abc", 6_000)).toBeNull();
+      mem.set("fl_pending_join_abc", "{not json");
+      expect(loadPendingJoin("abc", 6_000)).toBeNull();
+    });
   });
 });

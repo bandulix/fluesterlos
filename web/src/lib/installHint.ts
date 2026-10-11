@@ -25,8 +25,10 @@ export function shouldShowInstallHint(s: {
   dismissed: boolean;
   hasBid: boolean;
   canPrompt: boolean;
+  /** Something more important is on screen (outbid banner, bid toast): never stack the hint on top. */
+  suppressed?: boolean;
 }): boolean {
-  if (s.standalone || s.dismissed || !s.hasBid) return false;
+  if (s.standalone || s.dismissed || !s.hasBid || s.suppressed) return false;
   if (s.platform === "ios") return true;
   if (s.platform === "android" || s.platform === "desktop") return s.canPrompt;
   return false;

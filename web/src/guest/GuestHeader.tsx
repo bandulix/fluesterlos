@@ -13,8 +13,10 @@ export function GuestHeader(props: {
   timezone?: string;
   closedEarly?: boolean;
   right?: ReactNode;
+  /** Trailing slot after the countdown (the "⋯" menu). */
+  menu?: ReactNode;
 }) {
-  const { title, status, startsAt, endsAt, now, timezone, closedEarly, right } = props;
+  const { title, status, startsAt, endsAt, now, timezone, closedEarly, right, menu } = props;
   const target = status === "scheduled" ? Date.parse(startsAt) : Date.parse(endsAt);
   const remaining = target - now;
   const urgent = status === "open" && remaining <= 60_000;
@@ -36,6 +38,7 @@ export function GuestHeader(props: {
           </>
         )}
       </div>
+      {menu}
     </header>
   );
 }

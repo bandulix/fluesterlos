@@ -332,3 +332,130 @@
 @media (min-width: 720px) {
   .g-content { padding-top: 18px; }
 }
+
+/* —— Round 3 —— */
+.g-hint-warn { color: var(--warning, #fbbf24); font-weight: 600; margin: 8px 0 0; }
+.g-header-main { flex: 1; }
+
+/* Compact outbid bar: one line, small re-bid button, never taller than ~48px. */
+.g-outbid {
+  gap: 8px; padding: 6px 6px 6px 12px; min-height: 0;
+  margin: 6px 14px 0; border-radius: 12px; font-size: 0.9rem;
+}
+.g-outbid-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-outbid-bid {
+  flex: none; min-height: 36px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: #fff; color: #9f1239; font: inherit; font-weight: 800; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.g-outbid-close {
+  flex: none; width: 36px; height: 36px; border: 0; background: none; color: #fff;
+  font-size: 1.35rem; line-height: 1; cursor: pointer;
+}
+
+/* Install hint: a small dismissible bar pinned to the bottom. */
+.g-install {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 40;
+  width: calc(100% - 20px); max-width: calc(var(--g-max) - 20px);
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 6px 6px 12px; border-radius: 14px;
+  border: 1px solid var(--border-strong, #3d4a72);
+  background: var(--card, #10182a); font-size: 0.85rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation: g-slide-up 0.25s var(--ease-gala, ease-out);
+}
+.g-install-icon { font-size: 1.1rem; }
+.g-install-text { flex: 1; min-width: 0; margin: 0; color: var(--text); line-height: 1.3; }
+.g-install-add {
+  flex: none; min-height: 36px; padding: 0 14px; border: 0; border-radius: 10px;
+  background: var(--accent); color: var(--button-text, #0b1220); font: inherit; font-weight: 800; cursor: pointer;
+}
+.g-install-close {
+  flex: none; width: 36px; height: 36px; border: 0; background: none;
+  color: var(--muted); font-size: 1.35rem; line-height: 1; cursor: pointer;
+}
+.g-board { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+@keyframes g-slide-up {
+  from { transform: translate(-50%, 12px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* Filter chips: all four (with counts) fit a 360–390px phone; wrap rather than scroll. */
+.g-chips { flex-wrap: wrap; overflow: visible; gap: 6px; }
+.g-chip { min-height: 40px; padding: 0 12px; gap: 5px; font-size: 0.9rem; }
+.g-chip-count { min-width: 20px; height: 20px; padding: 0 5px; font-size: 0.75rem; }
+.g-chip-lost .g-chip-count { background: var(--pill-bg, #1e293b); color: var(--text); }
+
+/* After the close: neutral "Not won", green "Won". */
+.g-item.is-lost { border-color: var(--border, #2a3558); }
+.g-status-lost { background: rgba(15, 23, 42, 0.82); color: #e2e8f0; border: 1px solid rgba(255, 255, 255, 0.18); }
+.g-done-label.is-won { background: var(--g-win-bg); color: var(--g-win); }
+
+/* Bigger sponsor logos on the cards. */
+.g-sponsor img, .g-sponsor-logo { height: 40px; max-width: 120px; border-radius: 8px; padding: 3px; }
+
+/* Header "⋯" menu. */
+.g-menu { position: relative; flex: none; }
+.g-menu-btn {
+  width: 40px; height: 40px; margin-right: -6px; border: 0; border-radius: 12px; background: none;
+  color: var(--text); font: inherit; font-size: 1.5rem; line-height: 1; cursor: pointer;
+}
+.g-menu-btn[aria-expanded="true"] { background: var(--card, #10182a); }
+.g-menu-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 50;
+  width: min(300px, calc(100vw - 28px));
+  display: grid; gap: 2px; padding: 8px;
+  border-radius: 16px; border: 1px solid var(--border-strong, #3d4a72);
+  background: var(--card, #10182a); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.g-menu-who { display: grid; gap: 2px; margin: 0; padding: 8px 10px 10px; border-bottom: 1px solid var(--border, #2a3558); }
+.g-menu-who span { color: var(--muted); font-size: 0.8rem; }
+.g-menu-who strong { color: var(--text-strong, #fff); overflow-wrap: anywhere; }
+.g-menu-item {
+  display: flex; align-items: center; min-height: 44px; padding: 0 10px; border: 0; border-radius: 10px;
+  background: none; color: var(--text); font: inherit; text-align: left; text-decoration: none; cursor: pointer;
+}
+.g-menu-item:hover, .g-menu-item:focus-visible { background: var(--card-nested, #0a1220); }
+
+/* Inline confirm ("Not you?"). */
+.g-confirm {
+  padding: 12px; border-radius: 14px; background: var(--card-nested, #0a1220);
+  border: 1px solid var(--border-strong, #3d4a72);
+}
+.g-confirm p { margin: 0 0 10px; font-size: 0.9rem; color: var(--text); }
+.g-confirm-row { display: flex; justify-content: flex-end; gap: 8px; }
+.g-btn-quiet { background: transparent; color: var(--text); border: 1px solid var(--border-strong, #3d4a72); }
+
+/* "✓ Saved" after naming. */
+.g-saved {
+  margin: 0; padding: 12px 14px; border-radius: 14px; font-weight: 700;
+  background: var(--g-win-bg); color: var(--g-win); border: 1px solid var(--g-win);
+  animation: g-slide-in 0.2s var(--ease-gala, ease-out);
+}
+
+/* Toast with an Undo action and a shrinking timer line. */
+.toast.has-action {
+  display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; overflow: hidden;
+}
+.toast-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast-action {
+  flex: none; min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px;
+  background: var(--bg, #070b16); color: var(--text-strong, #fff); font: inherit; font-weight: 800; cursor: pointer;
+}
+.toast-timer {
+  position: absolute; left: 0; bottom: 0; height: 3px; width: 100%;
+  background: var(--accent, #e8c547); transform-origin: left;
+  animation: g-toast-timer linear forwards;
+}
+@keyframes g-toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Join: the primary button always looks tappable. */
+.g-join .g-primary:disabled { opacity: 0.7; }
+@media (prefers-reduced-motion: reduce) {
+  .g-install, .g-saved, .toast-timer { animation: none !important; }
+}
+
+/* Invoice: the voucher email question sits above payment and stands out (still skippable). */
+.g-card-ask { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.g-later { display: block; margin: 6px auto 0; color: var(--muted); }

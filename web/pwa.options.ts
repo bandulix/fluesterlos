@@ -6,6 +6,19 @@ import type { VitePWAOptions } from "vite-plugin-pwa";
  */
 export const NAVIGATE_FALLBACK_DENYLIST = [/^\/api\//];
 
+/** Page navigations the service worker handles (network-first): every SPA route, never /api/. */
+export function isAppNavigation({ request, url }: { request: { mode: string }; url: URL }): boolean {
+  return request.mode === "navigate" && !url.pathname.startsWith("/api/");
+}
+
+/**
+ * Bumping this renames the precache, so `cleanupOutdatedCaches` drops every older precache
+ * (including the pre-round-3 "workbox-precache-…" one that served a stale index.html cache-first).
+ */
+export const CACHE_ID = "fluesterlos-v3";
+/** How long a navigation waits for the network before falling back to the cached app shell. */
+export const NAVIGATION_TIMEOUT_SECONDS = 4;
+
 export const pwaOptions: Partial<VitePWAOptions> = {
   registerType: "autoUpdate",
   // Registered by src/lib/swUpdate.ts, which also reloads (or prompts) when a new version takes over.
@@ -32,12 +45,27 @@ export const pwaOptions: Partial<VitePWAOptions> = {
     globPatterns: ["**/*.{js,css,html,svg,ico,png}"],
     // Host code is lazy-loaded and not precached, so guests' phones never download it.
     globIgnores: ["**/HostShell-*.js", "**/HostShell-*.css"],
-    navigateFallback: "/index.html",
-    navigateFallbackDenylist: NAVIGATE_FALLBACK_DENYLIST,
-    // New service worker takes over open tabs right away, so old installs drop the bad fallback.
+    cacheId: CACHE_ID,
+    // No cache-first app shell: a deploy must be visible on the FIRST load. Navigations go to the
+    // network first and only fall back to a cached page (or the precached index.html) when offline
+    // or when the network takes longer than NAVIGATION_TIMEOUT_SECONDS.
+    navigateFallback: null,
+    // New service worker takes over open tabs right away; the app reloads once on controllerchange.
     skipWaiting: true,
     clientsClaim: true,
     cleanupOutdatedCaches: true,
-    runtimeCaching: [],
+    runtimeCaching: [
+      {
+        urlPattern: isAppNavigation,
+        handler: "NetworkFirst",
+        options: {
+          cacheName: `${CACHE_ID}-pages`,
+          networkTimeoutSeconds: NAVIGATION_TIMEOUT_SECONDS,
+          expiration: { maxEntries: 16 },
+          cacheableResponse: { statuses: [200] },
+          precacheFallback: { fallbackURL: "index.html" },
+        },
+      },
+    ],
   },
 };

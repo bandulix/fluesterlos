@@ -23,7 +23,9 @@ import { Toast, ToastMessage } from "../components/Toast";
 import { GuestHeader } from "../guest/GuestHeader";
 import { ItemCard } from "../guest/ItemCard";
 import { FilterChips } from "../guest/FilterChips";
-import { NameNudge } from "../guest/NameNudge";
+import { NameNudge, NameSaved } from "../guest/NameNudge";
+import { GuestMenu } from "../guest/GuestMenu";
+import { SwitchConfirm } from "../guest/SwitchConfirm";
 import { InstallHint } from "../guest/InstallHint";
 import { OutbidBanner } from "../guest/OutbidBanner";
 import { useNow } from "../guest/useNow";
@@ -48,9 +50,12 @@ export function BidPage() {
   const [outbid, setOutbid] = useState<string | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(() => localStorage.getItem(nudgeKey(code)) === "1");
+  const [editName, setEditName] = useState(false);
+  const [savedName, setSavedName] = useState<string | null>(null);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
   const prevStatus = useRef<Record<string, ItemStatus> | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
-  const say = (text: string) => setToast({ id: Date.now(), text });
+  const say = useCallback((text: string) => setToast({ id: Date.now(), text }), []);
 
   const loadMe = useCallback(async () => {
     const res = await api<GuestMe>(`/api/events/${code}/me`, {}, token);
@@ -98,8 +103,33 @@ export function BidPage() {
 
   const eventStatus = live ? statusAt(live.event, now) : "scheduled";
   useEffect(() => {
-    if (eventStatus === "closed") prefetchInvoice().catch(() => undefined);
+    if (eventStatus !== "closed") return;
+    prefetchInvoice().catch(() => undefined);
+    setFilter((f) => (f === "mine" ? "all" : f)); // "Mine" isn't offered after the close
+    setEditName(false);
   }, [eventStatus]);
+
+  // "✓ Saved" replaces the name form briefly, then folds away.
+  useEffect(() => {
+    if (!savedName) return;
+    const id = window.setTimeout(() => setSavedName(null), 2600);
+    return () => window.clearTimeout(id);
+  }, [savedName]);
+
+  const undoBid = useCallback(
+    async (bidId: string) => {
+      setToast(null);
+      try {
+        await api(`/api/events/${code}/bids/${bidId}`, { method: "DELETE" }, token);
+        say(t("bid.undone"));
+        await loadMe().catch(() => undefined);
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        say(status === 409 || status === 404 ? t("bid.undoTooLate") : (err as Error).message);
+      }
+    },
+    [code, token, loadMe, say],
+  );
 
   const onStep = useCallback(
     (itemId: string, dir: 1 | -1) => {
@@ -115,9 +145,20 @@ export function BidPage() {
       const ccy = parseCurrency(live?.event.currency);
       setBusyId(it.id);
       try {
-        await api(`/api/events/${code}/bids`, { method: "POST", body: JSON.stringify({ itemId: it.id, amount }) }, token);
+        const res = await api<{ bidId?: string; undoSeconds?: number }>(
+          `/api/events/${code}/bids`,
+          { method: "POST", body: JSON.stringify({ itemId: it.id, amount }) },
+          token,
+        );
         const bought = it.buyNow != null && amount >= it.buyNow;
-        say(bought ? t("bid.boughtNow", { title: it.title }) : t("bid.placed", { amount: formatAmount(amount, ccy), title: it.title }));
+        const text = bought ? t("bid.boughtNow", { title: it.title }) : t("bid.placedShort", { amount: formatAmount(amount, ccy), title: it.title });
+        // Accidental-tap protection without an extra confirm step: a few seconds to take it back.
+        const bidId = res.bidId;
+        setToast(
+          bidId
+            ? { id: Date.now(), text, ms: (res.undoSeconds ?? 5) * 1000, action: { label: t("bid.undo"), onClick: () => undoBid(bidId) } }
+            : { id: Date.now(), text },
+        );
         vibrate(30);
         setChosen((c) => {
           const { [it.id]: _drop, ...rest } = c;
@@ -136,7 +177,7 @@ export function BidPage() {
         setBusyId(null);
       }
     },
-    [code, token, live?.event.currency, loadMe, outbid],
+    [code, token, live?.event.currency, loadMe, outbid, undoBid, say],
   );
 
   async function saveName(name: string) {
@@ -146,7 +187,8 @@ export function BidPage() {
       token,
     );
     setMe((m) => (m ? { ...m, guest: { ...m.guest!, ...res.guest } } : m));
-    say(t("name.saved", { name: res.guest.name }));
+    setEditName(false);
+    setSavedName(res.guest.name);
   }
 
   function dismissNudge() {
@@ -173,9 +215,13 @@ export function BidPage() {
   const visible = filterItems(live.items, filter, me);
   const won = wonItems(live.items, me);
   const hasBid = (me?.bidItemIds?.length ?? 0) > 0;
-  const showNudge = Boolean(me?.guest && !me.guest.nameSet && !nudgeDismissed && hasBid && eventStatus !== "closed");
+  const showNudge = Boolean(
+    me?.guest && eventStatus !== "closed" && !savedName && (editName || (!me.guest.nameSet && !nudgeDismissed && hasBid)),
+  );
   const outbidItem = outbid ? live.items.find((x) => x.id === outbid) : undefined;
-  const who = me?.guest ? `${me.guest.name}${me.guest.phone && me.guest.nameSet ? ` (${maskPhone(me.guest.phone)})` : ""}` : "";
+  // Only on the guest's own phone: their name plus the masked tail of their own number.
+  const who = me?.guest ? `${me.guest.name}${me.guest.phone ? ` (${maskPhone(me.guest.phone)})` : ""}` : "";
+  const outbidVisible = Boolean(outbidItem && eventStatus === "open");
 
   return (
     <section className="g-page g-board">
@@ -187,9 +233,19 @@ export function BidPage() {
         now={now}
         timezone={live.event.timezone}
         closedEarly={live.event.closedEarly}
+        menu={
+          me?.guest ? (
+            <GuestMenu
+              who={who}
+              payHref={eventStatus === "closed" && won.length ? `/e/${code}/invoice` : undefined}
+              onChangeName={eventStatus !== "closed" ? () => setEditName(true) : undefined}
+              onSwitch={switchUser}
+            />
+          ) : null
+        }
       />
 
-      {outbidItem && eventStatus === "open" && (
+      {outbidItem && outbidVisible && (
         <OutbidBanner
           title={outbidItem.title}
           amountLabel={formatAmount(minNextBid(outbidItem), ccy)}
@@ -221,10 +277,19 @@ export function BidPage() {
           <p className="g-info">{t("bid.notStarted", { time: formatTimeInZone(live.event.startsAt, live.event.timezone || "Asia/Bangkok") })}</p>
         )}
 
-        {showNudge && me?.guest && <NameNudge currentName={me.guest.name} onSave={saveName} onDismiss={dismissNudge} />}
-        {!showNudge && eventStatus !== "closed" && <InstallHint hasBid={hasBid} />}
+        {showNudge && me?.guest && (
+          <NameNudge
+            currentName={me.guest.name}
+            onSave={saveName}
+            autoFocus={editName}
+            onDismiss={() => (editName ? setEditName(false) : dismissNudge())}
+          />
+        )}
+        {savedName && <NameSaved name={savedName} />}
 
-        {(counts.mine > 0 || filter !== "all") && <FilterChips value={filter} counts={counts} onChange={setFilter} />}
+        {(counts.mine > 0 || filter !== "all") && (
+          <FilterChips value={filter} counts={counts} closed={eventStatus === "closed"} onChange={setFilter} />
+        )}
 
         <div className="g-items">
           {visible.map((it) => (
@@ -241,19 +306,25 @@ export function BidPage() {
               onBid={onBid}
             />
           ))}
-          {visible.length === 0 && filter !== "all" && <p className="g-empty">{t(`bid.filter.empty.${filter}`)}</p>}
+          {visible.length === 0 && filter !== "all" && (
+            <p className="g-empty">{t(eventStatus === "closed" ? `bid.filter.emptyClosed.${filter}` : `bid.filter.empty.${filter}`)}</p>
+          )}
         </div>
 
-        {me?.guest && (
-          <p className="g-footer">
-            {t("bid.bidAs", { name: who })} ·{" "}
-            <button type="button" className="g-link" onClick={switchUser}>
-              {t("bid.switch")}
-            </button>
-          </p>
-        )}
+        {me?.guest &&
+          (confirmSwitch ? (
+            <SwitchConfirm onYes={switchUser} onNo={() => setConfirmSwitch(false)} />
+          ) : (
+            <p className="g-footer">
+              {t("bid.bidAs", { name: who })} ·{" "}
+              <button type="button" className="g-link" onClick={() => setConfirmSwitch(true)}>
+                {t("bid.switch")}
+              </button>
+            </p>
+          ))}
       </div>
 
+      {eventStatus !== "closed" && !showNudge && <InstallHint hasBid={hasBid} suppressed={outbidVisible || toast != null} />}
       <Toast toast={toast} onDone={clearToast} ms={2200} />
     </section>
   );
