@@ -8,10 +8,13 @@ import { useLive } from "../lib/useLive";
 import { Countdown } from "../components/Countdown";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
-import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice } from "../lib/bigScreen";
+import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt, spotlightText } from "../lib/bigScreen";
 
 const CARD_MIN_W = 240;
+/** Narrower cards on 1024-wide displays, so a page still holds 8+. */
+const CARD_MIN_W_SMALL = 200;
 const CARD_H = 84;
+const SPOTLIGHT_MS = 6000;
 /** Matches the 720p CSS block (max-height: 820px): smaller cards so a page still holds 8+. */
 const CARD_H_COMPACT = 66;
 const GRID_GAP = 10;
@@ -125,7 +128,9 @@ export function EngagerPage() {
   const reduceMotion = usePrefersReducedMotion();
   const [flash, setFlash] = useState(false);
   const [flashItem, setFlashItem] = useState<string | null>(null);
-  const [idx, setIdx] = useState(0);
+  const [step, setStep] = useState(0);
+  /** Item that just got a bid: shown in the spotlight until the next rotation. */
+  const [pinned, setPinned] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [boardRef, boardSize] = useSize<HTMLDivElement>();
@@ -136,9 +141,8 @@ export function EngagerPage() {
     setFlash(true);
     const itemId = lastBid?.itemId ?? null;
     setFlashItem(itemId);
-    // A new bid puts that item in the spotlight right away.
-    const at = itemId ? items.findIndex((it) => it.id === itemId) : -1;
-    if (at >= 0) setIdx(at);
+    // A new bid puts that item in the spotlight right away (for a full rotation slot).
+    if (itemId) setPinned(itemId);
     const t = setTimeout(() => {
       setFlash(false);
       setFlashItem(null);
@@ -148,34 +152,42 @@ export function EngagerPage() {
 
   useEffect(() => {
     if (items.length === 0) return;
-    const id = setInterval(() => setIdx((i) => (i + 1) % items.length), 6000);
+    const id = setInterval(() => {
+      setPinned(null);
+      setStep((s) => s + 1);
+    }, SPOTLIGHT_MS);
     return () => clearInterval(id);
-  }, [items.length]);
+  }, [items.length, pinned]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
 
-  const cardH = typeof window !== "undefined" && window.innerHeight <= 820 && window.innerWidth > 1100 ? CARD_H_COMPACT : CARD_H;
-  const fit = gridFit(boardSize.w, boardSize.h, CARD_MIN_W, cardH, GRID_GAP);
+  const minCardH = typeof window !== "undefined" && window.innerHeight <= 820 && window.innerWidth > 900 ? CARD_H_COMPACT : CARD_H;
+  const minCardW = typeof window !== "undefined" && window.innerWidth < 1200 ? CARD_MIN_W_SMALL : CARD_MIN_W;
+  const fit = gridFit(boardSize.w, boardSize.h, minCardW, minCardH, GRID_GAP);
+  const cardH = fit.cardH;
   const pages = pageCount(items.length, fit.perPage);
+  // One steady 8 s clock for paging. It must not depend on the measured layout: before, every
+  // resize of the board (e.g. the spotlight above changing height) restarted the interval, so
+  // pages advanced only every 10–15 s.
   useEffect(() => {
-    if (pages < 2) return;
     // Paging is how every item gets seen, so it runs with reduced motion too — just without the fade.
-    const id = setInterval(() => setPage((p) => (p + 1) % pages), BOARD_PAGE_MS);
+    const id = setInterval(() => setPage((p) => p + 1), BOARD_PAGE_MS);
     return () => clearInterval(id);
-  }, [pages]);
+  }, []);
 
   const hot = useMemo(() => hotItemIds(items, live?.recentBids ?? [], now), [items, live, now]);
 
   if (!live) return <div className="engager"><p>Loading big screen… {error}</p></div>;
   const ccy = parseCurrency(live.event.currency);
   const money = (n: number) => formatAmount(n, ccy);
-  const highlight = items[idx % Math.max(items.length, 1)];
   const joinUrl = live.event.joinUrl;
   const isLive = live.event.status === "open";
   const closed = live.event.status === "closed";
+  const highlight = (pinned && items.find((it) => it.id === pinned)) || spotlightAt(step, items, live.recentBids);
+  const spot = highlight ? spotlightText(highlight, closed) : null;
   const sponsors = [...new Map(items.filter((i) => i.sponsor).map((i) => [i.sponsor!.id, i.sponsor!])).values()];
   const curPage = page % pages;
   const shown = boardSize.w ? pageSlice(items, curPage, fit.perPage) : [];
@@ -215,18 +227,13 @@ export function EngagerPage() {
                 <p className="muted">{hot.includes(highlight.id) ? "🔥 Hot right now" : "Now featuring"}</p>
                 <h2>{highlight.title}</h2>
                 <SponsorBadge sponsor={highlight.sponsor} size="lg" />
-                <p className="big-amount">{money(highlight.bidCount ? highlight.highBid : isFixedPrice(highlight) ? highlight.buyNow! : highlight.startingBid)}</p>
-                <p className="muted">
-                  {highlight.soldViaBuyNow
-                    ? "Sold"
-                    : highlight.bidCount
-                      ? closed
-                        ? `Won by ${highlight.highBidder}`
-                        : `Leading: ${highlight.highBidder}`
-                      : isFixedPrice(highlight)
-                        ? "Fixed price"
-                        : "Starting bid · no bids yet"}
-                </p>
+                {spot && (
+                  <>
+                    <p className="spot-label">{spot.label}</p>
+                    <p className="big-amount">{money(spot.amount)}</p>
+                    <p className="muted spot-sub">{spot.sub}</p>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -266,7 +273,7 @@ export function EngagerPage() {
           <ul
             className="board-grid"
             key={reduceMotion ? "static" : `p-${curPage}`}
-            style={{ gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`, gridAutoRows: `${cardH}px` }}
+            style={{ gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`, gridAutoRows: `${cardH}px`, ["--card-h" as string]: `${cardH}px` }}
           >
             {shown.map((it) => {
               const isHot = hot.includes(it.id);

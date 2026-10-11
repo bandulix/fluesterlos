@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useBottomBarSpace } from "./useBottomBarSpace";
 import { t } from "../i18n";
 import { detectPlatform, dismissInstallHint, installHintDismissed, isStandalone, shouldShowInstallHint } from "../lib/installHint";
 
@@ -29,8 +30,13 @@ export function InstallHint({ hasBid, suppressed = false }: { hasBid: boolean; s
     setDismissed(true);
   };
 
+  return <InstallBar platform={platform} promptEvent={promptEvent} dismiss={dismiss} />;
+}
+
+function InstallBar({ platform, promptEvent, dismiss }: { platform: string; promptEvent: BeforeInstallPromptEvent | null; dismiss: () => void }) {
+  const ref = useBottomBarSpace<HTMLElement>();
   return (
-    <aside className="g-install" aria-label={t("install.title")}>
+    <aside className="g-install" ref={ref} aria-label={t("install.title")}>
       <span className="g-install-icon" aria-hidden="true">📲</span>
       <p className="g-install-text">{platform === "ios" ? t("install.ios") : t("install.android")}</p>
       {platform !== "ios" && promptEvent && (

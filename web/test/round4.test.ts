@@ -9,9 +9,9 @@ import { parseCurrency } from "../src/lib/money";
 describe("big screen paging", () => {
   it("fits 8–12 cards on a TV and never 0", () => {
     // 1920x1080 board area ≈ 1250x470 → 5 cols × 3 rows fit; capped at 12 by dropping a column
-    expect(gridFit(1250, 470, 240, 84, 10)).toEqual({ cols: 4, rows: 3, perPage: 12 });
+    expect(gridFit(1250, 470, 240, 84, 10)).toMatchObject({ cols: 4, rows: 3, perPage: 12 });
     // 1280x720 board area ≈ 820x290 → 3 cols × 3 rows = 9
-    expect(gridFit(820, 290, 240, 84, 10)).toEqual({ cols: 3, rows: 3, perPage: 9 });
+    expect(gridFit(820, 290, 240, 84, 10)).toMatchObject({ cols: 3, rows: 3, perPage: 9 });
     expect(gridFit(0, 0, 240, 84, 10).perPage).toBe(1);
     // A huge wall never shows more than 12.
     expect(gridFit(4000, 3000, 240, 84, 10).perPage).toBe(12);
@@ -56,8 +56,8 @@ describe("host item list price line", () => {
   it("says 'Starting … · no bids' instead of 'high … · 0 bids'", () => {
     expect(hostPriceLine({ soldViaBuyNow: false, highBid: 2000, buyNow: null, startingBid: 2000, bidCount: 0 }, thb)).toBe("Starting ฿2,000 · no bids");
     expect(hostPriceLine({ soldViaBuyNow: false, highBid: 2400, buyNow: null, startingBid: 2000, bidCount: 3 }, thb)).toBe("High ฿2,400 · 3 bids");
-    expect(hostPriceLine({ soldViaBuyNow: false, highBid: 3000, buyNow: 3000, startingBid: 3000, bidCount: 0 }, thb)).toBe("Fixed price ฿3,000 · not sold yet");
-    expect(hostPriceLine({ soldViaBuyNow: true, highBid: 3000, buyNow: 3000, startingBid: 3000, bidCount: 1 }, thb)).toBe("Sold ฿3,000");
+    expect(hostPriceLine({ soldViaBuyNow: false, highBid: 3000, buyNow: 3000, startingBid: 3000, bidCount: 0 }, thb)).toBe("Fixed price ฿3,000");
+    expect(hostPriceLine({ soldViaBuyNow: true, highBid: 3000, buyNow: 3000, startingBid: 3000, bidCount: 1 }, thb)).toBe("Sold at fixed price ฿3,000");
     expect(hostPriceLine({ soldViaBuyNow: true, highBid: 5000, buyNow: 5000, startingBid: 2000, bidCount: 2 }, thb)).toBe("Sold ฿5,000 (buy now)");
   });
 
