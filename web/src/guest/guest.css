@@ -378,7 +378,9 @@
   flex: none; width: 36px; height: 36px; border: 0; background: none;
   color: var(--muted); font-size: 1.35rem; line-height: 1; cursor: pointer;
 }
-.g-board { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+/* Room below the last card: at least 84px, or the real height of a visible bottom bar
+   (install hint / name sheet, measured into --g-bottom-bar by useBottomBarSpace). */
+.g-board { padding-bottom: max(calc(84px + env(safe-area-inset-bottom, 0px)), var(--g-bottom-bar, 0px)); }
 @keyframes g-slide-up {
   from { transform: translate(-50%, 12px); opacity: 0; }
   to { transform: translate(-50%, 0); opacity: 1; }
@@ -452,6 +454,7 @@
   animation: g-toast-timer linear forwards;
 }
 @keyframes g-toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.toast.is-paused .toast-timer { animation-play-state: paused; }
 
 /* Join: the primary button always looks tappable. */
 .g-join .g-primary:disabled { opacity: 0.7; }
@@ -474,7 +477,7 @@
   animation: g-sheet-in 0.22s var(--ease-gala, ease-out);
 }
 @keyframes g-sheet-in { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
-.g-board.has-sheet { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+.g-board.has-sheet { padding-bottom: max(calc(150px + env(safe-area-inset-bottom, 0px)), var(--g-bottom-bar, 0px)); }
 @media (prefers-reduced-motion: reduce) { .g-nudge.is-sheet { animation: none; } }
 
 /* —— Round 4 —— */

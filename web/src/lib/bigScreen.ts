@@ -5,16 +5,26 @@ export const BOARD_MIN_PER_PAGE = 8;
 export const BOARD_MAX_PER_PAGE = 12;
 export const HOT_WINDOW_MS = 5 * 60_000;
 
-export type GridFit = { cols: number; rows: number; perPage: number };
+export type GridFit = { cols: number; rows: number; perPage: number; cardH: number };
 
 /**
  * How many cards fit the board: as many columns of at least `minCardW` as the width allows and as
- * many rows of `cardH` as the height allows, capped at 12 per page so cards stay readable from the
- * back of the room. Never 0 (a tiny board still shows one card per page).
+ * many rows of at least `minCardH` as the height allows, capped at 12 per page so cards stay
+ * readable from the back of the room. Never 0 (a tiny board still shows one card per page).
+ * `cardH` then stretches the rows to fill the height (up to `maxCardH`), so a short screen never
+ * leaves an empty band under the grid.
  */
-export function gridFit(width: number, height: number, minCardW: number, cardH: number, gap: number, max = BOARD_MAX_PER_PAGE): GridFit {
+export function gridFit(
+  width: number,
+  height: number,
+  minCardW: number,
+  minCardH: number,
+  gap: number,
+  max = BOARD_MAX_PER_PAGE,
+  maxCardH = 132,
+): GridFit {
   let cols = Math.max(1, Math.floor((width + gap) / (minCardW + gap)));
-  let rows = Math.max(1, Math.floor((height + gap) / (cardH + gap)));
+  let rows = Math.max(1, Math.floor((height + gap) / (minCardH + gap)));
   // Over the cap: give up columns first (wider cards read better than an empty band at the bottom).
   while (cols * rows > max) {
     if (cols > rows && cols > 1) cols--;
@@ -22,7 +32,9 @@ export function gridFit(width: number, height: number, minCardW: number, cardH: 
     else break;
   }
   const perPage = Math.max(1, Math.min(cols * rows, max));
-  return { cols, rows, perPage };
+  const fill = Math.floor((height - gap * (rows - 1)) / rows);
+  const cardH = Math.max(minCardH, Math.min(maxCardH, Number.isFinite(fill) ? fill : minCardH));
+  return { cols, rows, perPage, cardH };
 }
 
 export function pageCount(total: number, perPage: number): number {
@@ -63,4 +75,56 @@ export function chunk<T>(list: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < list.length; i += n) out.push(list.slice(i, i + n));
   return out;
+}
+
+export type SpotItem = { id: string; bidCount: number; soldViaBuyNow?: boolean };
+
+/**
+ * Which item the spotlight shows at rotation step `step`: mostly items that are being bid on
+ * (newest bid first, then the rest with bids), and every third step an item still waiting for its
+ * first bid — so the room sees the action but unbid prizes still get airtime. Without any bids it
+ * simply cycles through all items.
+ */
+export function spotlightAt<T extends SpotItem>(step: number, items: T[], recent: RecentBid[]): T | undefined {
+  if (!items.length) return undefined;
+  const byId = new Map(items.map((it) => [it.id, it]));
+  const active: T[] = [];
+  const seen = new Set<string>();
+  for (const b of recent) {
+    const it = b.itemId ? byId.get(b.itemId) : undefined;
+    if (it && it.bidCount > 0 && !it.soldViaBuyNow && !seen.has(it.id)) {
+      seen.add(it.id);
+      active.push(it);
+    }
+  }
+  for (const it of [...items].sort((a, b) => b.bidCount - a.bidCount)) {
+    if (it.bidCount > 0 && !it.soldViaBuyNow && !seen.has(it.id)) {
+      seen.add(it.id);
+      active.push(it);
+    }
+  }
+  const waiting = items.filter((it) => it.bidCount === 0);
+  const n = Math.max(0, step);
+  if (!active.length) return (waiting.length ? waiting : items)[n % (waiting.length || items.length)];
+  if (waiting.length && n % 3 === 2) return waiting[Math.floor(n / 3) % waiting.length];
+  return active[(n - Math.floor((n + 1) / 3)) % active.length];
+}
+
+export type SpotlightText = { label: string; amount: number; sub: string };
+
+/** The spotlight's label / amount / sub-line, from that item's own state. */
+export function spotlightText(
+  it: { bidCount: number; highBid: number; startingBid: number; buyNow: number | null; soldViaBuyNow?: boolean; highBidder?: string | null },
+  closed: boolean,
+): SpotlightText {
+  const fixed = it.buyNow != null && it.buyNow === it.startingBid;
+  if (it.soldViaBuyNow) return { label: fixed ? "Sold at fixed price" : "Sold (buy now)", amount: it.highBid, sub: it.highBidder ? `Bought by ${it.highBidder}` : "Sold" };
+  if (it.bidCount > 0) {
+    const bids = `${it.bidCount} ${it.bidCount === 1 ? "bid" : "bids"}`;
+    return closed
+      ? { label: "Winning bid", amount: it.highBid, sub: `Won by ${it.highBidder ?? "—"} · ${bids}` }
+      : { label: "Current bid", amount: it.highBid, sub: `Leading: ${it.highBidder ?? "—"} · ${bids}` };
+  }
+  if (fixed) return { label: "Fixed price", amount: it.buyNow!, sub: closed ? "Not sold" : "Buy it now — scan to bid" };
+  return { label: "Starting bid", amount: it.startingBid, sub: closed ? "No bids" : "No bids yet — be the first!" };
 }
