@@ -1,12 +1,14 @@
 import { t } from "../i18n";
 
-/** Compact, non-blocking "Outbid: <item>" bar with a one-tap re-bid. */
+/** Card under the header: red only on the icon and the left edge, gold action. */
 export function OutbidBanner({ title, amountLabel, onBid, onClose }: { title: string; amountLabel: string; onBid: () => void; onClose: () => void }) {
   return (
     <div className="g-outbid" role="status" aria-live="assertive">
-      <span className="g-outbid-text">{t("bid.outbidBanner", { title })}</span>
+      <span className="g-outbid-icon" aria-hidden="true">!</span>
+      <span className="g-outbid-text">{t("bid.outbidBanner", { title, amount: amountLabel })}</span>
       <button type="button" className="g-outbid-bid" onClick={onBid}>
-        {t("bid.outbidAction", { amount: amountLabel })}
+        {t("bid.outbidAction")}
+        <span aria-hidden="true"> →</span>
       </button>
       <button type="button" className="g-outbid-close" aria-label={t("install.dismiss")} onClick={onClose}>
         ×

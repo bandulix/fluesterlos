@@ -6,5 +6,5 @@ export function BrandMark(props: { kind?: "mark" | "lockup"; className?: string 
   const src = kind === "lockup" ? brand.lockupSrc : brand.markSrc;
   if (!src) return null;
   const cls = `brand-mark${kind === "lockup" ? " is-lockup" : ""}${props.className ? ` ${props.className}` : ""}`;
-  return <img className={cls} src={src} alt="" width={kind === "lockup" ? 299 : 32} height={kind === "lockup" ? 160 : 32} />;
+  return <img className={cls} src={src} alt="" width={brand.logoWidth} height={brand.logoHeight} />;
 }

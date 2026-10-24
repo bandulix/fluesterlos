@@ -129,6 +129,7 @@ export function EngagerPage() {
   const reduceMotion = usePrefersReducedMotion();
   const [flash, setFlash] = useState(false);
   const [flashItem, setFlashItem] = useState<string | null>(null);
+  const [glowItem, setGlowItem] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   /** Item that just got a bid: shown in the spotlight until the next rotation. */
   const [pinned, setPinned] = useState<string | null>(null);
@@ -142,13 +143,18 @@ export function EngagerPage() {
     setFlash(true);
     const itemId = lastBid?.itemId ?? null;
     setFlashItem(itemId);
+    setGlowItem(itemId);
     // A new bid puts that item in the spotlight right away (for a full rotation slot).
     if (itemId) setPinned(itemId);
     const t = setTimeout(() => {
       setFlash(false);
       setFlashItem(null);
     }, 900);
-    return () => clearTimeout(t);
+    const glow = setTimeout(() => setGlowItem(null), 3000);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(glow);
+    };
   }, [flashKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -180,6 +186,10 @@ export function EngagerPage() {
   }, []);
 
   const hot = useMemo(() => hotItemIds(items, live?.recentBids ?? [], now), [items, live, now]);
+  const rankOf = useMemo(() => {
+    const top = [...items].filter((it) => it.bidCount > 0 && !it.soldViaBuyNow).sort((a, b) => b.highBid - a.highBid || a.sortOrder - b.sortOrder).slice(0, 3);
+    return new Map(top.map((it, i) => [it.id, i + 1]));
+  }, [items]);
 
   if (!live) return <div className="engager"><p>Loading big screen… {error}</p></div>;
   const ccy = parseCurrency(live.event.currency);
@@ -205,10 +215,14 @@ export function EngagerPage() {
       <header>
         <div>
           <BrandMark />
-          <h1>{live.event.title}</h1>
+          <h1>
+            <span className="star" aria-hidden="true">★</span>
+            <span className="engager-title">{live.event.title}</span>
+            <span className="star" aria-hidden="true">★</span>
+          </h1>
           <span className="live-badge">{closed ? "Closed" : "Live"}</span>
         </div>
-        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
+        <Countdown variant="tiles" startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
       </header>
 
       <div className="engager-top">
@@ -216,8 +230,8 @@ export function EngagerPage() {
           <p className="muted">{closed ? "Raised" : "Raised so far"}</p>
           <p className="huge">{money(live.stats.totalHighBids)}</p>
           <p className="muted">
-            {live.stats.totalBids} {live.stats.totalBids === 1 ? "bid" : "bids"} · {live.stats.guestCount}{" "}
-            {live.stats.guestCount === 1 ? "guest" : "guests"}
+            from {live.stats.totalBids} {live.stats.totalBids === 1 ? "bid" : "bids"} on {live.stats.itemCount}{" "}
+            {live.stats.itemCount === 1 ? "lot" : "lots"}
           </p>
         </section>
 
@@ -279,15 +293,17 @@ export function EngagerPage() {
           >
             {shown.map((it) => {
               const isHot = hot.includes(it.id);
+              const rank = rankOf.get(it.id);
               return (
                 <li
                   key={it.id}
-                  className={`board-item${flashItem === it.id ? " is-flash" : ""}${it.soldViaBuyNow ? " is-sold" : ""}${isHot ? " is-hot" : ""}`}
+                  className={`board-item${flashItem === it.id ? " is-flash" : ""}${glowItem === it.id ? " is-glow" : ""}${it.soldViaBuyNow ? " is-sold" : ""}${isHot ? " is-hot" : ""}`}
                 >
+                  {rank != null && <span className={`board-rank rank-${rank}`}>{rank}</span>}
                   {it.photoUrl ? <img src={assetUrl(it.photoUrl)} alt="" /> : <span className="board-thumb" aria-hidden="true">🎁</span>}
                   <div>
                     <p className="board-title">
-                      {isHot && <span className="hot-badge">🔥 Hot</span>}
+                      {isHot && !rank && <span className="hot-badge">Hot</span>}
                       {it.title}
                     </p>
                     <p className="board-amount">{money(it.bidCount ? it.highBid : isFixedPrice(it) ? it.buyNow! : it.startingBid)}</p>

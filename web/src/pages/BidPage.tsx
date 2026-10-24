@@ -33,6 +33,15 @@ import "../guest/guest.css";
 
 type BidError = Error & { body?: { currentHigh?: number; minNext?: number; outbid?: boolean; sold?: boolean } };
 
+function agoLabel(iso: string, now: number): string {
+  const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
+  if (!Number.isFinite(s) || s < 45) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+}
+
 const nudgeKey = (code: string) => `fl_name_nudge_${code.toLowerCase()}`;
 const prefetchInvoice = () => import("./InvoicePage");
 
@@ -48,6 +57,7 @@ export function BidPage() {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [outbid, setOutbid] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ id: string; text: string } | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
   const [nudgeDismissed, setNudgeDismissed] = useState(() => localStorage.getItem(nudgeKey(code)) === "1");
   const [editName, setEditName] = useState(false);
@@ -85,13 +95,6 @@ export function BidPage() {
       vibrate([80, 60, 80]);
     }
   }, [statuses]);
-
-  // Auto-hide the outbid banner after a while (it's non-blocking anyway).
-  useEffect(() => {
-    if (!outbid) return;
-    const id = window.setTimeout(() => setOutbid(null), 8000);
-    return () => window.clearTimeout(id);
-  }, [outbid]);
 
   // Brief highlight of the item that just got a bid.
   useEffect(() => {
@@ -136,6 +139,7 @@ export function BidPage() {
       const it = live?.items.find((x) => x.id === itemId);
       if (!it) return;
       setChosen((c) => ({ ...c, [itemId]: stepAmount(effectiveAmount(c[itemId], it), dir, it) }));
+      setNotice((n) => (n?.id === itemId ? null : n));
     },
     [live],
   );
@@ -165,12 +169,14 @@ export function BidPage() {
           return rest;
         });
         if (outbid === it.id) setOutbid(null);
+        setNotice((n) => (n?.id === it.id ? null : n));
         await loadMe().catch(() => undefined);
       } catch (err) {
         const body = (err as BidError).body;
         if (body?.sold) say(t("bid.sold"));
         else if (body?.outbid && body.minNext != null) {
-          say(t("bid.tooLow", { amount: formatAmount(Number(body.minNext), ccy) }));
+          const text = t("bid.tooLow", { amount: formatAmount(Number(body.minNext), ccy) });
+          setNotice({ id: it.id, text });
           setChosen((c) => ({ ...c, [it.id]: Number(body.minNext) }));
         } else say((err as Error).message);
       } finally {
@@ -254,8 +260,11 @@ export function BidPage() {
       {outbidItem && outbidVisible && (
         <OutbidBanner
           title={outbidItem.title}
-          amountLabel={formatAmount(minNextBid(outbidItem), ccy)}
-          onBid={() => onBid(outbidItem, minNextBid(outbidItem))}
+          amountLabel={formatAmount(outbidItem.bidCount ? outbidItem.highBid : outbidItem.startingBid, ccy)}
+          onBid={() => {
+            document.getElementById(`item-${outbidItem.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+            onBid(outbidItem, minNextBid(outbidItem));
+          }}
           onClose={() => setOutbid(null)}
         />
       )}
@@ -297,21 +306,48 @@ export function BidPage() {
           <FilterChips value={filter} counts={counts} closed={eventStatus === "closed"} onChange={setFilter} />
         )}
 
+        {eventStatus === "open" && (
+          <div className="g-raised">
+            <span className="g-price-label">{t("bid.raised")}</span>
+            <strong>{formatAmount(live.stats.totalHighBids, ccy)}</strong>
+            <span className="g-muted">
+              {t("bid.raisedCaption", {
+                bids: plural("bid.oneBid", "bid.bids", live.stats.totalBids),
+                lots: plural("bid.oneLot", "bid.lots", live.stats.itemCount),
+              })}
+            </span>
+          </div>
+        )}
+
+        <p className="g-section">
+          <span aria-hidden="true">★</span> {t("bid.sectionLots")} <span aria-hidden="true">★</span>
+        </p>
+
         <div className="g-items">
-          {visible.map((it) => (
-            <ItemCard
-              key={it.id}
-              item={it}
-              ccy={ccy}
-              status={statuses?.[it.id] ?? null}
-              eventStatus={eventStatus}
-              chosen={chosen[it.id]}
-              busy={busyId === it.id}
-              highlight={flashId === it.id}
-              onStep={onStep}
-              onBid={onBid}
-            />
-          ))}
+          {visible.map((it) => {
+            const lead = live.recentBids.find((b) => b.itemId === it.id);
+            const ago = lead ? agoLabel(lead.createdAt, now) : null;
+            const ends = Date.parse(live.event.endsAt);
+            const remaining = ends - now;
+            return (
+              <ItemCard
+                key={it.id}
+                item={it}
+                ccy={ccy}
+                status={statuses?.[it.id] ?? null}
+                eventStatus={eventStatus}
+                chosen={chosen[it.id]}
+                busy={busyId === it.id}
+                highlight={flashId === it.id}
+                notice={notice?.id === it.id ? notice.text : null}
+                leadAgo={ago}
+                finalFive={eventStatus === "open" && remaining > 0 && remaining <= 5 * 60_000}
+                remainingMs={remaining}
+                onStep={onStep}
+                onBid={onBid}
+              />
+            );
+          })}
           {visible.length === 0 && filter !== "all" && (
             <p className="g-empty">{t(eventStatus === "closed" ? `bid.filter.emptyClosed.${filter}` : `bid.filter.empty.${filter}`)}</p>
           )}

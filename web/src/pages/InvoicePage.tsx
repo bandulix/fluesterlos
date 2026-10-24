@@ -6,7 +6,9 @@ import type { ItemKind, Sponsor } from "../lib/api";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { saveImage } from "../lib/saveImage";
 import { listTitles } from "../lib/listTitles";
+import { formatInZone } from "../lib/time";
 import { t } from "../i18n";
+import { BrandMark } from "../components/BrandMark";
 import { Toast, ToastMessage } from "../components/Toast";
 import "../guest/guest.css";
 
@@ -218,6 +220,7 @@ export function InvoicePage() {
           <Link to={`/e/${code}/bid`} className="g-back" aria-label={t("inv.back")}>
             ‹
           </Link>
+          <BrandMark />
           <h1 className="g-title">{data.event.title}</h1>
         </div>
       </header>
@@ -228,6 +231,9 @@ export function InvoicePage() {
         {inv && (
           <>
             <div className={`g-total-card is-${inv.status}`}>
+              {inv.paidAt && (
+                <p className="g-receipt-date">{formatInZone(inv.paidAt, Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}</p>
+              )}
               <span className="g-price-label">{paid ? t("inv.title") : t("inv.total")}</span>
               <strong className="g-total">{fmt(inv.total)}</strong>
               <span className={`g-pay-status is-${inv.status}`}>
@@ -247,6 +253,22 @@ export function InvoicePage() {
                   </li>
                 ))}
               </ul>
+              <div className="g-due">
+                <span>{paid ? t("inv.paid") : t("inv.due")}</span>
+                <strong>{fmt(inv.total)}</strong>
+              </div>
+            </div>
+            <div className="g-pay-method">
+              <span className="g-price-label">{t("inv.method")}</span>
+              <strong>
+                {inv.paymentMethod === "cash"
+                  ? "Cash"
+                  : inv.paymentMethod === "bank_transfer"
+                    ? "Bank transfer"
+                    : inv.paymentMethod === "promptpay" || pay?.promptpayPayload
+                      ? "PromptPay"
+                      : t("inv.deskPay")}
+              </strong>
             </div>
 
             {emailFirst && emailCard}

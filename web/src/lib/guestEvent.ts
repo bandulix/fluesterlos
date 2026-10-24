@@ -68,9 +68,12 @@ export function buildGuestManifest(origin: string, code: string, title: string) 
     theme_color: brand.themeColor,
     background_color: brand.backgroundColor,
     icons: [
-      { src: `${origin}${brand.icon192}`, sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: `${origin}${brand.icon512}`, sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: `${origin}${brand.icon512}`, sizes: "512x512", type: "image/png", purpose: "maskable" },
+      {
+        src: `${origin}${brand.icon512}`,
+        sizes: `${brand.logoWidth}x${brand.logoHeight}`,
+        type: "image/png",
+        purpose: "any",
+      },
     ],
   };
 }

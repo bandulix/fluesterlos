@@ -142,7 +142,7 @@ export function HostEventCard(props: {
         <span className={`pill status-${ev.status}`}>{ev.status}</span>
       </div>
       <p>Code: <code>{code}</code></p>
-      <Countdown startsAt={ev.startsAt} endsAt={ev.endsAt} status={ev.status} timezone={tz} closedEarly={ev.closedEarly} />
+      <Countdown variant="tiles" startsAt={ev.startsAt} endsAt={ev.endsAt} status={ev.status} timezone={tz} closedEarly={ev.closedEarly} />
       <div className="event-times">
         <span>
           <strong>Start</strong> {formatInZone(ev.startsAt, tz)} · <strong>End</strong> {formatInZone(ev.endsAt, tz)}{" "}

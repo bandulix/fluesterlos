@@ -4,6 +4,7 @@ import { api, assetUrl, getGuestToken, GuestMe, LivePayload, setGuestToken } fro
 import { formatPhoneInput, phoneLooksComplete } from "../lib/phoneInput";
 import { clearPendingJoin, loadPendingJoin, savePendingJoin } from "../lib/pendingJoin";
 import { BrandMark } from "../components/BrandMark";
+import { formatInZone } from "../lib/time";
 import { plural, t } from "../i18n";
 import "../guest/guest.css";
 
@@ -195,7 +196,12 @@ export function JoinPage() {
         <BrandMark kind="lockup" />
         <p className="g-kicker">{t("join.kicker")}</p>
         <h1 className="g-join-title">{event?.event.title ?? "\u00a0"}</h1>
-        {event && <p className="g-muted">{plural("join.oneItem", "join.items", event.items.length)}</p>}
+        {event && (
+          <div className="g-meta">
+            <span>{plural("join.oneItem", "join.items", event.items.length)}</span>
+            <span>{formatInZone(event.event.startsAt, event.event.timezone || "Asia/Bangkok")}</span>
+          </div>
+        )}
         <form
           onSubmit={(e: FormEvent) => {
             e.preventDefault();

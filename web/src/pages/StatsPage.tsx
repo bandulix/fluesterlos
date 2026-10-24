@@ -26,7 +26,7 @@ export function StatsPage() {
           <BrandMark />
           <h1>{live.event.title}</h1>
         </div>
-        <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
+        <Countdown variant="tiles" startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
         <div className="stats-grid">
           <div className="stat"><span className="muted">Raised so far</span><strong>{formatAmount(live.stats.totalHighBids, ccy)}</strong></div>
           <div className="stat"><span className="muted">Bids</span><strong>{live.stats.totalBids}</strong></div>
