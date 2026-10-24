@@ -27,6 +27,10 @@ export type HostInvoice = {
     sponsorName: string | null;
     handedOverAt: string | null;
   }>;
+  lotsTotal?: number;
+  donationsTotal?: number;
+  receiptName?: string | null;
+  donations?: Array<{ needId: string; title: string; beneficiary: string; amount: number }>;
 };
 
 export type EmailStatus =

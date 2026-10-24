@@ -14,6 +14,10 @@ export type LivePayload = {
     status: "scheduled" | "open" | "closed";
     currency: "USD" | "EUR" | "THB";
     joinUrl: string;
+    /** When set, Fund-a-Need closes at this instant. Null: it stays open after the auction. */
+    needsEndsAt?: string | null;
+    /** Need the host has put on the big screen. */
+    spotlightNeedId?: string | null;
     /** IANA zone used to enter and show times for this event (default Asia/Bangkok). */
     timezone?: string;
     closedEarly?: boolean;
@@ -39,9 +43,17 @@ export type LivePayload = {
     kind?: ItemKind;
     sponsor?: Sponsor | null;
   }>;
+  needs?: Need[];
+  recentPledges?: RecentPledge[];
   stats: {
     guestCount: number;
     totalHighBids: number;
+    /** Active pledges, including on hidden needs. */
+    totalDonations?: number;
+    /** Auction high bids plus donations. */
+    totalRaised?: number;
+    donorCount?: number;
+    pledgeCount?: number;
     totalBids: number;
     itemCount: number;
     /** Items with at least one bid (the total counts only these). */
@@ -130,10 +142,68 @@ export function clearGuestToken(code: string) {
   localStorage.removeItem(guestTokenKey(code));
 }
 
+export type Need = {
+  id: string;
+  title: string;
+  beneficiary: string;
+  description: string;
+  photoUrl: string | null;
+  targetAmount: number;
+  minPledge: number;
+  suggestedAmounts: number[];
+  unitLabel: string | null;
+  unitAmount: number | null;
+  capAtTarget: boolean;
+  endsAt: string | null;
+  open: boolean;
+  sortOrder: number;
+  example: boolean;
+  raised: number;
+  donorCount: number;
+  pledgeCount: number;
+  percent: number;
+  barPercent: number;
+  fullyFunded: boolean;
+  overFunded: boolean;
+  label: string;
+};
+
+export type RecentPledge = {
+  id: string;
+  needId: string;
+  needTitle: string;
+  amount: number;
+  units: number | null;
+  unitLabel: string | null;
+  anonymous: boolean;
+  guestName: string;
+  text: string;
+  createdAt: string;
+};
+
+export type GuestPledge = {
+  id: string;
+  needId: string;
+  amount: number;
+  units: number | null;
+  anonymous: boolean;
+  createdAt: string;
+  canUndo: boolean;
+};
+
 export type GuestMe = {
-  guest: null | { id: string; name: string; nameSet?: boolean; email: string | null; phone: string | null; token?: string };
+  guest: null | {
+    id: string;
+    name: string;
+    nameSet?: boolean;
+    email: string | null;
+    phone: string | null;
+    token?: string;
+    receiptName?: string | null;
+  };
   leaderKey?: string;
   bidItemIds?: string[];
+  pledges?: GuestPledge[];
 };
 
 export type LiveItem = LivePayload["items"][number];

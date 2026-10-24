@@ -204,5 +204,77 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS host_sessions_expires_idx ON host_sessions(expires_at);
     CREATE INDEX IF NOT EXISTS invoices_event_idx ON invoices(event_id);
     CREATE INDEX IF NOT EXISTS guest_login_codes_guest_idx ON guest_login_codes(guest_id, created_at DESC);
+
+    -- Fund-a-Need: shared pledges, independent of the auction clock unless the host sets an end.
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS needs_ends_at TIMESTAMPTZ;
+    -- UUID of the need featured on the big screen. No FK: needs also reference events.
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS spotlight_need_id UUID;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS receipt_name TEXT;
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS receipt_name TEXT;
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS lots_total NUMERIC(12,2);
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS donations_total NUMERIC(12,2);
+
+    CREATE TABLE IF NOT EXISTS needs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      beneficiary TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      photo_url TEXT,
+      target_amount NUMERIC(12,2) NOT NULL,
+      min_pledge NUMERIC(12,2) NOT NULL,
+      suggested_amounts JSONB NOT NULL DEFAULT '[1000,5000,10000,25000]'::jsonb,
+      unit_label TEXT,
+      unit_amount NUMERIC(12,2),
+      cap_at_target BOOLEAN NOT NULL DEFAULT false,
+      ends_at TIMESTAMPTZ,
+      hidden BOOLEAN NOT NULL DEFAULT false,
+      closed_at TIMESTAMPTZ,
+      sort_order INT NOT NULL DEFAULT 0,
+      example BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS pledges (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      need_id UUID NOT NULL REFERENCES needs(id) ON DELETE CASCADE,
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+      units INT CHECK (units IS NULL OR units > 0),
+      anonymous BOOLEAN NOT NULL DEFAULT false,
+      undone_at TIMESTAMPTZ,
+      voided_at TIMESTAMPTZ,
+      voided_by TEXT,
+      void_reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS pledge_audit (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      pledge_id UUID REFERENCES pledges(id) ON DELETE SET NULL,
+      need_id UUID NOT NULL REFERENCES needs(id) ON DELETE CASCADE,
+      guest_id UUID REFERENCES guests(id) ON DELETE SET NULL,
+      action TEXT NOT NULL CHECK (action IN ('created', 'undone', 'corrected', 'voided')),
+      actor TEXT NOT NULL,
+      amount NUMERIC(12,2),
+      previous_amount NUMERIC(12,2),
+      units INT,
+      reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS invoice_donations (
+      invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      need_id UUID NOT NULL REFERENCES needs(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      beneficiary TEXT NOT NULL DEFAULT '',
+      amount NUMERIC(12,2) NOT NULL,
+      PRIMARY KEY (invoice_id, need_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS needs_event_sort_idx ON needs(event_id, sort_order);
+    CREATE INDEX IF NOT EXISTS pledges_need_active_idx ON pledges(need_id) WHERE undone_at IS NULL AND voided_at IS NULL;
+    CREATE INDEX IF NOT EXISTS pledges_guest_idx ON pledges(guest_id);
+    CREATE INDEX IF NOT EXISTS pledge_audit_need_idx ON pledge_audit(need_id, created_at DESC);
   `);
 }

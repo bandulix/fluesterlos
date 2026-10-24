@@ -20,6 +20,9 @@ type InvoiceResponse = {
     status: "unpaid" | "payslip_uploaded" | "paid";
     hasPayslip: boolean;
     paidAt: string | null;
+    lotsTotal?: number;
+    donationsTotal?: number;
+    receiptName?: string | null;
     lines: Array<{
       itemId: string;
       title: string;
@@ -28,6 +31,13 @@ type InvoiceResponse = {
       kind: ItemKind;
       sponsor: Sponsor | null;
       handedOverAt: string | null;
+    }>;
+    donations?: Array<{
+      needId: string;
+      title: string;
+      beneficiary: string;
+      amount: number;
+      kind: "donation";
     }>;
     paymentMethod: string | null;
     vouchersEmailedAt: string | null;
@@ -73,6 +83,8 @@ export function InvoicePage() {
   const [email, setEmail] = useState("");
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailLater, setEmailLater] = useState(() => sessionStorage.getItem(emailLaterKey(code)) === "1");
+  const [receiptName, setReceiptName] = useState("");
+  const [savingReceipt, setSavingReceipt] = useState(false);
   const qrWrap = useRef<HTMLDivElement>(null);
   const clearToast = useCallback(() => setToast(null), []);
   const say = (text: string) => setToast({ id: Date.now(), text });
@@ -81,6 +93,7 @@ export function InvoicePage() {
     const res = await api<InvoiceResponse>(`/api/events/${code}/invoice`, {}, token);
     setData(res);
     setEmail((prev) => prev || res.guest?.email || "");
+    setReceiptName((prev) => prev || res.invoice?.receiptName || "");
   }, [code, token]);
 
   useEffect(() => {
@@ -123,6 +136,21 @@ export function InvoicePage() {
       setError((err as Error).message);
     } finally {
       setSavingEmail(false);
+    }
+  }
+
+  async function onReceipt(e: FormEvent) {
+    e.preventDefault();
+    setSavingReceipt(true);
+    setError(null);
+    try {
+      await api(`/api/events/${code}/me/receipt-name`, { method: "PUT", body: JSON.stringify({ name: receiptName }) }, token);
+      say(t("inv.receiptSaved", { name: receiptName.trim() }));
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSavingReceipt(false);
     }
   }
 
@@ -239,6 +267,9 @@ export function InvoicePage() {
               <span className={`g-pay-status is-${inv.status}`}>
                 {paid ? `✓ ${t("inv.statusPaid")}` : inv.status === "payslip_uploaded" ? t("inv.statusSlip") : t("inv.statusUnpaid")}
               </span>
+              {(inv.donations?.length ?? 0) > 0 && inv.lines.length > 0 && (
+                <h2 className="g-receipt-h">{t("inv.lots")}</h2>
+              )}
               <ul className="g-lines">
                 {inv.lines.map((l) => (
                   <li key={l.itemId}>
@@ -253,8 +284,38 @@ export function InvoicePage() {
                   </li>
                 ))}
               </ul>
+              {inv.lines.length > 0 && (inv.donations?.length ?? 0) > 0 && (
+                <div className="g-subtotal">
+                  <span>{t("inv.lotsSub")}</span>
+                  <strong>{fmt(inv.lotsTotal ?? inv.lines.reduce((s, l) => s + l.amount, 0))}</strong>
+                </div>
+              )}
+              {(inv.donations?.length ?? 0) > 0 && (
+                <>
+                  <h2 className="g-receipt-h">{t("inv.donations")}</h2>
+                  <p className="g-muted g-small">{t("inv.receiptHint")}</p>
+                  <ul className="g-lines">
+                    {inv.donations!.map((d) => (
+                      <li key={d.needId}>
+                        <span>
+                          {d.title}
+                          <small>
+                            {t("inv.donationNote")}
+                            {d.beneficiary ? ` · ${d.beneficiary}` : ""}
+                          </small>
+                        </span>
+                        <strong>{fmt(d.amount)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="g-subtotal">
+                    <span>{t("inv.donationsSub")}</span>
+                    <strong>{fmt(inv.donationsTotal ?? inv.donations!.reduce((s, d) => s + d.amount, 0))}</strong>
+                  </div>
+                </>
+              )}
               <div className="g-due">
-                <span>{paid ? t("inv.paid") : t("inv.due")}</span>
+                <span>{(inv.donations?.length ?? 0) > 0 ? t("inv.grand") : paid ? t("inv.paid") : t("inv.due")}</span>
                 <strong>{fmt(inv.total)}</strong>
               </div>
             </div>
@@ -270,6 +331,24 @@ export function InvoicePage() {
                       : t("inv.deskPay")}
               </strong>
             </div>
+
+            {(inv.donations?.length ?? 0) > 0 && (
+              <form className="g-card g-card-ask" onSubmit={onReceipt}>
+                <h2>{t("inv.receiptLabel")}</h2>
+                <p className="g-muted">{t("inv.receiptHint")}</p>
+                <label className="sr-only" htmlFor="g-receipt">{t("inv.receiptLabel")}</label>
+                <input
+                  id="g-receipt"
+                  className="g-big-input"
+                  value={receiptName}
+                  onChange={(e) => setReceiptName(e.target.value)}
+                  placeholder="Name or company"
+                  maxLength={200}
+                />
+                <button className="g-primary" disabled={savingReceipt}>{t("inv.receiptSave")}</button>
+                {inv.receiptName && <p className="g-ok">{t("inv.receiptSaved", { name: inv.receiptName })}</p>}
+              </form>
+            )}
 
             {emailFirst && emailCard}
 

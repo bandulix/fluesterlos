@@ -29,6 +29,7 @@ import { isFixedPrice } from "../lib/bidLogic";
 import { hostPriceLine } from "../lib/hostText";
 import { HostItemImport } from "./HostItemImport";
 import { HostBulkMedia } from "./HostBulkMedia";
+import { HostNeeds } from "./HostNeeds";
 
 /** Runs a host action: busy state, error/note banner, reloads. With rethrow the caller shows the error inline. */
 export type RunAction = (
@@ -415,6 +416,8 @@ export function HostEventCard(props: {
           </li>
         ))}
       </ul>
+
+      <HostNeeds code={code} ccy={ccy} tz={tz} run={run} />
     </div>
   );
 }

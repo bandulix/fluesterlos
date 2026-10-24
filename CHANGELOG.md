@@ -7,6 +7,15 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — Fund-a-Need
+
+- A second category beside the auction. Guests switch **Auction** / **Donate**. Needs have a target, preset amounts, an optional unit stepper, and a gold progress bar. Pledges are binding, with Undo for 10 seconds, and can be anonymous on the big screen. They may pass 100% (“110% funded”) unless the host caps the need. Fund-a-Need stays open after the auction, or ends at its own time.
+- Hosts create, edit, reorder, hide and close needs, spotlight one need, and correct or void a pledge with an audit trail. Tables and exports include pledges.
+- The big screen rotates between auction highlights and Fund-a-Need bars, runs a pledge ticker, celebrates 100%, and can hold a host-triggered spotlight.
+- The receipt lists won lots and donations separately, with subtotals, a grand total, and a name for the donation receipt.
+- Three example needs for the Thai.GER charity (playground, school uniforms, lunches), labelled as example data. Hosts add them from the event card.
+- Tests: `api/test/pledges.test.ts` (units, caps, the 10-second undo, concurrent pledges, totals across guest, host, big screen and invoice) and `web/test/pledges.test.ts`.
+
 ### Fixed — click test round 5
 
 - **Undo after buy-now**: the Undo toast now lasts 8 s after a fixed-price purchase (5 s after a bid; the server-side undo grace stays 15 s). The toast timer is keyed to the toast and doesn't restart or close when the page re-renders or live updates arrive. It also pauses while the tab is hidden or the pointer is over the toast.

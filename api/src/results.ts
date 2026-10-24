@@ -54,7 +54,43 @@ export function resultColumns(opts: ExportOptions = {}): ResultColumn[] {
 
 const METHOD_LABEL: Record<string, string> = { cash: "Cash", bank_transfer: "Bank transfer", promptpay: "PromptPay" };
 
-export type EventResults = { rows: ResultRow[]; closed: boolean; timezone: string; zoneLabel: string };
+export type PledgeExportRow = {
+  need: string;
+  beneficiary: string;
+  donor: string;
+  receiptName: string;
+  phone: string;
+  email: string;
+  amount: number;
+  units: string;
+  unit: string;
+  anonymous: string;
+  status: string;
+  currency: string;
+};
+
+export type EventResults = {
+  rows: ResultRow[];
+  pledges: PledgeExportRow[];
+  closed: boolean;
+  timezone: string;
+  zoneLabel: string;
+};
+
+const PLEDGE_COLUMNS: Array<{ key: keyof PledgeExportRow; header: string; width: number }> = [
+  { key: "need", header: "Need", width: 36 },
+  { key: "beneficiary", header: "Beneficiary", width: 28 },
+  { key: "donor", header: "Donor", width: 24 },
+  { key: "receiptName", header: "Receipt name", width: 28 },
+  { key: "phone", header: "Phone", width: 16 },
+  { key: "email", header: "Email", width: 28 },
+  { key: "amount", header: "Amount", width: 12 },
+  { key: "units", header: "Units", width: 10 },
+  { key: "unit", header: "Unit", width: 14 },
+  { key: "anonymous", header: "Anonymous on screen", width: 18 },
+  { key: "status", header: "Status", width: 12 },
+  { key: "currency", header: "Currency", width: 10 },
+];
 
 const TIME_KEYS = new Set<keyof ResultRow>(["paidAt", "handedOverAt"]);
 
@@ -98,10 +134,36 @@ export async function eventResults(eventId: string): Promise<EventResults> {
      ORDER BY i.sort_order, i.created_at`,
     [eventId],
   );
+  const pledgeRes = await pool.query(
+    `SELECT n.title AS need, n.beneficiary, n.unit_label,
+            g.name AS guest_name, g.phone, g.email, g.receipt_name,
+            p.amount, p.units, p.anonymous, p.undone_at, p.voided_at
+     FROM pledges p
+     JOIN needs n ON n.id = p.need_id
+     JOIN guests g ON g.id = p.guest_id
+     WHERE n.event_id = $1
+     ORDER BY n.sort_order, p.created_at`,
+    [eventId],
+  );
+  const pledges: PledgeExportRow[] = pledgeRes.rows.map((r) => ({
+    need: r.need,
+    beneficiary: r.beneficiary ?? "",
+    donor: r.guest_name ?? "",
+    receiptName: r.receipt_name ?? "",
+    phone: r.phone ?? "",
+    email: r.email ?? "",
+    amount: money(r.amount),
+    units: r.units == null ? "" : String(r.units),
+    unit: r.unit_label ?? "",
+    anonymous: r.anonymous ? "yes" : "no",
+    status: r.undone_at ? "undone" : r.voided_at ? "voided" : "active",
+    currency,
+  }));
   return {
     closed,
     timezone,
     zoneLabel: `${timezone}, ${offsetLabel(timezone, new Date(ev.rows[0].ends_at))}`,
+    pledges,
     rows: rows.map((r, idx) => ({
       lot: idx + 1,
       item: r.title,
@@ -136,7 +198,10 @@ export function csvCell(v: unknown): string {
  * "(+49) 151 23456789" otherwise — so they never start with + (which Excel reads as a formula)
  * and need no visible apostrophe. Other cells starting with = + - @ are still neutralised.
  */
-export function resultsCsv(res: Pick<EventResults, "rows" | "timezone" | "zoneLabel">, opts: ExportOptions = {}): string {
+export function resultsCsv(
+  res: Pick<EventResults, "rows" | "timezone" | "zoneLabel"> & { pledges?: PledgeExportRow[] },
+  opts: ExportOptions = {},
+): string {
   const cols = resultColumns(opts);
   const head = cols.map((c) => csvCell(header(c, res.zoneLabel))).join(",");
   const body = res.rows.map((r) =>
@@ -148,7 +213,19 @@ export function resultsCsv(res: Pick<EventResults, "rows" | "timezone" | "zoneLa
     }).join(","),
   );
   // BOM so Excel opens UTF-8 (Thai, umlauts) correctly.
-  return "\uFEFF" + [head, ...body].join("\r\n") + "\r\n";
+  // Pledges are a second block, only when this event has any, so an auction-only file stays unchanged.
+  const pledgeBlock =
+    res.pledges && res.pledges.length
+      ? [
+          "",
+          csvCell("Pledges"),
+          PLEDGE_COLUMNS.map((c) => csvCell(c.header)).join(","),
+          ...res.pledges.map((p) =>
+            PLEDGE_COLUMNS.map((c) => (c.key === "phone" ? csvCell(csvPhone(String(p.phone ?? ""))) : csvCell(p[c.key]))).join(","),
+          ),
+        ].join("\r\n") + "\r\n"
+      : "";
+  return "\uFEFF" + [head, ...body].join("\r\n") + "\r\n" + pledgeBlock;
 }
 
 export async function resultsXlsx(res: EventResults, title: string, opts: ExportOptions = {}): Promise<Buffer> {
@@ -176,6 +253,20 @@ export async function resultsXlsx(res: EventResults, title: string, opts: Export
   const total = rows.reduce((s, r) => s + (r.amount ?? 0), 0);
   const totalRow = ws.addRow({ item: `Total — ${title}`, amount: money(total) });
   totalRow.font = { bold: true };
+
+  const ps = wb.addWorksheet("Pledges");
+  ps.columns = PLEDGE_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width }));
+  ps.getRow(1).font = { bold: true };
+  ps.views = [{ state: "frozen", ySplit: 1 }];
+  for (const p of res.pledges ?? []) ps.addRow(p);
+  ps.getColumn("amount").numFmt = "#,##0.00";
+  ps.getColumn("phone").numFmt = "@";
+  const active = (res.pledges ?? []).filter((p) => p.status === "active");
+  const pledgeTotal = ps.addRow({
+    need: "Donations total (active pledges)",
+    amount: money(active.reduce((s, p) => s + p.amount, 0)),
+  });
+  pledgeTotal.font = { bold: true };
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 

@@ -218,7 +218,25 @@ function InvoiceRow(props: {
             </li>
           );
         })}
+        {(inv.donations ?? []).map((d) => (
+          <li key={d.needId} className="line-row">
+            <span>
+              {d.title} — {formatMoney(d.amount, ccy)}
+              {d.beneficiary ? ` · ${d.beneficiary}` : ""}
+            </span>
+            <span className="pill">donation</span>
+            <span className="muted">no item delivered</span>
+          </li>
+        ))}
       </ul>
+      {(inv.donations?.length ?? 0) > 0 && (
+        <p className="muted">
+          Lots {formatMoney(inv.lotsTotal ?? inv.lines.reduce((s, l) => s + l.amount, 0), ccy)}
+          {" · "}
+          Donations {formatMoney(inv.donationsTotal ?? inv.donations!.reduce((s, d) => s + d.amount, 0), ccy)}
+          {inv.receiptName ? ` · receipt name: ${inv.receiptName}` : ""}
+        </p>
+      )}
       {pdfWarning && <p className="banner warn">{pdfWarning}</p>}
       {desk && <p className="banner">{desk}</p>}
       <div className="row">

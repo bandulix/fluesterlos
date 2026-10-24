@@ -10,11 +10,27 @@ export type BidFlash = {
   createdAt: string;
 };
 
+export type PledgeFlash = {
+  pledgeId: string;
+  needId: string;
+  amount: number;
+  units: number | null;
+  anonymous: boolean;
+  guestName: string;
+  text: string;
+  createdAt: string;
+  hitTarget: boolean;
+  fullyFunded: boolean;
+  raised: number;
+};
+
 export function useLive(code: string | undefined) {
   const [live, setLive] = useState<LivePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState(0);
   const [lastBid, setLastBid] = useState<BidFlash | null>(null);
+  const [lastPledge, setLastPledge] = useState<PledgeFlash | null>(null);
+  const [pledgeKey, setPledgeKey] = useState(0);
   // Server clock minus device clock, refreshed with every update (countdowns use server time).
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
 
@@ -40,6 +56,13 @@ export function useLive(code: string | undefined) {
           setFlashKey((k) => k + 1);
         } catch { /* ignore */ }
       });
+      es.addEventListener("pledge", (ev) => {
+        try {
+          const pledge = JSON.parse((ev as MessageEvent).data) as PledgeFlash;
+          setLastPledge(pledge);
+          setPledgeKey((k) => k + 1);
+        } catch { /* ignore */ }
+      });
       es.onerror = () => {
         if (!cancelled) setError("Live connection interrupted — retrying…");
       };
@@ -52,5 +75,5 @@ export function useLive(code: string | undefined) {
     };
   }, [code]);
 
-  return { live, error, flashKey, lastBid, clockOffsetMs };
+  return { live, error, flashKey, lastBid, lastPledge, pledgeKey, clockOffsetMs };
 }

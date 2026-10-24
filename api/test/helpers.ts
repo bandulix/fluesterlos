@@ -11,8 +11,8 @@ export async function freshApp(): Promise<FastifyInstance> {
     migrated = true;
   }
   await pool.query(`
-    TRUNCATE guest_login_codes, invoice_lines, invoices, bids, guests, items, events, sponsors,
-      host_sessions, host_users RESTART IDENTITY CASCADE;
+    TRUNCATE pledge_audit, pledges, invoice_donations, guest_login_codes, invoice_lines, invoices,
+      bids, guests, needs, items, events, sponsors, host_sessions, host_users RESTART IDENTITY CASCADE;
     UPDATE host_settings SET promptpay_id = NULL, payee_name = NULL, qr_image_path = NULL;
   `);
   mailbox.reset();

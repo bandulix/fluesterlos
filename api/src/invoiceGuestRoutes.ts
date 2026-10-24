@@ -49,7 +49,7 @@ export function registerInvoiceGuestRoutes(
       return {
         event: { id: event.id, code: event.code, title: event.title, status, currency },
         invoice: null,
-        message: "No winning bids for you yet",
+        message: "Nothing to pay — no winning bids or donations on your number.",
       };
     }
     const settings = await getHostSettings();
@@ -70,6 +70,13 @@ export function registerInvoiceGuestRoutes(
         status: data.invoice.status,
         hasPayslip: Boolean(data.invoice.payslip_path),
         paidAt: data.invoice.paid_at ? new Date(data.invoice.paid_at).toISOString() : null,
+        lotsTotal: data.invoice.lots_total == null
+          ? money(data.lines.reduce((s, l) => s + money(l.amount), 0))
+          : money(data.invoice.lots_total),
+        donationsTotal: data.invoice.donations_total == null
+          ? money(data.donations.reduce((s, l) => s + money(l.amount), 0))
+          : money(data.invoice.donations_total),
+        receiptName: (data.invoice.receipt_name as string | null) ?? (guest.receipt_name ?? null),
         lines: data.lines.map((l) => ({
           itemId: l.item_id,
           title: l.title,
@@ -80,6 +87,13 @@ export function registerInvoiceGuestRoutes(
             ? { id: l.sponsor_id, name: l.sponsor_name, logoUrl: sponsorLogoUrl(l.sponsor_id, l.sponsor_logo_path) }
             : null,
           handedOverAt: l.handed_over_at ? new Date(l.handed_over_at).toISOString() : null,
+        })),
+        donations: data.donations.map((d) => ({
+          needId: d.need_id,
+          title: d.title,
+          beneficiary: d.beneficiary,
+          amount: money(d.amount),
+          kind: "donation" as const,
         })),
         paymentMethod: data.invoice.payment_method ?? null,
         vouchersEmailedAt: data.invoice.vouchers_emailed_at

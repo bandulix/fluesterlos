@@ -583,6 +583,65 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .import-actions { position: sticky; bottom: 0; background: var(--card-nested); padding: 0.5rem 0; }
 .lot-no { font-variant-numeric: tabular-nums; }
 
+/* Fund-a-Need on the big screen */
+.pledge-ticker-wrap { overflow: hidden; flex: none; }
+.pledge-ticker {
+  display: flex; gap: 2.5rem; width: max-content;
+  color: var(--accent, #d4bc8a); font-weight: 700;
+  animation: pledge-marquee 28s linear infinite;
+}
+.pledge-ticker span { flex: none; white-space: nowrap; }
+.pledge-ticker.is-static { width: auto; animation: none; }
+@keyframes pledge-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.need-bar {
+  height: 10px; margin: 0.4rem 0; border-radius: 999px; overflow: hidden;
+  background: rgba(212, 188, 138, 0.18);
+}
+.need-bar > span {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, #d9c08f, #c6a56e 55%, #b08f57);
+}
+.need-board {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 10px; align-content: start;
+  max-height: 100%; overflow: auto;
+}
+.need-board li {
+  padding: 0.55rem 0.7rem; border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card-nested, rgba(255, 255, 255, 0.03));
+}
+.need-board li.is-on { border-color: #c6a56e; box-shadow: inset 0 0 0 1px #c6a56e; }
+.need-board-top { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 0.6rem; align-items: center; }
+.need-board img, .need-board .board-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; }
+.need-spot { display: grid; grid-template-columns: minmax(0, 0.75fr) 1.25fr; gap: 1.25rem; align-items: center; }
+.need-spot-gift {
+  width: 100%; min-height: 140px; font-size: 4rem;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px; background: var(--card-nested, #101828);
+}
+.example-flag {
+  display: inline-block; margin: 0.2rem 0; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid #c6a56e; color: #d4bc8a;
+  font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.fund-celebrate {
+  position: fixed; inset: 0; z-index: 30;
+  display: grid; place-items: center; align-content: center; text-align: center;
+  background: rgba(7, 11, 22, 0.86);
+  animation: fund-in 0.45s ease-out;
+}
+.fund-celebrate p, .fund-celebrate h2 { margin: 0.2rem 0; }
+.fund-celebrate h2 { font-size: clamp(2rem, 5vw, 4rem); color: var(--text-strong, #fff); }
+.fund-celebrate.is-still { animation: none; }
+@keyframes fund-in { from { opacity: 0; } to { opacity: 1; } }
+.engager.is-spotlight .highlight { box-shadow: inset 0 0 0 1px #c6a56e; }
+.engager.reduce-motion .pledge-ticker,
+.engager.reduce-motion .fund-celebrate { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .pledge-ticker, .fund-celebrate { animation: none !important; }
+}
+
 /* Round 4 */
 .saved-note { color: #22c55e; font-weight: 600; align-self: center; }
 .inline-check { display: inline-flex; flex-direction: row; align-items: center; gap: 0.35rem; margin: 0; font-size: 0.85rem; }

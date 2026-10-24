@@ -3,8 +3,9 @@ import { useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { assetUrl } from "../lib/api";
-import type { LiveItem, Sponsor } from "../lib/api";
+import type { LiveItem, Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
+import { bigScreenFrame, raisedSplit } from "../lib/pledgeLogic";
 import { BrandMark } from "../components/BrandMark";
 import { Countdown } from "../components/Countdown";
 import { SponsorBadge } from "../components/SponsorBadge";
@@ -119,13 +120,36 @@ function SponsorStrip({ sponsors, reduceMotion }: { sponsors: Sponsor[]; reduceM
   );
 }
 
+function NeedSpotlight({ need, money, spotlight }: { need: Need; money: (n: number) => string; spotlight: boolean }) {
+  return (
+    <div className="need-spot">
+      {need.photoUrl ? <img className="highlight-photo" src={assetUrl(need.photoUrl)} alt="" /> : <span className="board-thumb need-spot-gift" aria-hidden="true">🎁</span>}
+      <div>
+        <p className="muted">{spotlight ? "Fund-a-Need spotlight" : "Fund a need"}</p>
+        <h2>{need.title}</h2>
+        {need.example && <p className="example-flag">Example</p>}
+        <p className="muted">{need.beneficiary}</p>
+        <div className="need-bar" role="progressbar" aria-valuenow={Math.round(need.barPercent)} aria-valuemin={0} aria-valuemax={100} aria-label={need.label}>
+          <span style={{ width: `${need.barPercent}%` }} />
+        </div>
+        <p className="big-amount">{money(need.raised)}</p>
+        <p className="muted spot-sub">
+          {need.fullyFunded ? "Fully funded!" : need.label}
+          {need.overFunded ? ` · ${need.label}` : ""} · of {money(need.targetAmount)} · {need.donorCount}{" "}
+          {need.donorCount === 1 ? "donor" : "donors"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function shortUrl(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
 export function EngagerPage() {
   const { code = "" } = useParams();
-  const { live, error, flashKey, lastBid } = useLive(code);
+  const { live, error, flashKey, lastBid, lastPledge, pledgeKey } = useLive(code);
   const reduceMotion = usePrefersReducedMotion();
   const [flash, setFlash] = useState(false);
   const [flashItem, setFlashItem] = useState<string | null>(null);
@@ -133,6 +157,8 @@ export function EngagerPage() {
   const [step, setStep] = useState(0);
   /** Item that just got a bid: shown in the spotlight until the next rotation. */
   const [pinned, setPinned] = useState<string | null>(null);
+  const [pinNeeds, setPinNeeds] = useState(false);
+  const [celebrateId, setCelebrateId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [boardRef, boardSize] = useSize<HTMLDivElement>();
@@ -158,13 +184,22 @@ export function EngagerPage() {
   }, [flashKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (items.length === 0) return;
+    if (!pledgeKey || !lastPledge) return;
+    setPinNeeds(true);
+    if (lastPledge.hitTarget) setCelebrateId(lastPledge.needId);
+    const clear = window.setTimeout(() => setCelebrateId(null), reduceMotion ? 4000 : 8000);
+    return () => window.clearTimeout(clear);
+  }, [pledgeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (items.length === 0 && (live?.needs?.length ?? 0) === 0) return;
     const id = setInterval(() => {
       setPinned(null);
+      setPinNeeds(false);
       setStep((s) => s + 1);
     }, SPOTLIGHT_MS);
     return () => clearInterval(id);
-  }, [items.length, pinned]);
+  }, [items.length, live?.needs?.length, pinned, pinNeeds]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -197,6 +232,14 @@ export function EngagerPage() {
   const joinUrl = live.event.joinUrl;
   const isLive = live.event.status === "open";
   const closed = live.event.status === "closed";
+  const needs = live.needs ?? [];
+  const spotlightNeed = needs.find((n) => n.id === live.event.spotlightNeedId) ?? null;
+  const frame = bigScreenFrame(step, needs.length, Boolean(spotlightNeed), pinNeeds);
+  const featuredNeed = spotlightNeed ?? (needs.length ? needs[step % needs.length] : null);
+  const raised = raisedSplit(live.stats);
+  const showSplit = needs.length > 0 || raised.donations > 0;
+  const celebrate = needs.find((n) => n.id === celebrateId) ?? null;
+  const ticker = live.recentPledges ?? [];
   const highlight = (pinned && items.find((it) => it.id === pinned)) || spotlightAt(step, items, live.recentBids);
   const spot = highlight ? spotlightText(highlight, closed) : null;
   const sponsors = [...new Map(items.filter((i) => i.sponsor).map((i) => [i.sponsor!.id, i.sponsor!])).values()];
@@ -211,7 +254,7 @@ export function EngagerPage() {
   };
 
   return (
-    <div className={`engager${isLive ? " is-live" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}`}>
+    <div className={`engager${isLive ? " is-live" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}${spotlightNeed ? " is-spotlight" : ""}`}>
       <header>
         <div>
           <BrandMark />
@@ -228,15 +271,21 @@ export function EngagerPage() {
       <div className="engager-top">
         <section className={`panel totals${flash ? " bid-flash" : ""}`}>
           <p className="muted">{closed ? "Raised" : "Raised so far"}</p>
-          <p className="huge">{money(live.stats.totalHighBids)}</p>
+          <p className="huge">{money(showSplit ? raised.total : live.stats.totalHighBids)}</p>
+          {showSplit && (
+            <p className="muted">Auction {money(raised.auction)} · Donations {money(raised.donations)}</p>
+          )}
           <p className="muted">
             from {live.stats.totalBids} {live.stats.totalBids === 1 ? "bid" : "bids"} on {live.stats.itemCount}{" "}
             {live.stats.itemCount === 1 ? "lot" : "lots"}
+            {raised.donations > 0 ? ` · ${live.stats.donorCount ?? 0} donors` : ""}
           </p>
         </section>
 
-        <section className={`panel highlight${flash ? " bid-flash" : ""}`}>
-          {highlight ? (
+        <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}`}>
+          {frame === "needs" && featuredNeed ? (
+            <NeedSpotlight need={featuredNeed} money={money} spotlight={Boolean(spotlightNeed)} />
+          ) : highlight ? (
             <div className="highlight-row">
               {highlight.photoUrl && <img className="highlight-photo" src={assetUrl(highlight.photoUrl)} alt="" />}
               <div className="highlight-text">
@@ -268,11 +317,29 @@ export function EngagerPage() {
         )}
       </div>
 
+      {ticker.length > 0 && (
+        <div className="pledge-ticker-wrap">
+          <div className={`pledge-ticker${reduceMotion ? " is-static" : ""}`} aria-live="polite">
+            {(reduceMotion ? ticker.slice(0, 1) : [...ticker, ...ticker]).map((p, i) => (
+              <span key={`${p.id}-${i}`}>{p.text}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {celebrate && (
+        <div className={`fund-celebrate${reduceMotion ? " is-still" : ""}`} role="status">
+          <p>Fully funded!</p>
+          <h2>{celebrate.title}</h2>
+          <p className="big-amount">{money(celebrate.raised)}</p>
+        </div>
+      )}
+
       <div className="engager-bottom">
         <section className="panel items-board">
           <div className="board-head">
-            <h3>{closed ? "Results" : "All items"} <span className="muted">({items.length})</span></h3>
-            {pages > 1 && (
+            <h3>{frame === "needs" ? "Fund-a-Need" : closed ? "Results" : "All items"} <span className="muted">({frame === "needs" ? needs.length : items.length})</span></h3>
+            {frame !== "needs" && pages > 1 && (
               <div className="board-pager" aria-label={`Page ${curPage + 1} of ${pages}`}>
                 <span className="muted">
                   {curPage * fit.perPage + 1}–{Math.min(items.length, (curPage + 1) * fit.perPage)} of {items.length}
@@ -286,6 +353,26 @@ export function EngagerPage() {
             )}
           </div>
           <div className="board-body" ref={boardRef}>
+          {frame === "needs" ? (
+            <ul className="need-board">
+              {needs.map((n) => (
+                <li key={n.id} className={n.id === featuredNeed?.id ? "is-on" : ""}>
+                  <div className="need-board-top">
+                    {n.photoUrl ? <img src={assetUrl(n.photoUrl)} alt="" /> : <span className="board-thumb" aria-hidden="true">🎁</span>}
+                    <div>
+                      <p className="board-title">{n.title}</p>
+                      <p className="board-meta">{n.beneficiary}</p>
+                    </div>
+                    <p className="board-amount">{money(n.raised)}</p>
+                  </div>
+                  <div className="need-bar" role="progressbar" aria-valuenow={Math.round(n.barPercent)} aria-valuemin={0} aria-valuemax={100} aria-label={n.label}>
+                    <span style={{ width: `${n.barPercent}%` }} />
+                  </div>
+                  <p className="board-meta">{n.fullyFunded ? "Fully funded!" : n.label}{n.overFunded ? ` · ${n.label}` : ""} · {n.donorCount} {n.donorCount === 1 ? "donor" : "donors"}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
           <ul
             className="board-grid"
             key={reduceMotion ? "static" : `p-${curPage}`}
@@ -313,6 +400,7 @@ export function EngagerPage() {
               );
             })}
           </ul>
+          )}
           </div>
         </section>
 

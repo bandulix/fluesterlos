@@ -150,13 +150,18 @@ export function registerInvoiceHostRoutes(
       };
     }
     const list = await listEventInvoices(event.id);
-    const invoices = list.map(({ invoice, lines }) => ({
+    const invoices = list.map(({ invoice, lines, donations }) => ({
       id: invoice.id,
       guestId: invoice.guest_id,
       guestName: invoice.guest_name,
       guestEmail: invoice.guest_email,
       guestPhone: invoice.guest_phone,
       total: money(invoice.total),
+      lotsTotal: invoice.lots_total == null ? money(lines.reduce((s, l) => s + money(l.amount), 0)) : money(invoice.lots_total),
+      donationsTotal: invoice.donations_total == null
+        ? money(donations.reduce((s, l) => s + money(l.amount), 0))
+        : money(invoice.donations_total),
+      receiptName: (invoice.receipt_name as string | null) ?? null,
       status: invoice.status,
       paymentMethod: invoice.payment_method ?? null,
       paidBy: invoice.paid_by ?? null,
@@ -174,6 +179,12 @@ export function registerInvoiceHostRoutes(
         hasVoucher: Boolean(l.voucher_pdf_path),
         sponsorName: l.sponsor_name,
         handedOverAt: l.handed_over_at ? new Date(l.handed_over_at).toISOString() : null,
+      })),
+      donations: donations.map((d) => ({
+        needId: d.need_id,
+        title: d.title,
+        beneficiary: d.beneficiary,
+        amount: money(d.amount),
       })),
     }));
     const allLines = invoices.flatMap((i) => i.lines);

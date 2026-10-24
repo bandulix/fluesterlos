@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, clearGuestToken, getGuestToken, GuestMe, LiveItem, maskPhone } from "../lib/api";
+import { api, clearGuestToken, getGuestToken, GuestMe, LiveItem, maskPhone, Need } from "../lib/api";
+import { pledgedNeedIds, pledgeTotal, raisedSplit } from "../lib/pledgeLogic";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
 import {
@@ -27,6 +28,7 @@ import { NameNudge } from "../guest/NameNudge";
 import { GuestMenu } from "../guest/GuestMenu";
 import { SwitchConfirm } from "../guest/SwitchConfirm";
 import { InstallHint } from "../guest/InstallHint";
+import { NeedCard, PledgeDraft } from "../guest/NeedCard";
 import { OutbidBanner } from "../guest/OutbidBanner";
 import { useNow } from "../guest/useNow";
 import "../guest/guest.css";
@@ -49,12 +51,16 @@ export function BidPage() {
   const { code = "" } = useParams();
   const nav = useNavigate();
   const token = getGuestToken(code);
-  const { live, error, flashKey, lastBid, clockOffsetMs } = useLive(code);
+  const { live, error, flashKey, lastBid, lastPledge, pledgeKey, clockOffsetMs } = useLive(code);
   const now = useNow(clockOffsetMs);
   const [me, setMe] = useState<GuestMe | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [chosen, setChosen] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [category, setCategory] = useState<"auction" | "donate">("auction");
+  const [donateFilter, setDonateFilter] = useState<"all" | "mine">("all");
+  const [openNeed, setOpenNeed] = useState<string | null>(null);
+  const [fundedId, setFundedId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [outbid, setOutbid] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ id: string; text: string } | null>(null);
@@ -118,6 +124,59 @@ export function BidPage() {
     const id = window.setTimeout(() => setSavedName(null), 2600);
     return () => window.clearTimeout(id);
   }, [savedName]);
+
+  useEffect(() => {
+    if (!pledgeKey || !lastPledge?.hitTarget) return;
+    setFundedId(lastPledge.needId);
+    setCategory("donate");
+    setOpenNeed(lastPledge.needId);
+    const id = window.setTimeout(() => setFundedId(null), 8000);
+    return () => window.clearTimeout(id);
+  }, [pledgeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const undoPledge = useCallback(
+    async (pledgeId: string) => {
+      setToast(null);
+      try {
+        await api(`/api/events/${code}/pledges/${pledgeId}`, { method: "DELETE" }, token);
+        say(t("donate.undone"));
+        await loadMe().catch(() => undefined);
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        say(status === 409 || status === 404 ? t("donate.undoLate") : (err as Error).message);
+      }
+    },
+    [code, token, loadMe, say],
+  );
+
+  const onPledge = useCallback(
+    async (need: Need, draft: PledgeDraft) => {
+      const ccy = parseCurrency(live?.event.currency);
+      setBusyId(need.id);
+      try {
+        const res = await api<{ pledgeId?: string; undoSeconds?: number; amount: number }>(
+          `/api/events/${code}/pledges`,
+          { method: "POST", body: JSON.stringify({ needId: need.id, ...draft }) },
+          token,
+        );
+        const amount = res.amount;
+        const pledgeId = res.pledgeId;
+        const text = t("donate.toast", { amount: formatAmount(amount, ccy), title: need.title });
+        setToast(
+          pledgeId
+            ? { id: Date.now(), text, ms: (res.undoSeconds ?? 10) * 1000, action: { label: t("bid.undo"), onClick: () => undoPledge(pledgeId) } }
+            : { id: Date.now(), text },
+        );
+        vibrate(30);
+        await loadMe().catch(() => undefined);
+      } catch (err) {
+        say((err as Error).message);
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [code, token, live?.event.currency, loadMe, undoPledge, say],
+  );
 
   const undoBid = useCallback(
     async (bidId: string) => {
@@ -222,7 +281,16 @@ export function BidPage() {
   const counts = filterCounts(live.items, me);
   const visible = filterItems(live.items, filter, me);
   const won = wonItems(live.items, me);
-  const hasBid = (me?.bidItemIds?.length ?? 0) > 0;
+  const needs = live.needs ?? [];
+  const myPledgeIds = pledgedNeedIds(me?.pledges);
+  const myPledgeSum = pledgeTotal(me?.pledges);
+  const raised = raisedSplit(live.stats);
+  const showSplit = needs.length > 0 || raised.donations > 0;
+  const owes = won.length > 0 || myPledgeSum > 0;
+  const hasBid = (me?.bidItemIds?.length ?? 0) > 0 || myPledgeSum > 0;
+  const myNeeds = needs.filter((n) => myPledgeIds.includes(n.id));
+  const donateNeeds = donateFilter === "mine" ? myNeeds : needs;
+  const amountOn = (id: string) => (me?.pledges ?? []).filter((p) => p.needId === id).reduce((s, p) => s + p.amount, 0);
   const showNudge = Boolean(
     me?.guest &&
       eventStatus !== "closed" &&
@@ -249,7 +317,7 @@ export function BidPage() {
           me?.guest ? (
             <GuestMenu
               who={who}
-              payHref={eventStatus === "closed" && won.length ? `/e/${code}/invoice` : undefined}
+              payHref={eventStatus === "closed" && owes ? `/e/${code}/invoice` : undefined}
               onChangeName={eventStatus !== "closed" ? () => setEditName(true) : undefined}
               onSwitch={switchUser}
             />
@@ -271,11 +339,13 @@ export function BidPage() {
 
       <div className="g-content">
         {eventStatus === "closed" && (
-          <div className={`g-result${won.length ? " is-won" : ""}`}>
-            {won.length ? (
+          <div className={`g-result${owes ? " is-won" : ""}`}>
+            {owes ? (
               <>
                 <div>
-                  <strong className="g-result-title">🎉 {plural("bid.wonCtaOne", "bid.wonCta", won.length)}</strong>
+                  <strong className="g-result-title">
+                    {won.length ? `🎉 ${plural("bid.wonCtaOne", "bid.wonCta", won.length)}` : t("bid.pledgesReady")}
+                  </strong>
                   <span>{t("bid.thanks")}</span>
                 </div>
                 <Link to={`/e/${code}/invoice`} className="g-primary g-primary-inline" onMouseEnter={prefetchInvoice}>
@@ -302,28 +372,72 @@ export function BidPage() {
           />
         )}
 
-        {(counts.mine > 0 || filter !== "all") && (
-          <FilterChips value={filter} counts={counts} closed={eventStatus === "closed"} onChange={setFilter} />
-        )}
+        <div className="g-switch" role="tablist" aria-label={t("cat.label")}>
+          <button type="button" role="tab" aria-selected={category === "auction"} className={category === "auction" ? "is-active" : ""} onClick={() => setCategory("auction")}>
+            {t("cat.auction")}
+          </button>
+          <button type="button" role="tab" aria-selected={category === "donate"} className={category === "donate" ? "is-active" : ""} onClick={() => setCategory("donate")}>
+            {t("cat.donate")}
+          </button>
+        </div>
 
-        {eventStatus === "open" && (
+        {(eventStatus === "open" || showSplit) && (
           <div className="g-raised">
             <span className="g-price-label">{t("bid.raised")}</span>
-            <strong>{formatAmount(live.stats.totalHighBids, ccy)}</strong>
+            <strong>{formatAmount(showSplit ? raised.total : live.stats.totalHighBids, ccy)}</strong>
             <span className="g-muted">
-              {t("bid.raisedCaption", {
-                bids: plural("bid.oneBid", "bid.bids", live.stats.totalBids),
-                lots: plural("bid.oneLot", "bid.lots", live.stats.itemCount),
-              })}
+              {showSplit
+                ? t("bid.raisedSplit", { auction: formatAmount(raised.auction, ccy), donations: formatAmount(raised.donations, ccy) })
+                : t("bid.raisedCaption", {
+                    bids: plural("bid.oneBid", "bid.bids", live.stats.totalBids),
+                    lots: plural("bid.oneLot", "bid.lots", live.stats.itemCount),
+                  })}
             </span>
           </div>
         )}
 
+        {category === "auction" && (counts.mine > 0 || myNeeds.length > 0 || filter !== "all") && (
+          <FilterChips value={filter} counts={counts} closed={eventStatus === "closed"} onChange={setFilter} />
+        )}
+
+        {category === "donate" && (
+          <div className="g-chips" role="tablist" aria-label={t("donate.section")}>
+            <button type="button" className={`g-chip${donateFilter === "all" ? " is-active" : ""}`} onClick={() => setDonateFilter("all")}>
+              {t("donate.filter.all")}
+            </button>
+            <button type="button" className={`g-chip${donateFilter === "mine" ? " is-active" : ""}`} onClick={() => setDonateFilter("mine")}>
+              {t("donate.filter.mine")}
+              {myNeeds.length > 0 && <span className="g-chip-count">{myNeeds.length}</span>}
+            </button>
+          </div>
+        )}
+
         <p className="g-section">
-          <span aria-hidden="true">★</span> {t("bid.sectionLots")} <span aria-hidden="true">★</span>
+          <span aria-hidden="true">★</span> {category === "donate" ? t("donate.section") : t("bid.sectionLots")} <span aria-hidden="true">★</span>
         </p>
 
-        <div className="g-items">
+        {category === "donate" && (
+          <div className="g-items">
+            {donateNeeds.map((n) => (
+              <NeedCard
+                key={n.id}
+                need={n}
+                ccy={ccy}
+                expanded={openNeed === n.id}
+                busy={busyId === n.id}
+                myAmount={amountOn(n.id)}
+                justFunded={fundedId === n.id}
+                onToggle={() => setOpenNeed((id) => (id === n.id ? null : n.id))}
+                onPledge={(draft) => onPledge(n, draft)}
+              />
+            ))}
+            {donateNeeds.length === 0 && (
+              <p className="g-empty">{donateFilter === "mine" ? t("donate.filter.empty") : t("donate.empty")}</p>
+            )}
+          </div>
+        )}
+
+        {category === "auction" && <div className="g-items">
           {visible.map((it) => {
             const lead = live.recentBids.find((b) => b.itemId === it.id);
             const ago = lead ? agoLabel(lead.createdAt, now) : null;
@@ -348,10 +462,28 @@ export function BidPage() {
               />
             );
           })}
-          {visible.length === 0 && filter !== "all" && (
+          {visible.length === 0 && filter !== "all" && !(filter === "mine" && myNeeds.length > 0) && (
             <p className="g-empty">{t(eventStatus === "closed" ? `bid.filter.emptyClosed.${filter}` : `bid.filter.empty.${filter}`)}</p>
           )}
-        </div>
+          {filter === "mine" && myNeeds.length > 0 && (
+            <>
+              <p className="g-section">{t("donate.mine")}</p>
+              {myNeeds.map((n) => (
+                <NeedCard
+                  key={n.id}
+                  need={n}
+                  ccy={ccy}
+                  expanded={openNeed === n.id}
+                  busy={busyId === n.id}
+                  myAmount={amountOn(n.id)}
+                  justFunded={fundedId === n.id}
+                  onToggle={() => setOpenNeed((id) => (id === n.id ? null : n.id))}
+                  onPledge={(draft) => onPledge(n, draft)}
+                />
+              ))}
+            </>
+          )}
+        </div>}
 
         {me?.guest &&
           (confirmSwitch ? (
