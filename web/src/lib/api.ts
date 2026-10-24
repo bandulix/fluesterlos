@@ -52,6 +52,8 @@ export type LivePayload = {
   needs?: Need[];
   topDonors?: TopDonor[];
   recentPledges?: RecentPledge[];
+  /** Live paddle raise. Null when the host has not started one. */
+  paddle?: PaddleRaise | null;
   stats: {
     guestCount: number;
     totalHighBids: number;
@@ -184,6 +186,24 @@ export type TopDonor = {
   tier: "gold" | "silver" | "bronze" | "list";
   name: string;
   amount: number | null;
+};
+
+export type PaddlePop = { id: string; name: string; amount: number; createdAt: string };
+
+export type PaddleRaise = {
+  status: "live" | "paused" | "ended";
+  title: string;
+  needId: string;
+  goal: number;
+  raised: number;
+  level: number | null;
+  levels: number[];
+  levelIndex: number;
+  levelCount: number;
+  hitGoal: boolean;
+  pledgeCount: number;
+  atLevel: number;
+  pops: PaddlePop[];
 };
 
 export type RecentPledge = {

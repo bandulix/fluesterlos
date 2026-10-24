@@ -3,6 +3,7 @@ import { api, LivePayload, Need } from "../lib/api";
 import { Currency, formatMoney } from "../lib/money";
 import { instantToWallTime, wallTimeToIso } from "../lib/time";
 import type { RunAction } from "./HostEventCard";
+import { PaddleHost } from "./PaddleHost";
 
 type HostPledge = {
   id: string;
@@ -186,6 +187,7 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
 
   return (
     <div className="stack fund-host">
+      <PaddleHost code={code} ccy={ccy} run={run} />
       <div className="row between">
         <h3>Fund-a-Need</h3>
         <div className="row">

@@ -1,0 +1,86 @@
+import { useEffect, useRef, useState } from "react";
+import type { PaddleRaise } from "../lib/api";
+import { t } from "../i18n";
+import { countUpAt, COUNT_UP_MS, paddleHit, paddleProgress } from "../lib/paddleLogic";
+import { formatAmount, type Currency } from "../lib/money";
+
+/**
+ * Room display for a live paddle raise. The layout follows a charity goal counter:
+ * the ask, a large running total, a bar to the goal, and gifts appearing as they land.
+ * GoFundMe's campaign page is the reference for the total-and-bar pairing.
+ */
+export function PaddleStage(props: {
+  paddle: PaddleRaise;
+  ccy: Currency;
+  reduceMotion: boolean;
+}) {
+  const { paddle, ccy, reduceMotion } = props;
+  const money = (n: number) => formatAmount(n, ccy);
+  const shown = useCountUp(paddle.raised, reduceMotion);
+  const hit = paddleHit(paddle.raised, paddle.goal);
+  const settled = shown === paddle.raised;
+  const width = paddleProgress(settled ? paddle.raised : shown, paddle.goal);
+  const paused = paddle.status === "paused";
+  const level = paddle.level != null ? money(paddle.level) : "";
+  const pledges = paddle.pledgeCount === 1 ? t("paddle.pledge") : t("paddle.pledges", { count: paddle.pledgeCount });
+  const atLevel = paddle.atLevel === 1 ? t("paddle.atLevelOne", { amount: level }) : t("paddle.atLevel", { count: paddle.atLevel, amount: level });
+  return (
+    <section className={`paddle-stage${hit ? " is-hit" : ""}${paused ? " is-paused" : ""}${reduceMotion ? " is-still" : ""}`} aria-live="polite">
+      {hit && !reduceMotion && (
+        <div className="paddle-confetti" aria-hidden="true">
+          {Array.from({ length: 18 }, (_, i) => <i key={i} />)}
+        </div>
+      )}
+      <p className="paddle-kicker">{paddle.title}</p>
+      {hit ? (
+        <h2 className="paddle-ask">{t("paddle.thanks")}</h2>
+      ) : (
+        paddle.level != null && <h2 className="paddle-ask">{t("paddle.ask", { amount: level })}</h2>
+      )}
+      {hit && paddle.level != null && <p className="paddle-still">{t("paddle.still", { amount: level })}</p>}
+      {paused && <p className="paddle-paused">Paused</p>}
+      <p className="paddle-total">{settled ? money(paddle.raised) : money(Math.round(shown))}</p>
+      <div className="paddle-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(paddleProgress(paddle.raised, paddle.goal))} aria-label={`${money(paddle.raised)} of ${money(paddle.goal)}`}>
+        <span style={{ width: `${width}%` }} />
+      </div>
+      <p className="paddle-goal">{money(paddle.raised)} of {money(paddle.goal)}</p>
+      <p className="paddle-count">{pledges}{paddle.level != null ? ` · ${atLevel}` : ""}</p>
+      <ul className="paddle-pops">
+        {paddle.pops.map((p, i) => (
+          <li key={p.id} className={i === 0 ? "is-new" : undefined}>
+            <span>{p.name}</span>
+            <strong>{money(p.amount)}</strong>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function useCountUp(target: number, still: boolean): number {
+  const [value, setValue] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    if (still || from.current === target) {
+      from.current = target;
+      setValue(target);
+      return;
+    }
+    const start = from.current;
+    const t0 = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const next = countUpAt(start, target, now - t0, COUNT_UP_MS);
+      if (next === target) {
+        from.current = target;
+        setValue(target);
+        return;
+      }
+      setValue(next);
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, still]);
+  return value;
+}

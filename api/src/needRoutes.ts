@@ -20,6 +20,7 @@ import {
 import { parseSuggestedAmounts } from "./pledges.js";
 import { listDonationRoutes, setDonationRouteOverride } from "./donationRoute.js";
 import { hostDonorBoard, moderateDonor, saveGuestRecognition } from "./recognition.js";
+import { guestPaddlePledge, hostPaddlePledge, startPaddle, stepPaddle } from "./paddle.js";
 import type { HostUser } from "./hostAuth.js";
 
 type EventRow = {
@@ -629,5 +630,108 @@ export function registerNeedRoutes(
     const live = await buildLivePayload(ctx.event.id, ctx.event.code);
     publish(ctx.event.code, "update", live);
     return { ok: true, live };
+  });
+
+  const paddleStart = z.object({
+    action: z.literal("start"),
+    needId: z.string().uuid().nullable().optional(),
+    title: z.string().max(200).optional(),
+    levels: z.array(z.number()).min(1).max(8),
+    goal: z.number().positive(),
+  });
+  const paddleStep = z.object({ action: z.enum(["next", "pause", "resume", "end"]) });
+
+  app.post("/api/host/events/:code/paddle", async (req, reply) => {
+    const ctx = await hostEvent(req, reply);
+    if (!ctx) return;
+    const body = req.body;
+    const start = paddleStart.safeParse(body);
+    const step = paddleStep.safeParse(body);
+    try {
+      if (start.success) {
+        await startPaddle({
+          eventId: ctx.event.id,
+          needId: start.data.needId,
+          title: start.data.title,
+          levels: start.data.levels,
+          goal: start.data.goal,
+        });
+      } else if (step.success) {
+        await stepPaddle(ctx.event.id, step.data.action);
+      } else {
+        return reply.code(400).send({ error: "Say whether to start, go to the next level, pause, resume, or end" });
+      }
+    } catch (e) {
+      const err = e as Error & { statusCode?: number };
+      if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.message });
+      throw e;
+    }
+    const live = await buildLivePayload(ctx.event.id, ctx.event.code);
+    publish(ctx.event.code, "update", live);
+    return { ok: true, live };
+  });
+
+  app.post("/api/host/events/:code/paddle/pledge", async (req, reply) => {
+    const ctx = await hostEvent(req, reply);
+    if (!ctx) return;
+    const parsed = z.object({ who: z.string().max(80) }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Enter a name or a guest number" });
+    try {
+      const placed = await hostPaddlePledge({
+        eventId: ctx.event.id,
+        who: parsed.data.who,
+        actor: `host:${ctx.host.email}`,
+      });
+      const live = await buildLivePayload(ctx.event.id, ctx.event.code);
+      publish(ctx.event.code, "update", live);
+      publish(ctx.event.code, "pledge", {
+        pledgeId: placed.pledgeId,
+        needId: placed.needId,
+        amount: placed.amount,
+        units: placed.units,
+        anonymous: placed.anonymous,
+        guestName: placed.displayName,
+        text: placed.text,
+        createdAt: placed.createdAt,
+        hitTarget: placed.hitTarget,
+        fullyFunded: placed.fullyFunded,
+        raised: placed.raised,
+      });
+      return { ok: true, ...placed, live };
+    } catch (e) {
+      const err = e as Error & { statusCode?: number };
+      if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.message });
+      throw e;
+    }
+  });
+
+  app.post("/api/events/:code/paddle", { config: rateLimitFor("bid") }, async (req, reply) => {
+    const event = await getEventByCode(codeOf((req.params as { code: string }).code));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    try {
+      const placed = await guestPaddlePledge({ eventId: event.id, guestId: guest.id, guestName: guest.name });
+      const live = await buildLivePayload(event.id, event.code);
+      publish(event.code, "update", live);
+      publish(event.code, "pledge", {
+        pledgeId: placed.pledgeId,
+        needId: placed.needId,
+        amount: placed.amount,
+        units: placed.units,
+        anonymous: placed.anonymous,
+        guestName: placed.displayName,
+        text: placed.text,
+        createdAt: placed.createdAt,
+        hitTarget: placed.hitTarget,
+        fullyFunded: placed.fullyFunded,
+        raised: placed.raised,
+      });
+      return { ok: true, ...placed, undoSeconds: PLEDGE_UNDO_SECONDS, live };
+    } catch (e) {
+      const err = e as Error & { statusCode?: number };
+      if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.message });
+      throw e;
+    }
   });
 }

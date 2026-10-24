@@ -8,6 +8,8 @@ import { useLive } from "../lib/useLive";
 import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
 import { auctionClock } from "../lib/auctionClock";
 import { AuctionClock } from "../components/AuctionClock";
+import { PaddleStage } from "../components/PaddleStage";
+import { roomMain } from "../lib/paddleLogic";
 import { BrandMark } from "../components/BrandMark";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
@@ -314,7 +316,9 @@ export function EngagerPage() {
         reduceMotion={reduceMotion}
       />
 
-      {clock.takeover ? (
+      {roomMain({ countdownTakeover: clock.takeover, paddleStatus: live.paddle?.status }) === "paddle" && live.paddle ? (
+        <PaddleStage paddle={live.paddle} ccy={ccy} reduceMotion={reduceMotion} />
+      ) : clock.takeover ? (
         <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${clock.seconds} seconds`}>
           <p className="auction-clock-kicker">Final seconds</p>
           <p className="auction-seconds">{clock.seconds}</p>
