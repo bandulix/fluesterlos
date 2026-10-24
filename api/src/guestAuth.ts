@@ -18,6 +18,11 @@ export type GuestRow = {
   guest_no?: number | null;
   /** Name or company as it should appear on a donation receipt. */
   receipt_name?: string | null;
+  recognize_public?: boolean;
+  public_name?: string;
+  show_pledge_amount?: boolean;
+  recognition_hidden?: boolean;
+  recognition_name?: string;
 };
 
 const CODE_TTL_MINUTES = 10;

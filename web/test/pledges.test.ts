@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bigScreenFrame, pledgeTotal, pledgedNeedIds, raisedSplit, stepUnits, unitsCost } from "../src/lib/pledgeLogic";
+import { anonymousGiftLabel, bigScreenFrame, pledgeTotal, pledgedNeedIds, raisedSplit, recognitionMoves, stepUnits, unitsCost } from "../src/lib/pledgeLogic";
 
 describe("raised split", () => {
   it("adds auction high bids and donations, and trusts a server total", () => {
@@ -54,5 +54,34 @@ describe("big screen frame", () => {
     expect(bigScreenFrame(2, 3, false, false)).toBe("auction");
     expect(bigScreenFrame(0, 3, true, false)).toBe("needs");
     expect(bigScreenFrame(0, 3, false, true)).toBe("needs");
+  });
+
+  it("rotates Top Donors, and a spotlight holds that frame", () => {
+    expect(bigScreenFrame(0, 3, false, false, true)).toBe("auction");
+    expect(bigScreenFrame(1, 3, false, false, true)).toBe("needs");
+    expect(bigScreenFrame(2, 3, false, false, true)).toBe("donors");
+    expect(bigScreenFrame(3, 3, false, false, true)).toBe("auction");
+    expect(bigScreenFrame(1, 3, true, false, true, false)).toBe("needs");
+    expect(bigScreenFrame(1, 3, true, false, true, true)).toBe("donors");
+    expect(bigScreenFrame(0, 0, false, false, true, true)).toBe("donors");
+  });
+});
+
+describe("donor recognition display", () => {
+  it("counts anonymous gifts and celebrates a move into the top 3", () => {
+    expect(anonymousGiftLabel(0)).toBe("");
+    expect(anonymousGiftLabel(1)).toBe("+ 1 anonymous gift");
+    expect(anonymousGiftLabel(4)).toBe("+ 4 anonymous gifts");
+    const before = [
+      { name: "A", rank: 1 },
+      { name: "B", rank: 2 },
+      { name: "C", rank: 4 },
+    ];
+    expect(recognitionMoves(before, [
+      { name: "C", rank: 2 },
+      { name: "A", rank: 1 },
+      { name: "D", rank: 3 },
+    ])).toEqual(["C", "D"]);
+    expect(recognitionMoves(before, before)).toEqual([]);
   });
 });

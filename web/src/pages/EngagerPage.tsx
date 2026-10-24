@@ -5,9 +5,10 @@ import { formatAmount, parseCurrency } from "../lib/money";
 import { assetUrl } from "../lib/api";
 import type { LiveItem, Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
-import { bigScreenFrame, raisedSplit } from "../lib/pledgeLogic";
+import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
+import { auctionClock } from "../lib/auctionClock";
+import { AuctionClock } from "../components/AuctionClock";
 import { BrandMark } from "../components/BrandMark";
-import { Countdown } from "../components/Countdown";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
 import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt, spotlightText } from "../lib/bigScreen";
@@ -149,7 +150,7 @@ function shortUrl(url: string): string {
 
 export function EngagerPage() {
   const { code = "" } = useParams();
-  const { live, error, flashKey, lastBid, lastPledge, pledgeKey } = useLive(code);
+  const { live, error, flashKey, lastBid, lastPledge, pledgeKey, clockOffsetMs } = useLive(code);
   const reduceMotion = usePrefersReducedMotion();
   const [flash, setFlash] = useState(false);
   const [flashItem, setFlashItem] = useState<string | null>(null);
@@ -161,6 +162,10 @@ export function EngagerPage() {
   const [celebrateId, setCelebrateId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [clockTick, setClockTick] = useState(0);
+  const [rising, setRising] = useState<string[]>([]);
+  const prevDonors = useRef<{ name: string; rank: number }[]>([]);
+  const donorsSeen = useRef(false);
   const [boardRef, boardSize] = useSize<HTMLDivElement>();
   const items = useMemo(() => live?.items ?? [], [live]);
 
@@ -206,6 +211,26 @@ export function EngagerPage() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const id = setInterval(() => setClockTick((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const donors = live?.topDonors ?? [];
+    if (!donorsSeen.current) {
+      donorsSeen.current = Boolean(live);
+      if (live) prevDonors.current = donors;
+      return;
+    }
+    const moved = recognitionMoves(prevDonors.current, donors);
+    prevDonors.current = donors;
+    if (!moved.length) return;
+    setRising(moved);
+    const id = window.setTimeout(() => setRising([]), reduceMotion ? 0 : 4500);
+    return () => window.clearTimeout(id);
+  }, [live, reduceMotion]);
+
   const minCardH = typeof window !== "undefined" && window.innerHeight <= 820 && window.innerWidth > 900 ? CARD_H_COMPACT : CARD_H;
   const minCardW = typeof window !== "undefined" && window.innerWidth < 1200 ? CARD_MIN_W_SMALL : CARD_MIN_W;
   const fit = gridFit(boardSize.w, boardSize.h, minCardW, minCardH, GRID_GAP);
@@ -234,7 +259,18 @@ export function EngagerPage() {
   const closed = live.event.status === "closed";
   const needs = live.needs ?? [];
   const spotlightNeed = needs.find((n) => n.id === live.event.spotlightNeedId) ?? null;
-  const frame = bigScreenFrame(step, needs.length, Boolean(spotlightNeed), pinNeeds);
+  const donorsOn = live.event.donorRecognition !== false && live.event.topDonorsOnScreen !== false;
+  const spotlightDonors = Boolean(live.event.spotlightTopDonors) && live.event.donorRecognition !== false;
+  const frame = bigScreenFrame(step, needs.length, Boolean(spotlightNeed), pinNeeds, donorsOn, spotlightDonors);
+  const topDonors = live.topDonors ?? [];
+  const serverNow = Date.now() + clockOffsetMs + clockTick * 0;
+  const clock = auctionClock({
+    status: live.event.status,
+    startsAt: live.event.startsAt,
+    endsAt: live.event.endsAt,
+    now: serverNow,
+    closedEarly: live.event.closedEarly,
+  });
   const featuredNeed = spotlightNeed ?? (needs.length ? needs[step % needs.length] : null);
   const raised = raisedSplit(live.stats);
   const showSplit = needs.length > 0 || raised.donations > 0;
@@ -265,9 +301,26 @@ export function EngagerPage() {
           </h1>
           <span className="live-badge">{closed ? "Closed" : "Live"}</span>
         </div>
-        <Countdown variant="tiles" startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
       </header>
 
+      <AuctionClock
+        startsAt={live.event.startsAt}
+        endsAt={live.event.endsAt}
+        status={live.event.status}
+        closedEarly={live.event.closedEarly}
+        needsEndsAt={live.event.needsEndsAt}
+        timezone={live.event.timezone}
+        now={serverNow}
+        reduceMotion={reduceMotion}
+      />
+
+      {clock.takeover ? (
+        <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${clock.seconds} seconds`}>
+          <p className="auction-clock-kicker">Final seconds</p>
+          <p className="auction-seconds">{clock.seconds}</p>
+        </div>
+      ) : (
+      <div className="engager-main">
       <div className="engager-top">
         <section className={`panel totals${flash ? " bid-flash" : ""}`}>
           <p className="muted">{closed ? "Raised" : "Raised so far"}</p>
@@ -282,8 +335,21 @@ export function EngagerPage() {
           </p>
         </section>
 
-        <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}`}>
-          {frame === "needs" && featuredNeed ? (
+        <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}${frame === "donors" ? " is-donors" : ""}`}>
+          {frame === "donors" ? (
+            <div className="donor-spot">
+              <p className="muted">{spotlightDonors ? "Top donors spotlight" : "Top donors"}</p>
+              {topDonors[0] ? (
+                <>
+                  <h2 className={rising.includes(topDonors[0].name) ? "is-rise" : ""}>{topDonors[0].name}</h2>
+                  {topDonors[0].amount != null && <p className="big-amount">{money(topDonors[0].amount)}</p>}
+                  <p className="muted spot-sub">Largest public gift · auction bids are not included</p>
+                </>
+              ) : (
+                <p className="muted">Public donors appear here when a guest asks to be named.</p>
+              )}
+            </div>
+          ) : frame === "needs" && featuredNeed ? (
             <NeedSpotlight need={featuredNeed} money={money} spotlight={Boolean(spotlightNeed)} />
           ) : highlight ? (
             <div className="highlight-row">
@@ -338,8 +404,8 @@ export function EngagerPage() {
       <div className="engager-bottom">
         <section className="panel items-board">
           <div className="board-head">
-            <h3>{frame === "needs" ? "Fund-a-Need" : closed ? "Results" : "All items"} <span className="muted">({frame === "needs" ? needs.length : items.length})</span></h3>
-            {frame !== "needs" && pages > 1 && (
+            <h3>{frame === "donors" ? "Top donors" : frame === "needs" ? "Fund-a-Need" : closed ? "Results" : "All items"} <span className="muted">({frame === "donors" ? topDonors.length : frame === "needs" ? needs.length : items.length})</span></h3>
+            {frame === "auction" && pages > 1 && (
               <div className="board-pager" aria-label={`Page ${curPage + 1} of ${pages}`}>
                 <span className="muted">
                   {curPage * fit.perPage + 1}–{Math.min(items.length, (curPage + 1) * fit.perPage)} of {items.length}
@@ -353,7 +419,18 @@ export function EngagerPage() {
             )}
           </div>
           <div className="board-body" ref={boardRef}>
-          {frame === "needs" ? (
+          {frame === "donors" ? (
+            <ol className="donor-board">
+              {topDonors.map((d) => (
+                <li key={`${d.rank}-${d.name}`} className={`tier-${d.tier}${rising.includes(d.name) ? " is-rise" : ""}`}>
+                  <span className="donor-rank">{d.rank}</span>
+                  <span className="donor-name">{d.name}</span>
+                  {d.amount != null && <strong>{money(d.amount)}</strong>}
+                </li>
+              ))}
+              {topDonors.length === 0 && <li className="muted">No public donors yet.</li>}
+            </ol>
+          ) : frame === "needs" ? (
             <ul className="need-board">
               {needs.map((n) => (
                 <li key={n.id} className={n.id === featuredNeed?.id ? "is-on" : ""}>
@@ -423,6 +500,8 @@ export function EngagerPage() {
           )}
         </section>
       </div>
+      </div>
+      )}
 
       {sponsors.length > 0 && <SponsorStrip sponsors={sponsors} reduceMotion={reduceMotion} />}
     </div>

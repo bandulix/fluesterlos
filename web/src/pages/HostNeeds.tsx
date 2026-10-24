@@ -12,6 +12,10 @@ type HostPledge = {
   amount: number;
   units: number | null;
   anonymous: boolean;
+  namedPublicly?: boolean;
+  publicName?: string;
+  showAmount?: boolean;
+  recognitionHidden?: boolean;
   status: "active" | "undone" | "voided";
   voidReason: string | null;
   receiptName: string | null;
@@ -37,12 +41,30 @@ type HostNeed = Need & {
   pledges: HostPledge[];
   audit: HostAudit[];
 };
+type HostDonor = {
+  guestId: string;
+  guestName: string;
+  namedPublicly: boolean;
+  publicName: string;
+  moderatedName: string;
+  showAmount: boolean;
+  hidden: boolean;
+  total: number;
+  audit: Array<{ id: string; action: string; publicName: string | null; previousName: string | null; reason: string | null; actor: string }>;
+};
 type FundPayload = {
   needs: HostNeed[];
   needsEndsAt: string | null;
   spotlightNeedId: string | null;
   donations: number;
   donationRoutes?: DonationRoute[];
+  recognition?: {
+    enabled: boolean;
+    topDonorsScreen: boolean;
+    topDonorsLimit: number;
+    spotlightTopDonors: boolean;
+    donors: HostDonor[];
+  };
 };
 
 const emptyDraft = () => ({
@@ -201,7 +223,25 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
           </label>
         )}
         <button className="button secondary" type="submit">Save Fund-a-Need time</button>
-        {data.spotlightNeedId && (
+        {data.recognition && (
+          <button
+            type="button"
+            className="button"
+            onClick={() =>
+              act(
+                () =>
+                  api<{ live: LivePayload }>(`/api/host/events/${code}/fund`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ spotlightTopDonors: true }),
+                  }).then((r) => r.live),
+                "Top donors spotlight on.",
+              )
+            }
+          >
+            Spotlight top donors
+          </button>
+        )}
+        {(data.spotlightNeedId || data.recognition?.spotlightTopDonors) && (
           <button
             type="button"
             className="button secondary"
@@ -210,7 +250,7 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
                 () =>
                   api<{ live: LivePayload }>(`/api/host/events/${code}/fund`, {
                     method: "PATCH",
-                    body: JSON.stringify({ spotlightNeedId: null }),
+                    body: JSON.stringify({ spotlightNeedId: null, spotlightTopDonors: false }),
                   }).then((r) => r.live),
                 "Spotlight cleared.",
               )
@@ -220,6 +260,7 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
           </button>
         )}
       </form>
+      {data.recognition && <DonorRecognition code={code} recognition={data.recognition} act={act} />}
 
       {creating && (
         <NeedForm
@@ -329,7 +370,8 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
                       {p.guestPhone ? ` · ${p.guestPhone}` : ""} — {money(p.amount)}
                       {p.paymentChannelLabel ? ` · ${p.paymentChannelLabel}` : ""}
                       {p.units ? ` · ${p.units}` : ""}
-                      {p.anonymous ? " · anonymous on screen" : ""}
+                      {p.namedPublicly && p.publicName ? ` · public: ${p.publicName}${p.showAmount ? "" : " (amount hidden)"}` : " · not named publicly"}
+                      {p.recognitionHidden ? " · hidden by host" : ""}
                       {p.receiptName ? ` · receipt: ${p.receiptName}` : ""}
                       {p.status !== "active" ? ` · ${p.status}` : ""}
                       {p.voidReason ? ` · ${p.voidReason}` : ""}
@@ -482,6 +524,111 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
         </div>
       )}
     </div>
+  );
+}
+
+function DonorRecognition(props: {
+  code: string;
+  recognition: NonNullable<FundPayload["recognition"]>;
+  act: (fn: () => Promise<LivePayload | void>, note: string) => Promise<boolean>;
+}) {
+  const { code, recognition: rec, act } = props;
+  const [limit, setLimit] = useState(String(rec.topDonorsLimit));
+  const [draftName, setDraftName] = useState<Record<string, string>>({});
+  const [reason, setReason] = useState<Record<string, string>>({});
+
+  function patch(body: Record<string, unknown>, note: string) {
+    act(
+      () =>
+        api<{ live: LivePayload }>(`/api/host/events/${code}/fund`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        }).then((r) => r.live),
+      note,
+    ).catch(() => undefined);
+  }
+
+  function moderate(guestId: string, body: { name?: string; hidden?: boolean }, note: string) {
+    const why = (reason[guestId] ?? "").trim();
+    if (!why) return;
+    act(
+      () =>
+        api<{ live: LivePayload }>(`/api/host/events/${code}/recognition`, {
+          method: "POST",
+          body: JSON.stringify({ guestId, reason: why, ...body }),
+        }).then((r) => r.live),
+      note,
+    ).catch(() => undefined);
+  }
+
+  return (
+    <section className="stack card nested">
+      <h3>Donor recognition</h3>
+      <p className="muted">Guests are not named unless they opt in. Amounts stay hidden unless they ask to show them.</p>
+      <label className="inline-check">
+        <input type="checkbox" checked={rec.enabled} onChange={(e) => patch({ donorRecognition: e.target.checked }, e.target.checked ? "Donor recognition on." : "Donor recognition off.")} />
+        Show public donor names
+      </label>
+      <label className="inline-check">
+        <input type="checkbox" checked={rec.topDonorsScreen} onChange={(e) => patch({ topDonorsScreen: e.target.checked }, "Big-screen Top Donors updated.")} />
+        Top Donors frame on the big screen
+      </label>
+      <div className="row">
+        <label>
+          How many to show
+          <input value={limit} onChange={(e) => setLimit(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" style={{ width: "5rem" }} />
+        </label>
+        <button type="button" className="button secondary" onClick={() => patch({ topDonorsLimit: Number(limit) || 10 }, "Top donor count saved.")}>
+          Save count
+        </button>
+      </div>
+      {rec.donors.length === 0 ? (
+        <p className="muted">No pledges yet.</p>
+      ) : (
+        <ul className="stack">
+          {rec.donors.map((d) => {
+            const shown = d.moderatedName.trim() || d.publicName;
+            return (
+              <li key={d.guestId} className="stack">
+                <span>
+                  <strong>{d.guestName}</strong>
+                  {d.namedPublicly && shown ? ` · public: ${shown}` : " · not named publicly"}
+                  {d.hidden ? " · hidden" : ""}
+                  {d.showAmount ? "" : d.namedPublicly ? " · amount hidden" : ""}
+                  {` · ${d.total}`}
+                </span>
+                <div className="row">
+                  <input
+                    aria-label={`Public name for ${d.guestName}`}
+                    value={draftName[d.guestId] ?? shown}
+                    onChange={(e) => setDraftName((m) => ({ ...m, [d.guestId]: e.target.value }))}
+                    placeholder="Moderated name"
+                  />
+                  <input
+                    aria-label={`Reason for ${d.guestName}`}
+                    value={reason[d.guestId] ?? ""}
+                    onChange={(e) => setReason((m) => ({ ...m, [d.guestId]: e.target.value }))}
+                    placeholder="Reason"
+                  />
+                  <button type="button" className="button secondary" onClick={() => moderate(d.guestId, { name: draftName[d.guestId] ?? shown }, "Display name updated.")}>
+                    Save name
+                  </button>
+                  <button type="button" className="button secondary" onClick={() => moderate(d.guestId, { hidden: !d.hidden }, d.hidden ? "Name restored." : "Name hidden.")}>
+                    {d.hidden ? "Restore" : "Hide"}
+                  </button>
+                </div>
+                {d.audit.length > 0 && (
+                  <p className="muted">
+                    {d.audit[0].action} by {d.audit[0].actor}
+                    {d.audit[0].reason ? ` — ${d.audit[0].reason}` : ""}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

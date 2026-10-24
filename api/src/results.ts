@@ -66,6 +66,8 @@ export type PledgeExportRow = {
   units: string;
   unit: string;
   anonymous: string;
+  namedPublicly: string;
+  publicName: string;
   status: string;
   currency: string;
   paymentChannel: string;
@@ -90,6 +92,8 @@ const PLEDGE_COLUMNS: Array<{ key: keyof PledgeExportRow; header: string; width:
   { key: "units", header: "Units", width: 10 },
   { key: "unit", header: "Unit", width: 14 },
   { key: "anonymous", header: "Anonymous on screen", width: 18 },
+  { key: "namedPublicly", header: "Named publicly", width: 16 },
+  { key: "publicName", header: "Public name", width: 28 },
   { key: "status", header: "Status", width: 12 },
   { key: "currency", header: "Currency", width: 10 },
   { key: "paymentChannel", header: "Payment channel", width: 28 },
@@ -140,6 +144,7 @@ export async function eventResults(eventId: string): Promise<EventResults> {
   const pledgeRes = await pool.query(
     `SELECT n.title AS need, n.beneficiary, n.unit_label,
             g.id AS guest_id, g.name AS guest_name, g.phone, g.email, g.receipt_name,
+            g.recognize_public, g.public_name, g.recognition_name, g.recognition_hidden,
             p.amount, p.units, p.anonymous, p.undone_at, p.voided_at
      FROM pledges p
      JOIN needs n ON n.id = p.need_id
@@ -161,6 +166,8 @@ export async function eventResults(eventId: string): Promise<EventResults> {
     units: r.units == null ? "" : String(r.units),
     unit: r.unit_label ?? "",
     anonymous: r.anonymous ? "yes" : "no",
+    namedPublicly: r.recognize_public && !r.recognition_hidden && String(r.recognition_name || r.public_name || "").trim() ? "yes" : "no",
+    publicName: r.recognize_public && !r.recognition_hidden ? String(r.recognition_name || r.public_name || "").trim() : "",
     status: r.undone_at ? "undone" : r.voided_at ? "voided" : "active",
     currency,
     paymentChannel: routeOf.get(r.guest_id) ? exportChannelLabel(routeOf.get(r.guest_id)!) : "",

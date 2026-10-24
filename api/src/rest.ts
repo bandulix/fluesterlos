@@ -69,7 +69,13 @@ function guestDto(g: {
   token: string;
   guest_no?: number | null;
   receipt_name?: string | null;
+  recognize_public?: boolean;
+  public_name?: string;
+  show_pledge_amount?: boolean;
+  recognition_hidden?: boolean;
+  recognition_name?: string;
 }) {
+  const moderated = (g.recognition_name ?? "").trim();
   return {
     id: g.id,
     name: g.name,
@@ -79,6 +85,12 @@ function guestDto(g: {
     phone: g.phone,
     token: g.token,
     receiptName: g.receipt_name ?? null,
+    recognition: {
+      namedPublicly: Boolean(g.recognize_public),
+      publicName: moderated || (g.public_name ?? ""),
+      showAmount: Boolean(g.show_pledge_amount),
+      hiddenByHost: Boolean(g.recognition_hidden),
+    },
   };
 }
 

@@ -36,17 +36,46 @@ export function unitsCost(units: number, unitAmount: number): number {
   return money(units * unitAmount);
 }
 
+export type ScreenFrame = "auction" | "needs" | "donors";
+
 /**
- * Big-screen frame. Spotlight (or a pledge that just landed) stays on Fund-a-Need.
- * Otherwise the room alternates with the auction highlight.
+ * Big-screen frame. A need spotlight, or a pledge that just landed, holds Fund-a-Need.
+ * A Top Donors spotlight holds that frame. Otherwise the room rotates auction, needs, donors.
  */
 export function bigScreenFrame(
   step: number,
   needCount: number,
   spotlight: boolean,
   pinnedNeed: boolean,
-): "auction" | "needs" {
-  if (needCount <= 0) return "auction";
-  if (spotlight || pinnedNeed) return "needs";
-  return step % 2 === 0 ? "auction" : "needs";
+  donors = false,
+  spotlightDonors = false,
+): ScreenFrame {
+  if (spotlightDonors) return "donors";
+  if (needCount <= 0 && !donors) return "auction";
+  if ((spotlight || pinnedNeed) && needCount > 0) return "needs";
+  const frames: ScreenFrame[] = ["auction"];
+  if (needCount > 0) frames.push("needs");
+  if (donors) frames.push("donors");
+  return frames[step % frames.length];
+}
+
+/** Names that just entered the top 3, or moved up inside it. */
+export function recognitionMoves(
+  prev: Array<{ name: string; rank: number }>,
+  next: Array<{ name: string; rank: number }>,
+): string[] {
+  const before = new Map(prev.map((d) => [d.name, d.rank]));
+  const moved: string[] = [];
+  for (const d of next) {
+    if (d.rank > 3) continue;
+    const was = before.get(d.name);
+    if (was == null || was > d.rank) moved.push(d.name);
+  }
+  return moved;
+}
+
+export function anonymousGiftLabel(count: number): string {
+  if (count <= 0) return "";
+  if (count === 1) return "+ 1 anonymous gift";
+  return `+ ${count} anonymous gifts`;
 }

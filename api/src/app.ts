@@ -12,6 +12,7 @@ import { registerInvoiceRoutes } from "./invoiceRoutes.js";
 import { registerItemImportRoutes } from "./itemImportRoutes.js";
 import { registerNeedRoutes } from "./needRoutes.js";
 import { fundTotals, listNeedRows, recentPledges, toPublicNeed } from "./needs.js";
+import { publicRecognition } from "./recognition.js";
 import { registerSponsorRoutes, sponsorLogoUrl, upsertSponsor } from "./sponsors.js";
 import { defaultEventTimeZone, isValidTimeZone, parseInstant } from "./eventTime.js";
 import { registerEventControlRoutes, rescheduleEvent } from "./eventControls.js";
@@ -78,6 +79,10 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
           closed_by: string | null;
           needs_ends_at?: Date | null;
           spotlight_need_id?: string | null;
+          donor_recognition?: boolean;
+          top_donors_screen?: boolean;
+          top_donors_limit?: number | string;
+          spotlight_top_donors?: boolean;
         }
       | undefined;
   }
@@ -139,9 +144,17 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     const totalBids = items.reduce((sum, it) => sum + it.bidCount, 0);
     const currency = parseCurrency(event.currency);
     const eventNeedsEndsAt = event.needs_ends_at ?? null;
-    const needs = (await listNeedRows(eventId, { includeHidden: false })).map((row) =>
-      toPublicNeed(row, code, eventNeedsEndsAt),
-    );
+    const recognitionOn = event.donor_recognition !== false;
+    const topLimit = Number(event.top_donors_limit ?? 10) || 10;
+    const recognition = await publicRecognition(eventId, { enabled: recognitionOn, limit: topLimit });
+    const needs = (await listNeedRows(eventId, { includeHidden: false })).map((row) => {
+      const listed = recognition.byNeed.get(row.id);
+      return {
+        ...toPublicNeed(row, code, eventNeedsEndsAt),
+        supporters: listed?.donors ?? [],
+        anonymousGifts: listed?.anonymousGifts ?? 0,
+      };
+    });
     const fund = await fundTotals(eventId);
     const pledges = await recentPledges(eventId, currency);
     return {
@@ -158,9 +171,13 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
         joinUrl: `${PUBLIC_URL}/e/${event.code}`,
         needsEndsAt: eventNeedsEndsAt ? new Date(eventNeedsEndsAt).toISOString() : null,
         spotlightNeedId: event.spotlight_need_id ?? null,
+        donorRecognition: recognitionOn,
+        topDonorsOnScreen: event.top_donors_screen !== false,
+        spotlightTopDonors: Boolean(event.spotlight_top_donors),
       },
       items,
       needs,
+      topDonors: recognition.topDonors,
       recentPledges: pledges,
       stats: {
         guestCount: guestsRes.rows[0].c,

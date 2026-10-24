@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, clearGuestToken, getGuestToken, GuestMe, LiveItem, maskPhone, Need } from "../lib/api";
-import { pledgedNeedIds, pledgeTotal, raisedSplit } from "../lib/pledgeLogic";
+import { pledgedNeedIds, pledgeTotal, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
 import {
@@ -29,6 +29,8 @@ import { GuestMenu } from "../guest/GuestMenu";
 import { SwitchConfirm } from "../guest/SwitchConfirm";
 import { InstallHint } from "../guest/InstallHint";
 import { NeedCard, PledgeDraft } from "../guest/NeedCard";
+import { RecognitionEditor } from "../guest/RecognitionEditor";
+import { TopDonorsList } from "../guest/TopDonors";
 import { OutbidBanner } from "../guest/OutbidBanner";
 import { useNow } from "../guest/useNow";
 import "../guest/guest.css";
@@ -57,7 +59,10 @@ export function BidPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [chosen, setChosen] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState<FilterKey>("all");
-  const [category, setCategory] = useState<"auction" | "donate">("auction");
+  const [category, setCategory] = useState<"auction" | "donate" | "donors">("auction");
+  const [rising, setRising] = useState<string[]>([]);
+  const prevDonors = useRef<{ name: string; rank: number }[]>([]);
+  const donorsSeen = useRef(false);
   const [donateFilter, setDonateFilter] = useState<"all" | "mine">("all");
   const [openNeed, setOpenNeed] = useState<string | null>(null);
   const [fundedId, setFundedId] = useState<string | null>(null);
@@ -126,6 +131,21 @@ export function BidPage() {
   }, [savedName]);
 
   useEffect(() => {
+    const donors = live?.topDonors ?? [];
+    if (!donorsSeen.current) {
+      donorsSeen.current = true;
+      prevDonors.current = donors;
+      return;
+    }
+    const moved = recognitionMoves(prevDonors.current, donors);
+    prevDonors.current = donors;
+    if (!moved.length) return;
+    setRising(moved);
+    const id = window.setTimeout(() => setRising([]), 4000);
+    return () => window.clearTimeout(id);
+  }, [live?.topDonors]);
+
+  useEffect(() => {
     if (!pledgeKey || !lastPledge?.hitTarget) return;
     setFundedId(lastPledge.needId);
     setCategory("donate");
@@ -144,6 +164,22 @@ export function BidPage() {
       } catch (err) {
         const status = (err as { status?: number }).status;
         say(status === 409 || status === 404 ? t("donate.undoLate") : (err as Error).message);
+      }
+    },
+    [code, token, loadMe, say],
+  );
+
+  const saveRecognition = useCallback(
+    async (draft: { namedPublicly: boolean; publicName: string; showAmount: boolean }) => {
+      setBusyId("recognition");
+      try {
+        await api(`/api/events/${code}/me/recognition`, { method: "PUT", body: JSON.stringify(draft) }, token);
+        say(t("donate.recognitionSaved"));
+        await loadMe().catch(() => undefined);
+      } catch (err) {
+        say((err as Error).message);
+      } finally {
+        setBusyId(null);
       }
     },
     [code, token, loadMe, say],
@@ -291,6 +327,15 @@ export function BidPage() {
   const myNeeds = needs.filter((n) => myPledgeIds.includes(n.id));
   const donateNeeds = donateFilter === "mine" ? myNeeds : needs;
   const amountOn = (id: string) => (me?.pledges ?? []).filter((p) => p.needId === id).reduce((s, p) => s + p.amount, 0);
+  const recognitionOn = live.event.donorRecognition !== false;
+  const guestName = me?.guest?.name ?? "";
+  const rec = me?.guest?.recognition;
+  const needProps = {
+    ccy,
+    guestName,
+    recognitionOn,
+    initialName: rec,
+  };
   const showNudge = Boolean(
     me?.guest &&
       eventStatus !== "closed" &&
@@ -379,6 +424,11 @@ export function BidPage() {
           <button type="button" role="tab" aria-selected={category === "donate"} className={category === "donate" ? "is-active" : ""} onClick={() => setCategory("donate")}>
             {t("cat.donate")}
           </button>
+          {recognitionOn && (
+            <button type="button" role="tab" aria-selected={category === "donors"} className={category === "donors" ? "is-active" : ""} onClick={() => setCategory("donors")}>
+              {t("cat.donors")}
+            </button>
+          )}
         </div>
 
         {(eventStatus === "open" || showSplit) && (
@@ -413,16 +463,32 @@ export function BidPage() {
         )}
 
         <p className="g-section">
-          <span aria-hidden="true">★</span> {category === "donate" ? t("donate.section") : t("bid.sectionLots")} <span aria-hidden="true">★</span>
+          <span aria-hidden="true">★</span> {category === "donors" ? t("donate.topTitle") : category === "donate" ? t("donate.section") : t("bid.sectionLots")} <span aria-hidden="true">★</span>
         </p>
+
+        {category === "donors" && recognitionOn && (
+          <TopDonorsList donors={live.topDonors ?? []} ccy={ccy} rising={rising} />
+        )}
 
         {category === "donate" && (
           <div className="g-items">
+            {donateFilter === "mine" && recognitionOn && rec && (
+              <RecognitionEditor
+                key={`${rec.namedPublicly}|${rec.publicName}|${rec.showAmount}|${rec.hiddenByHost}`}
+                guestName={guestName}
+                namedPublicly={rec.namedPublicly}
+                publicName={rec.publicName}
+                showAmount={rec.showAmount}
+                hiddenByHost={rec.hiddenByHost}
+                busy={busyId === "recognition"}
+                onSave={saveRecognition}
+              />
+            )}
             {donateNeeds.map((n) => (
               <NeedCard
                 key={n.id}
                 need={n}
-                ccy={ccy}
+                {...needProps}
                 expanded={openNeed === n.id}
                 busy={busyId === n.id}
                 myAmount={amountOn(n.id)}
@@ -468,11 +534,23 @@ export function BidPage() {
           {filter === "mine" && myNeeds.length > 0 && (
             <>
               <p className="g-section">{t("donate.mine")}</p>
+              {recognitionOn && rec && (
+                <RecognitionEditor
+                  key={`${rec.namedPublicly}|${rec.publicName}|${rec.showAmount}|${rec.hiddenByHost}`}
+                  guestName={guestName}
+                  namedPublicly={rec.namedPublicly}
+                  publicName={rec.publicName}
+                  showAmount={rec.showAmount}
+                  hiddenByHost={rec.hiddenByHost}
+                  busy={busyId === "recognition"}
+                  onSave={saveRecognition}
+                />
+              )}
               {myNeeds.map((n) => (
                 <NeedCard
                   key={n.id}
                   need={n}
-                  ccy={ccy}
+                  {...needProps}
                   expanded={openNeed === n.id}
                   busy={busyId === n.id}
                   myAmount={amountOn(n.id)}

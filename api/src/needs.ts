@@ -11,6 +11,7 @@ import {
   PLEDGE_UNDO_SECONDS,
   resolvePledge,
 } from "./pledges.js";
+import { ANONYMOUS_LABEL, visibleName, writeGuestRecognition } from "./recognition.js";
 
 const ACTIVE = "p.undone_at IS NULL AND p.voided_at IS NULL";
 
@@ -150,9 +151,12 @@ export type RecentPledge = {
 export async function recentPledges(eventId: string, currency: Currency, limit = 20): Promise<RecentPledge[]> {
   const { rows } = await pool.query(
     `SELECT p.id, p.amount, p.units, p.anonymous, p.created_at, p.need_id,
-            n.title AS need_title, n.unit_label, n.hidden, g.name AS guest_name
+            n.title AS need_title, n.unit_label, n.hidden,
+            e.donor_recognition,
+            g.name AS guest_name, g.recognize_public, g.public_name, g.recognition_name, g.recognition_hidden
      FROM pledges p
      JOIN needs n ON n.id = p.need_id
+     JOIN events e ON e.id = n.event_id
      JOIN guests g ON g.id = p.guest_id
      WHERE n.event_id = $1 AND n.hidden = false AND p.undone_at IS NULL AND p.voided_at IS NULL
      ORDER BY p.created_at DESC
@@ -160,10 +164,22 @@ export async function recentPledges(eventId: string, currency: Currency, limit =
     [eventId, limit],
   );
   return rows.map((r) => {
-    const anonymous = Boolean(r.anonymous);
     const units = r.units == null ? null : Number(r.units);
-    const guestName = anonymous ? "A guest" : (r.guest_name as string);
     const amount = money(r.amount);
+    const shown = visibleName(
+      {
+        guestId: "",
+        guestName: r.guest_name as string,
+        namedPublicly: Boolean(r.recognize_public),
+        publicName: (r.public_name as string) ?? "",
+        moderatedName: (r.recognition_name as string) ?? "",
+        showAmount: false,
+        hiddenByHost: Boolean(r.recognition_hidden),
+      },
+      r.donor_recognition !== false,
+    );
+    const guestName = shown ?? ANONYMOUS_LABEL;
+    const anonymous = shown == null;
     return {
       id: r.id as string,
       needId: r.need_id as string,
@@ -175,7 +191,9 @@ export async function recentPledges(eventId: string, currency: Currency, limit =
       guestName,
       text: pledgeTicker({
         anonymous,
-        guestName: r.guest_name as string,
+        guestName,
+        namedPublicly: shown != null,
+        publicName: shown,
         units,
         unitLabel: r.unit_label as string | null,
         amount,
@@ -241,6 +259,7 @@ export type PledgeResult = {
   hitTarget: boolean;
   fullyFunded: boolean;
   anonymous: boolean;
+  displayName: string;
   createdAt: string;
   text: string;
 };
@@ -294,6 +313,9 @@ export async function placePledge(opts: {
   amount?: number | null;
   units?: number | null;
   anonymous?: boolean;
+  namedPublicly?: boolean;
+  publicName?: string;
+  showAmount?: boolean;
   currency?: string;
   eventNeedsEndsAt: Date | null;
 }): Promise<PledgeResult> {
@@ -301,7 +323,7 @@ export async function placePledge(opts: {
   try {
     await client.query("BEGIN");
     const needRes = await client.query(
-      `SELECT n.*, e.needs_ends_at FROM needs n JOIN events e ON e.id = n.event_id
+      `SELECT n.*, e.needs_ends_at, e.donor_recognition FROM needs n JOIN events e ON e.id = n.event_id
        WHERE n.id = $1 AND n.event_id = $2 FOR UPDATE OF n`,
       [opts.needId, opts.eventId],
     );
@@ -338,7 +360,22 @@ export async function placePledge(opts: {
       await client.query("ROLLBACK");
       throw Object.assign(new Error(cap.error), { statusCode: 409, remaining: cap.remaining });
     }
-    const anonymous = Boolean(opts.anonymous);
+    const recognition = await writeGuestRecognition(client, {
+      eventId: opts.eventId,
+      guestId: opts.guestId,
+      guestName: opts.guestName,
+      actor: `guest:${opts.guestId}`,
+      input: {
+        namedPublicly: opts.namedPublicly,
+        publicName: opts.publicName,
+        showAmount: opts.showAmount,
+        anonymous: opts.anonymous,
+        guestName: opts.guestName,
+      },
+    });
+    const enabled = need.donor_recognition !== false;
+    const displayName = enabled && recognition.namedOnScreen ? recognition.displayName : ANONYMOUS_LABEL;
+    const anonymous = !recognition.namedOnScreen;
     const ins = await client.query(
       `INSERT INTO pledges (need_id, guest_id, amount, units, anonymous)
        VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
@@ -370,10 +407,13 @@ export async function placePledge(opts: {
       hitTarget: progress.fullyFunded && !beforeProgress.fullyFunded,
       fullyFunded: progress.fullyFunded,
       anonymous,
+      displayName,
       createdAt: new Date(ins.rows[0].created_at).toISOString(),
       text: pledgeTicker({
         anonymous,
-        guestName: opts.guestName,
+        guestName: displayName,
+        namedPublicly: !anonymous,
+        publicName: displayName,
         units: resolved.units,
         unitLabel: need.unit_label,
         amount: resolved.amount,
@@ -576,6 +616,10 @@ export type HostPledge = {
   amount: number;
   units: number | null;
   anonymous: boolean;
+  namedPublicly: boolean;
+  publicName: string;
+  showAmount: boolean;
+  recognitionHidden: boolean;
   createdAt: string;
   undoneAt: string | null;
   voidedAt: string | null;
@@ -601,7 +645,8 @@ export async function hostPledgeBundle(eventId: string): Promise<{
   audits: Map<string, HostAudit[]>;
 }> {
   const pledges = await pool.query(
-    `SELECT p.*, g.name AS guest_name, g.phone AS guest_phone, g.email AS guest_email, g.receipt_name
+    `SELECT p.*, g.name AS guest_name, g.phone AS guest_phone, g.email AS guest_email, g.receipt_name,
+            g.recognize_public, g.public_name, g.recognition_name, g.recognition_hidden, g.show_pledge_amount
      FROM pledges p
      JOIN needs n ON n.id = p.need_id
      JOIN guests g ON g.id = p.guest_id
@@ -630,6 +675,10 @@ export async function hostPledgeBundle(eventId: string): Promise<{
       amount: money(r.amount),
       units: r.units == null ? null : Number(r.units),
       anonymous: Boolean(r.anonymous),
+      namedPublicly: Boolean(r.recognize_public) && !r.recognition_hidden,
+      publicName: ((r.recognition_name as string) || (r.public_name as string) || "").trim(),
+      showAmount: Boolean(r.show_pledge_amount),
+      recognitionHidden: Boolean(r.recognition_hidden),
       createdAt: new Date(r.created_at).toISOString(),
       undoneAt: r.undone_at ? new Date(r.undone_at).toISOString() : null,
       voidedAt: r.voided_at ? new Date(r.voided_at).toISOString() : null,

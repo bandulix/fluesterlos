@@ -34,6 +34,23 @@ export function pluralUnit(label: string, count: number): string {
   return `${one}s`;
 }
 
+/**
+ * Ticker name. Opt-in (`namedPublicly`) wins. Otherwise the legacy anonymous flag
+ * still prints the guest name when it is explicitly false.
+ */
+export function pledgeWho(input: {
+  anonymous?: boolean;
+  guestName?: string;
+  namedPublicly?: boolean;
+  publicName?: string | null;
+  hiddenByHost?: boolean;
+}): string {
+  if (input.hiddenByHost || input.namedPublicly === false) return "A guest";
+  if (input.namedPublicly === true) return input.publicName?.trim() || "A guest";
+  if (input.anonymous) return "A guest";
+  return input.guestName?.trim() || "A guest";
+}
+
 export function pledgeTicker(input: {
   anonymous: boolean;
   guestName: string;
@@ -41,8 +58,11 @@ export function pledgeTicker(input: {
   unitLabel: string | null;
   amount: number | string;
   currency?: Currency;
+  namedPublicly?: boolean;
+  publicName?: string | null;
+  hiddenByHost?: boolean;
 }): string {
-  const who = input.anonymous ? "A guest" : input.guestName.trim() || "A guest";
+  const who = pledgeWho(input);
   if (input.units != null && input.units > 0 && input.unitLabel?.trim()) {
     return `${who} funded ${input.units} ${pluralUnit(input.unitLabel, input.units)}`;
   }

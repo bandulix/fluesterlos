@@ -1,11 +1,17 @@
 import { FormEvent, useState } from "react";
 import { assetUrl, Need } from "../lib/api";
 import { Currency, formatAmount } from "../lib/money";
-import { stepUnits, unitsCost } from "../lib/pledgeLogic";
+import { anonymousGiftLabel, stepUnits, unitsCost } from "../lib/pledgeLogic";
 import { dedupeDescription } from "../lib/text";
 import { plural, t } from "../i18n";
 
-export type PledgeDraft = { amount?: number; units?: number; anonymous: boolean };
+export type PledgeDraft = {
+  amount?: number;
+  units?: number;
+  namedPublicly: boolean;
+  publicName?: string;
+  showAmount?: boolean;
+};
 
 export function NeedCard(props: {
   need: Need;
@@ -14,16 +20,21 @@ export function NeedCard(props: {
   busy: boolean;
   myAmount: number;
   justFunded: boolean;
+  guestName: string;
+  recognitionOn: boolean;
+  initialName?: { namedPublicly: boolean; publicName: string; showAmount: boolean };
   onToggle: () => void;
   onPledge: (draft: PledgeDraft) => void;
 }) {
-  const { need: n, ccy, expanded, busy, myAmount, justFunded, onToggle, onPledge } = props;
+  const { need: n, ccy, expanded, busy, myAmount, justFunded, guestName, recognitionOn, initialName, onToggle, onPledge } = props;
   const fmt = (v: number) => formatAmount(v, ccy);
   const hasUnits = n.unitAmount != null && n.unitAmount > 0 && !!n.unitLabel;
   const [units, setUnits] = useState(1);
   const [preset, setPreset] = useState<number | null>(hasUnits ? null : (n.suggestedAmounts[0] ?? null));
   const [custom, setCustom] = useState("");
-  const [anonymous, setAnonymous] = useState(false);
+  const [named, setNamed] = useState(initialName?.namedPublicly ?? false);
+  const [publicName, setPublicName] = useState(initialName?.publicName || guestName);
+  const [showAmount, setShowAmount] = useState(initialName?.showAmount ?? false);
   const description = dedupeDescription(n.title, n.description);
   const usingCustom = custom.trim() !== "";
   const amount = usingCustom
@@ -52,8 +63,11 @@ export function NeedCard(props: {
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!canPledge) return;
-    if (!usingCustom && preset == null && hasUnits) onPledge({ units, anonymous });
-    else onPledge({ amount, anonymous });
+    const naming = recognitionOn
+      ? { namedPublicly: named, publicName: named ? publicName.trim() || guestName : undefined, showAmount: named && showAmount }
+      : { namedPublicly: false as const };
+    if (!usingCustom && preset == null && hasUnits) onPledge({ units, ...naming });
+    else onPledge({ amount, ...naming });
   }
 
   return (
@@ -94,6 +108,7 @@ export function NeedCard(props: {
           </p>
         )}
         {myAmount > 0 && <p className="g-yours-pledge">{t("donate.yours", { amount: fmt(myAmount) })}</p>}
+        {recognitionOn && <SupportedBy need={n} fmt={fmt} />}
         {!expanded ? (
           <button type="button" className="g-bid" onClick={onToggle} disabled={!n.open && myAmount === 0}>
             {n.open ? t("donate.pledge") : t("donate.closed")}
@@ -151,10 +166,37 @@ export function NeedCard(props: {
                   }}
                 />
                 <p className="g-muted g-small">{t("donate.min", { amount: fmt(n.minPledge) })}</p>
-                <label className="g-anon">
-                  <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} />
-                  {t("donate.anon")}
-                </label>
+                {recognitionOn && (
+                  <div className="g-naming">
+                    <label className="g-anon">
+                      <input type="checkbox" checked={named} onChange={(e) => {
+                        const on = e.target.checked;
+                        setNamed(on);
+                        if (on && !publicName.trim()) setPublicName(guestName);
+                      }} />
+                      {t("donate.nameMe")}
+                    </label>
+                    {named ? (
+                      <>
+                        <label className="g-field-label" htmlFor={`pub-${n.id}`}>{t("donate.publicName")}</label>
+                        <input
+                          id={`pub-${n.id}`}
+                          className="g-big-input"
+                          value={publicName}
+                          maxLength={80}
+                          onChange={(e) => setPublicName(e.target.value)}
+                        />
+                        <p className="g-muted g-small">{t("donate.publicHint")}</p>
+                        <label className="g-anon">
+                          <input type="checkbox" checked={showAmount} onChange={(e) => setShowAmount(e.target.checked)} />
+                          {t("donate.showAmount")}
+                        </label>
+                      </>
+                    ) : (
+                      <p className="g-muted g-small">{t("donate.asGuest")}</p>
+                    )}
+                  </div>
+                )}
                 <button className="g-bid" disabled={!canPledge}>
                   {busy ? t("bid.sending") : t("donate.confirm", { amount: amountOk ? fmt(amount) : "" })}
                 </button>
@@ -167,5 +209,27 @@ export function NeedCard(props: {
         )}
       </div>
     </article>
+  );
+}
+
+function SupportedBy({ need, fmt }: { need: Need; fmt: (n: number) => string }) {
+  const donors = need.supporters ?? [];
+  const anon = need.anonymousGifts ?? 0;
+  if (donors.length === 0 && anon === 0) return null;
+  return (
+    <div className="g-supported">
+      <p className="g-kicker">{t("donate.supported")}</p>
+      {donors.length > 0 && (
+        <ul>
+          {donors.map((d) => (
+            <li key={d.name}>
+              <span>{d.name}</span>
+              {d.amount != null && <strong>{fmt(d.amount)}</strong>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {anon > 0 && <p className="g-muted g-small">{anonymousGiftLabel(anon)}</p>}
+    </div>
   );
 }

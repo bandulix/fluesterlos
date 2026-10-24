@@ -11,7 +11,7 @@ export async function freshApp(): Promise<FastifyInstance> {
     migrated = true;
   }
   await pool.query(`
-    TRUNCATE donation_route_audit, donation_route_overrides, pledge_audit, pledges, invoice_donations,
+    TRUNCATE recognition_audit, donation_route_audit, donation_route_overrides, pledge_audit, pledges, invoice_donations,
       guest_login_codes, invoice_lines, invoices,
       bids, guests, needs, items, events, sponsors, host_sessions, host_users RESTART IDENTITY CASCADE;
     UPDATE host_settings SET

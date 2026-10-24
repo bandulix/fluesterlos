@@ -18,6 +18,12 @@ export type LivePayload = {
     needsEndsAt?: string | null;
     /** Need the host has put on the big screen. */
     spotlightNeedId?: string | null;
+    /** Opt-in donor names. Off hides every public list and the ticker uses "A guest". */
+    donorRecognition?: boolean;
+    /** Rotate a Top Donors frame on the big screen. */
+    topDonorsOnScreen?: boolean;
+    /** Hold the big screen on Top Donors. */
+    spotlightTopDonors?: boolean;
     /** IANA zone used to enter and show times for this event (default Asia/Bangkok). */
     timezone?: string;
     closedEarly?: boolean;
@@ -44,6 +50,7 @@ export type LivePayload = {
     sponsor?: Sponsor | null;
   }>;
   needs?: Need[];
+  topDonors?: TopDonor[];
   recentPledges?: RecentPledge[];
   stats: {
     guestCount: number;
@@ -166,6 +173,17 @@ export type Need = {
   fullyFunded: boolean;
   overFunded: boolean;
   label: string;
+  supporters?: PublicSupporter[];
+  anonymousGifts?: number;
+};
+
+export type PublicSupporter = { name: string; amount: number | null };
+
+export type TopDonor = {
+  rank: number;
+  tier: "gold" | "silver" | "bronze" | "list";
+  name: string;
+  amount: number | null;
 };
 
 export type RecentPledge = {
@@ -200,6 +218,12 @@ export type GuestMe = {
     phone: string | null;
     token?: string;
     receiptName?: string | null;
+    recognition?: {
+      namedPublicly: boolean;
+      publicName: string;
+      showAmount: boolean;
+      hiddenByHost: boolean;
+    };
   };
   leaderKey?: string;
   bidItemIds?: string[];

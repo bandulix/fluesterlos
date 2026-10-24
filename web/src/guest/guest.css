@@ -558,16 +558,17 @@
 
 /* —— Fund-a-Need —— */
 .g-switch {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  display: flex; gap: 4px;
   padding: 4px; border-radius: 999px;
   background: var(--card-nested, #101828);
   border: 1px solid rgba(212, 188, 138, 0.22);
 }
 .g-switch button {
+  flex: 1;
   min-height: 44px; border: 0; border-radius: 999px;
   background: transparent; color: var(--muted, #9aa6c2);
   font-family: var(--font-display, inherit);
-  font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
 }
 .g-switch button.is-active {
   background: linear-gradient(180deg, #d9c08f, #c6a56e 55%, #b08f57);
@@ -640,8 +641,41 @@
   font-variant-numeric: tabular-nums;
 }
 .g-donate-pay a { color: var(--accent, #d4bc8a); }
+.g-supported { margin: 8px 0 10px; }
+.g-supported ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.g-supported li {
+  display: flex; justify-content: space-between; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid rgba(212, 188, 138, 0.16);
+}
+.g-supported li strong { color: var(--accent, #d4bc8a); font-variant-numeric: tabular-nums; }
+.g-naming, .g-recognition { display: grid; gap: 8px; }
+.g-recognition {
+  margin-bottom: 12px; padding: 12px; border-radius: 16px;
+  border: 1px solid rgba(212, 188, 138, 0.28);
+  background: var(--card-nested, #101828);
+}
+.g-top-donors { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.g-top-donors li {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+  padding: 10px 12px; border-radius: 14px;
+  border: 1px solid rgba(212, 188, 138, 0.22);
+  background: var(--card-nested, #101828);
+}
+.g-top-donors .tier-gold { border-color: #d4bc8a; box-shadow: inset 0 0 0 1px #c6a56e; }
+.g-top-donors .tier-silver { border-color: #c5c9d4; }
+.g-top-donors .tier-bronze { border-color: #b08f57; }
+.g-donor-rank {
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: #c6a56e; color: #1c1408; font-weight: 800;
+}
+.tier-silver .g-donor-rank { background: #d7dbe6; }
+.tier-bronze .g-donor-rank { background: #b08f57; }
+.tier-list .g-donor-rank { background: transparent; color: #d4bc8a; box-shadow: inset 0 0 0 1px #c6a56e; }
+.g-donor-amount { color: var(--accent, #d4bc8a); font-variant-numeric: tabular-nums; font-weight: 700; }
+.g-top-donors li.is-rise { animation: g-funded-pop 0.7s ease-out; }
 @media (prefers-reduced-motion: reduce) {
-  .g-need.is-celebrate .g-funded.is-new { animation: none; }
+  .g-need.is-celebrate .g-funded.is-new,
+  .g-top-donors li.is-rise { animation: none; }
 }
 
 @media print {

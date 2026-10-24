@@ -320,5 +320,44 @@ export async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS donation_route_audit_event_idx ON donation_route_audit(event_id, created_at DESC);
+
+    -- Donor recognition is opt-in. Defaults: not named, amount hidden, feature on for the event.
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS recognize_public BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS public_name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS show_pledge_amount BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS recognition_hidden BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS recognition_name TEXT NOT NULL DEFAULT '';
+    -- Pledges that already asked to be named keep that choice, under the guest's own name.
+    UPDATE guests g
+    SET recognize_public = true,
+        public_name = g.name
+    WHERE g.recognize_public = false
+      AND btrim(g.public_name) = ''
+      AND btrim(g.recognition_name) = ''
+      AND EXISTS (
+        SELECT 1 FROM pledges p
+        WHERE p.guest_id = g.id AND p.anonymous = false AND p.undone_at IS NULL AND p.voided_at IS NULL
+      );
+
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS donor_recognition BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS top_donors_screen BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS top_donors_limit INT NOT NULL DEFAULT 10;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS spotlight_top_donors BOOLEAN NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS recognition_audit (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      guest_id UUID REFERENCES guests(id) ON DELETE SET NULL,
+      action TEXT NOT NULL CHECK (action IN ('guest_update', 'host_edit', 'host_hide', 'host_restore')),
+      public_name TEXT,
+      previous_name TEXT,
+      recognize_public BOOLEAN,
+      show_amount BOOLEAN,
+      hidden BOOLEAN,
+      reason TEXT,
+      actor TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS recognition_audit_event_idx ON recognition_audit(event_id, created_at DESC);
   `);
 }

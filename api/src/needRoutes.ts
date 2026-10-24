@@ -19,6 +19,7 @@ import {
 } from "./needs.js";
 import { parseSuggestedAmounts } from "./pledges.js";
 import { listDonationRoutes, setDonationRouteOverride } from "./donationRoute.js";
+import { hostDonorBoard, moderateDonor, saveGuestRecognition } from "./recognition.js";
 import type { HostUser } from "./hostAuth.js";
 
 type EventRow = {
@@ -30,6 +31,10 @@ type EventRow = {
   currency?: string;
   needs_ends_at?: Date | null;
   spotlight_need_id?: string | null;
+  donor_recognition?: boolean;
+  top_donors_screen?: boolean;
+  top_donors_limit?: number | string;
+  spotlight_top_donors?: boolean;
 };
 
 const IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -119,6 +124,9 @@ export function registerNeedRoutes(
         amount: z.number().positive().nullable().optional(),
         units: z.number().int().positive().nullable().optional(),
         anonymous: z.boolean().optional(),
+        namedPublicly: z.boolean().optional(),
+        publicName: z.string().max(80).optional(),
+        showAmount: z.boolean().optional(),
       })
       .safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "Check the amount and try again" });
@@ -131,6 +139,9 @@ export function registerNeedRoutes(
         amount: parsed.data.amount,
         units: parsed.data.units,
         anonymous: parsed.data.anonymous,
+        namedPublicly: parsed.data.namedPublicly,
+        publicName: parsed.data.publicName,
+        showAmount: parsed.data.showAmount,
         currency: event.currency,
         eventNeedsEndsAt: event.needs_ends_at ?? null,
       });
@@ -142,7 +153,7 @@ export function registerNeedRoutes(
         amount: placed.amount,
         units: placed.units,
         anonymous: placed.anonymous,
-        guestName: placed.anonymous ? "A guest" : guest.name,
+        guestName: placed.displayName,
         text: placed.text,
         createdAt: placed.createdAt,
         hitTarget: placed.hitTarget,
@@ -181,6 +192,45 @@ export function registerNeedRoutes(
     }
   });
 
+  app.put("/api/events/:code/me/recognition", async (req, reply) => {
+    const event = await getEventByCode(codeOf((req.params as { code: string }).code));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const parsed = z
+      .object({
+        namedPublicly: z.boolean(),
+        publicName: z.string().max(80).optional(),
+        showAmount: z.boolean().optional(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Check the public name and try again" });
+    try {
+      const saved = await saveGuestRecognition({
+        eventId: event.id,
+        guestId: guest.id,
+        guestName: guest.name,
+        input: { ...parsed.data, guestName: guest.name },
+      });
+      const live = await buildLivePayload(event.id, event.code);
+      publish(event.code, "update", live);
+      return {
+        ok: true,
+        recognition: {
+          namedPublicly: saved.namedPublicly,
+          publicName: saved.moderatedName.trim() || saved.publicName,
+          showAmount: saved.showAmount,
+          hiddenByHost: saved.hiddenByHost,
+        },
+        live,
+      };
+    } catch (e) {
+      const err = e as Error & { statusCode?: number };
+      if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.message });
+      throw e;
+    }
+  });
+
   app.get("/api/host/events/:code/needs", async (req, reply) => {
     const ctx = await hostEvent(req, reply);
     if (!ctx) return;
@@ -208,6 +258,13 @@ export function registerNeedRoutes(
       donations,
       needs,
       donationRoutes,
+      recognition: {
+        enabled: ctx.event.donor_recognition !== false,
+        topDonorsScreen: ctx.event.top_donors_screen !== false,
+        topDonorsLimit: Number(ctx.event.top_donors_limit ?? 10) || 10,
+        spotlightTopDonors: Boolean(ctx.event.spotlight_top_donors),
+        donors: await hostDonorBoard(ctx.event.id),
+      },
     };
   });
 
@@ -492,6 +549,10 @@ export function registerNeedRoutes(
   const fundBody = z.object({
     needsEndsAt: z.string().datetime({ offset: true }).nullable().optional(),
     spotlightNeedId: z.string().uuid().nullable().optional(),
+    donorRecognition: z.boolean().optional(),
+    topDonorsScreen: z.boolean().optional(),
+    topDonorsLimit: z.number().int().min(1).max(50).optional(),
+    spotlightTopDonors: z.boolean().optional(),
   });
 
   app.patch("/api/host/events/:code/fund", async (req, reply) => {
@@ -503,7 +564,21 @@ export function registerNeedRoutes(
       const ends = parsed.data.needsEndsAt ? new Date(parsed.data.needsEndsAt) : null;
       await pool.query("UPDATE events SET needs_ends_at = $1 WHERE id = $2", [ends, ctx.event.id]);
     }
-    if (parsed.data.spotlightNeedId !== undefined) {
+    if (parsed.data.donorRecognition !== undefined) {
+      await pool.query("UPDATE events SET donor_recognition = $1 WHERE id = $2", [parsed.data.donorRecognition, ctx.event.id]);
+    }
+    if (parsed.data.topDonorsScreen !== undefined) {
+      await pool.query("UPDATE events SET top_donors_screen = $1 WHERE id = $2", [parsed.data.topDonorsScreen, ctx.event.id]);
+    }
+    if (parsed.data.topDonorsLimit !== undefined) {
+      await pool.query("UPDATE events SET top_donors_limit = $1 WHERE id = $2", [parsed.data.topDonorsLimit, ctx.event.id]);
+    }
+    if (parsed.data.spotlightTopDonors === true) {
+      await pool.query("UPDATE events SET spotlight_top_donors = true, spotlight_need_id = NULL WHERE id = $1", [ctx.event.id]);
+    } else if (parsed.data.spotlightTopDonors === false) {
+      await pool.query("UPDATE events SET spotlight_top_donors = false WHERE id = $1", [ctx.event.id]);
+    }
+    if (parsed.data.spotlightNeedId !== undefined && parsed.data.spotlightTopDonors !== true) {
       const id = parsed.data.spotlightNeedId;
       if (id) {
         const need = await pool.query(
@@ -513,7 +588,43 @@ export function registerNeedRoutes(
         if (!need.rows[0]) return reply.code(404).send({ error: "Need not found" });
         if (need.rows[0].hidden) return reply.code(409).send({ error: "Unhide the need before putting it on the big screen" });
       }
-      await pool.query("UPDATE events SET spotlight_need_id = $1 WHERE id = $2", [id, ctx.event.id]);
+      await pool.query(
+        "UPDATE events SET spotlight_need_id = $1, spotlight_top_donors = CASE WHEN $1::uuid IS NULL THEN spotlight_top_donors ELSE false END WHERE id = $2",
+        [id, ctx.event.id],
+      );
+    }
+    const live = await buildLivePayload(ctx.event.id, ctx.event.code);
+    publish(ctx.event.code, "update", live);
+    return { ok: true, live };
+  });
+
+  app.post("/api/host/events/:code/recognition", async (req, reply) => {
+    const ctx = await hostEvent(req, reply);
+    if (!ctx) return;
+    const parsed = z
+      .object({
+        guestId: z.string().uuid(),
+        reason: z.string().trim().min(1).max(500),
+        name: z.string().max(80).optional(),
+        hidden: z.boolean().optional(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success || (parsed.data.name === undefined && parsed.data.hidden === undefined)) {
+      return reply.code(400).send({ error: "A reason, and a name or a hide choice, are required" });
+    }
+    try {
+      await moderateDonor({
+        eventId: ctx.event.id,
+        guestId: parsed.data.guestId,
+        hostEmail: ctx.host.email,
+        reason: parsed.data.reason,
+        name: parsed.data.name,
+        hidden: parsed.data.hidden,
+      });
+    } catch (e) {
+      const err = e as Error & { statusCode?: number };
+      if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.message });
+      throw e;
     }
     const live = await buildLivePayload(ctx.event.id, ctx.event.code);
     publish(ctx.event.code, "update", live);
