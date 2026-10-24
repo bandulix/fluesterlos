@@ -8,9 +8,24 @@ import { saveImage } from "../lib/saveImage";
 import { listTitles } from "../lib/listTitles";
 import { formatInZone } from "../lib/time";
 import { t } from "../i18n";
+import { LangSwitch } from "../guest/LangSwitch";
 import { BrandMark } from "../components/BrandMark";
 import { Toast, ToastMessage } from "../components/Toast";
 import "../guest/guest.css";
+
+/** The API placeholder, shown in the guest's language. A host-written note stays as entered. */
+const MERCY_RECEIPT_PLACEHOLDER = "A donation receipt is issued by Mercy Centre.";
+
+function receiptCopy(note: string): string {
+  return note === MERCY_RECEIPT_PLACEHOLDER ? t("inv.mercyReceipt") : note;
+}
+
+function payMethodLabel(method: string | null | undefined, hasPromptPay: boolean): string {
+  if (method === "cash") return t("inv.cash");
+  if (method === "bank_transfer") return t("inv.bank");
+  if (method === "promptpay" || hasPromptPay) return t("inv.promptpay");
+  return t("inv.deskPay");
+}
 
 type InvoiceResponse = {
   event: { id: string; code: string; title: string; status: string; currency?: string };
@@ -270,6 +285,7 @@ export function InvoicePage() {
           <BrandMark />
           <h1 className="g-title">{data.event.title}</h1>
         </div>
+        <LangSwitch />
       </header>
 
       <div className="g-content">
@@ -341,15 +357,7 @@ export function InvoicePage() {
             {inv.lines.length > 0 && (
               <div className="g-pay-method">
                 <span className="g-price-label">{t("inv.method")}</span>
-                <strong>
-                  {inv.paymentMethod === "cash"
-                    ? "Cash"
-                    : inv.paymentMethod === "bank_transfer"
-                      ? "Bank transfer"
-                      : inv.paymentMethod === "promptpay" || pay?.promptpayPayload
-                        ? "PromptPay"
-                        : t("inv.deskPay")}
-                </strong>
+                <strong>{payMethodLabel(inv.paymentMethod, Boolean(pay?.promptpayPayload))}</strong>
               </div>
             )}
 
@@ -357,7 +365,7 @@ export function InvoicePage() {
               <section className="g-card g-donate-pay">
                 <h2>{t("inv.donatePay", { name: inv.donationPayment.displayName })}</h2>
                 <p className="g-muted">{t("inv.donateAmount", { amount: fmt(inv.donationPayment.donationsTotal) })}</p>
-                {inv.donationPayment.receiptNote && <p>{inv.donationPayment.receiptNote}</p>}
+                {inv.donationPayment.receiptNote && <p>{receiptCopy(inv.donationPayment.receiptNote)}</p>}
                 {inv.donationPayment.instructions && <p className="g-muted">{inv.donationPayment.instructions}</p>}
                 {inv.donationPayment.bankDetails && <p className="g-bank">{inv.donationPayment.bankDetails}</p>}
                 {inv.donationPayment.paymentLink && (
@@ -383,7 +391,7 @@ export function InvoicePage() {
                       className="g-big-input"
                       value={receiptName}
                       onChange={(e) => setReceiptName(e.target.value)}
-                      placeholder="Name or company"
+                      placeholder={t("inv.receiptPlaceholder")}
                       maxLength={200}
                     />
                     <label className="g-field-label" htmlFor="g-receipt-email">{t("inv.receiptEmail")}</label>

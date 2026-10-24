@@ -6,6 +6,7 @@ import { clearPendingJoin, loadPendingJoin, savePendingJoin } from "../lib/pendi
 import { BrandMark } from "../components/BrandMark";
 import { formatInZone } from "../lib/time";
 import { plural, t } from "../i18n";
+import { LangSwitch } from "../guest/LangSwitch";
 import "../guest/guest.css";
 
 type JoinResponse =
@@ -130,6 +131,7 @@ export function JoinPage() {
   if (notFound) {
     return (
       <section className="g-page g-join">
+        <LangSwitch />
         <p className="g-error" role="alert">{t("join.notFound")}</p>
       </section>
     );
@@ -139,6 +141,7 @@ export function JoinPage() {
     return (
       <section className="g-page g-join">
         <div className="g-join-card">
+          <LangSwitch />
           <BrandMark kind="lockup" />
           <h1 className="g-join-title">{t("code.title")}</h1>
           <p className="g-join-text">
@@ -193,6 +196,7 @@ export function JoinPage() {
         {hero ? <img src={assetUrl(hero)} alt="" /> : null}
       </div>
       <div className="g-join-card">
+        <LangSwitch />
         <BrandMark kind="lockup" />
         <p className="g-kicker">{t("join.kicker")}</p>
         <h1 className="g-join-title">{event?.event.title ?? "\u00a0"}</h1>

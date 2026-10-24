@@ -103,21 +103,36 @@ export function auctionClock(input: {
   };
 }
 
+export type DonationEnd = { kind: "closed" } | { kind: "until"; time: string };
+
 /**
  * Fund-a-Need's own end, only when it is a different instant from the auction.
  * Null when donations simply stay open, or when they close with the auction.
+ * The English sentence stays in donationEndLine; the screen translates these parts.
  */
+export function donationEndParts(opts: {
+  needsEndsAt?: string | null;
+  auctionEndsAt: string;
+  timezone: string;
+  now: number;
+}): DonationEnd | null {
+  if (!opts.needsEndsAt) return null;
+  const need = Date.parse(opts.needsEndsAt);
+  const auction = Date.parse(opts.auctionEndsAt);
+  if (!Number.isFinite(need) || !Number.isFinite(auction)) return null;
+  if (Math.abs(need - auction) < 1000) return null;
+  if (opts.now >= need) return { kind: "closed" };
+  return { kind: "until", time: formatTimeInZone(opts.needsEndsAt, opts.timezone) };
+}
+
 export function donationEndLine(opts: {
   needsEndsAt?: string | null;
   auctionEndsAt: string;
   timezone: string;
   now: number;
 }): string | null {
-  if (!opts.needsEndsAt) return null;
-  const need = Date.parse(opts.needsEndsAt);
-  const auction = Date.parse(opts.auctionEndsAt);
-  if (!Number.isFinite(need) || !Number.isFinite(auction)) return null;
-  if (Math.abs(need - auction) < 1000) return null;
-  if (opts.now >= need) return "Donations closed";
-  return `Donations open until ${formatTimeInZone(opts.needsEndsAt, opts.timezone)}`;
+  const parts = donationEndParts(opts);
+  if (!parts) return null;
+  if (parts.kind === "closed") return "Donations closed";
+  return `Donations open until ${parts.time}`;
 }

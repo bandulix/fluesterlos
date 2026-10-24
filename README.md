@@ -38,7 +38,7 @@ More details:
 
 - **Add to home screen:** a small dismissible bottom bar, shown only after the first bid, never on the join screen and never at the same time as the outbid banner, a bid toast or the name card. iOS gets Share → "Add to Home Screen" instructions; Android gets an install button when the browser offers one. It is never shown inside LINE or other in-app browsers, and dismissing it is permanent.
 - **Accessibility:** tap targets are at least 48 px, inputs use 16 px+ text (no iOS zoom), labels are accessible, focus rings are visible and `prefers-reduced-motion` is respected.
-- **Strings:** all guest text lives in a string table ([`web/src/i18n/en.ts`](web/src/i18n/en.ts)). Thai or German can be added as another table; only English ships today.
+- **Languages.** English is the default. Guest screens (join, bid, donations, invoice) have an **EN / ไทย / DE** switch, remembered on the device (`fl_lang`) and otherwise taken from the browser language. The big screen follows a host setting on the event card: English, ไทย, Deutsch, or English with a Thai line underneath. Thai uses bundled Noto Sans Thai. The host desk stays English.
 - **Two categories.** A segmented control at the top of the bid page switches **Auction** and **Donate**. Auction keeps All / Mine / Winning / Outbid. Donate lists the needs, each with a gold progress bar. **Raised so far** is the auction total plus donations, with the split written underneath. **Mine** on the auction list also shows the guest's pledges.
 
 ## Fund-a-Need

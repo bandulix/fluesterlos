@@ -21,6 +21,11 @@ export function Countdown({
   timezone,
   closedEarly,
   variant = "inline",
+  hourLabel = "hrs",
+  minuteLabel = "min",
+  secondLabel = "sec",
+  closedText = "Ended",
+  closedEarlyText = "Closed early",
 }: {
   startsAt: string;
   endsAt: string;
@@ -29,6 +34,12 @@ export function Countdown({
   closedEarly?: boolean;
   /** `tiles` is the segmented HH / MM / SS block used on the big screen and the event card. */
   variant?: "inline" | "tiles";
+  /** Tile captions. English by default so the host desk stays English. */
+  hourLabel?: string;
+  minuteLabel?: string;
+  secondLabel?: string;
+  closedText?: string;
+  closedEarlyText?: string;
 }) {
   const tz = timezone || DEFAULT_EVENT_TZ;
   const [now, setNow] = useState(() => Date.now());
@@ -53,9 +64,9 @@ export function Countdown({
         title={zone}
         aria-label={`${pad(h)} hours ${pad(m)} minutes ${pad(s)} seconds`}
       >
-        <Tile n={h} label="hrs" />
-        <Tile n={m} label="min" />
-        <Tile n={s} label="sec" />
+        <Tile n={h} label={hourLabel} />
+        <Tile n={m} label={minuteLabel} />
+        <Tile n={s} label={secondLabel} />
       </div>
     );
   }
@@ -63,7 +74,7 @@ export function Countdown({
     <div className={`countdown${urgent ? " is-urgent" : ""}`}>
       {status === "closed" ? (
         <>
-          <span className="muted">{closedEarly ? "Closed early" : "Ended"}</span>
+          <span className="muted">{closedEarly ? closedEarlyText : closedText}</span>
           <strong className="countdown-digits countdown-when" title={zone}>
             {formatInZone(endsAt, tz)}
           </strong>

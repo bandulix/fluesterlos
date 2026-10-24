@@ -7,6 +7,10 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — guest languages
+
+- Thai and German for every guest screen and the big screen. English stays the default. Phones remember EN / ไทย / DE and also follow the browser language. The host sets the big-screen language, including an English-and-Thai pair. Noto Sans Thai is bundled. A test checks that every string key exists in all three languages.
+
 ### Added — Fund-a-Need
 
 - A second category beside the auction. Guests switch **Auction** / **Donate**. Needs have a target, preset amounts, an optional unit stepper, and a gold progress bar. Pledges are binding, with Undo for 10 seconds, and can be anonymous on the big screen. They may pass 100% (“110% funded”) unless the host caps the need. Fund-a-Need stays open after the auction, or ends at its own time.

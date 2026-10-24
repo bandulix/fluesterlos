@@ -205,6 +205,27 @@ export function HostEventCard(props: {
         {reopenLocked && <span className="muted">{paidCount} invoice(s) paid — can't reopen.</span>}
       </div>
 
+      <label className="screen-lang">
+        Big screen language
+        <select
+          aria-label="Big screen language"
+          value={ev.screenLanguage ?? "en"}
+          disabled={busy}
+          onChange={(e) => {
+            const screenLanguage = e.target.value;
+            run(
+              () => api<LivePayload>(`/api/host/events/${code}`, { method: "PATCH", body: JSON.stringify({ screenLanguage }) }),
+              "Big screen language saved.",
+            );
+          }}
+        >
+          <option value="en">English</option>
+          <option value="th">ไทย</option>
+          <option value="de">Deutsch</option>
+          <option value="both">English + Thai</option>
+        </select>
+      </label>
+
       <details className="stack">
         <summary>Edit schedule, time zone &amp; currency</summary>
         <form className="stack" onSubmit={onSaveSettings}>
