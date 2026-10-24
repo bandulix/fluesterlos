@@ -231,6 +231,13 @@ export const en = {
   "donate.open": "Open — not tied to the auction clock",
   "donate.until": "Open until {time}",
   "donate.funded": "Fully funded!",
+  "paddle.ask": "Who raises at {amount}?",
+  "paddle.raise": "Raise {amount}",
+  "paddle.paused": "Paddle raise is paused",
+  "paddle.goal": "{raised} of {goal}",
+  "paddle.generous": "A generous guest",
+  "paddle.hit": "Goal reached",
+  "paddle.toast": "Paddle raised — {amount}",
   "bid.raisedSplit": "Auction {auction} · Donations {donations}",
   "bid.pledgesReady": "Your donations are ready to pay.",
 } as const;

@@ -31,6 +31,7 @@ import { InstallHint } from "../guest/InstallHint";
 import { NeedCard, PledgeDraft } from "../guest/NeedCard";
 import { RecognitionEditor } from "../guest/RecognitionEditor";
 import { TopDonorsList } from "../guest/TopDonors";
+import { PaddleCard } from "../guest/PaddleCard";
 import { OutbidBanner } from "../guest/OutbidBanner";
 import { useNow } from "../guest/useNow";
 import "../guest/guest.css";
@@ -414,6 +415,35 @@ export function BidPage() {
             onSave={saveName}
             autoFocus={editName}
             onDismiss={() => (editName ? setEditName(false) : dismissNudge())}
+          />
+        )}
+
+        {live.paddle && live.paddle.status !== "ended" && (
+          <PaddleCard
+            paddle={live.paddle}
+            ccy={ccy}
+            busy={busyId === "paddle"}
+            onRaise={() => {
+              const ccyNow = parseCurrency(live.event.currency);
+              setBusyId("paddle");
+              api<{ pledgeId?: string; undoSeconds?: number; amount: number }>(
+                `/api/events/${code}/paddle`,
+                { method: "POST", body: "{}" },
+                token,
+              )
+                .then((res) => {
+                  const text = t("paddle.toast", { amount: formatAmount(res.amount, ccyNow) });
+                  setToast(
+                    res.pledgeId
+                      ? { id: Date.now(), text, ms: (res.undoSeconds ?? 10) * 1000, action: { label: t("bid.undo"), onClick: () => undoPledge(res.pledgeId!) } }
+                      : { id: Date.now(), text },
+                  );
+                  vibrate(30);
+                  return loadMe();
+                })
+                .catch((err) => say((err as Error).message))
+                .finally(() => setBusyId(null));
+            }}
           />
         )}
 
