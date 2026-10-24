@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
+import { BrandMark } from "../components/BrandMark";
 import { Countdown } from "../components/Countdown";
 
 export function StatsPage() {
@@ -21,7 +22,10 @@ export function StatsPage() {
   return (
     <section className={`stack stats-page${flash ? " bid-flash" : ""}`}>
       <div className="card">
-        <h1>{live.event.title}</h1>
+        <div className="stats-brand">
+          <BrandMark />
+          <h1>{live.event.title}</h1>
+        </div>
         <Countdown startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
         <div className="stats-grid">
           <div className="stat"><span className="muted">Raised so far</span><strong>{formatAmount(live.stats.totalHighBids, ccy)}</strong></div>

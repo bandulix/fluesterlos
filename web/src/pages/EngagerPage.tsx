@@ -5,6 +5,7 @@ import { formatAmount, parseCurrency } from "../lib/money";
 import { assetUrl } from "../lib/api";
 import type { LiveItem, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
+import { BrandMark } from "../components/BrandMark";
 import { Countdown } from "../components/Countdown";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
@@ -203,6 +204,7 @@ export function EngagerPage() {
     <div className={`engager${isLive ? " is-live" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}`}>
       <header>
         <div>
+          <BrandMark />
           <h1>{live.event.title}</h1>
           <span className="live-badge">{closed ? "Closed" : "Live"}</span>
         </div>

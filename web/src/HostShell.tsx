@@ -1,4 +1,6 @@
 import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { BrandMark } from "./components/BrandMark";
+import { brand } from "./brand";
 import { HostAuthProvider, useHostAuth } from "./lib/hostAuth";
 import { HostPage } from "./pages/HostPage";
 
@@ -22,7 +24,10 @@ function HostTopbar() {
   const { auth, logout } = useHostAuth();
   return (
     <header className="topbar">
-      <Link to={auth?.authenticated ? "/host" : "/"} className="brand">FlüsterLos</Link>
+      <Link to={auth?.authenticated ? "/host" : "/"} className="brand" aria-label={`${brand.name}, FlüsterLos`}>
+        <BrandMark kind="lockup" />
+        <span className="brand-word" aria-hidden={brand.lockupSrc ? true : undefined}>FlüsterLos</span>
+      </Link>
       <nav>
         {auth?.authenticated ? (
           <>

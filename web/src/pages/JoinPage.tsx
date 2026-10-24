@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, assetUrl, getGuestToken, GuestMe, LivePayload, setGuestToken } from "../lib/api";
 import { formatPhoneInput, phoneLooksComplete } from "../lib/phoneInput";
 import { clearPendingJoin, loadPendingJoin, savePendingJoin } from "../lib/pendingJoin";
+import { BrandMark } from "../components/BrandMark";
 import { plural, t } from "../i18n";
 import "../guest/guest.css";
 
@@ -137,6 +138,7 @@ export function JoinPage() {
     return (
       <section className="g-page g-join">
         <div className="g-join-card">
+          <BrandMark kind="lockup" />
           <h1 className="g-join-title">{t("code.title")}</h1>
           <p className="g-join-text">
             {delivery?.via === "email" && delivery.email ? t("code.introEmail", { email: delivery.email }) : t("code.introDesk")}
@@ -190,6 +192,7 @@ export function JoinPage() {
         {hero ? <img src={assetUrl(hero)} alt="" /> : null}
       </div>
       <div className="g-join-card">
+        <BrandMark kind="lockup" />
         <p className="g-kicker">{t("join.kicker")}</p>
         <h1 className="g-join-title">{event?.event.title ?? "\u00a0"}</h1>
         {event && <p className="g-muted">{plural("join.oneItem", "join.items", event.items.length)}</p>}

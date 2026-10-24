@@ -1,0 +1,316 @@
+/* Thai.GER Supporters — black-tie gala skin for this checkout.
+   The mark and wordmark files are unchanged (the wordmark is black ink, so it
+   sits on a small ivory plate). Type is the site's self-hosted Inter and Oswald.
+   The room, the phones and the host desk all use the same dark navy, because a
+   white screen glares in a dim ballroom. Gold is a champagne (#D4BC8A links and
+   figures, #C6A56E key buttons) — restrained, and checked to WCAG AA.
+   The site red (#b52a2e, lifted to #e07a7a for small text on navy) is only the
+   outbid and error colour. Lime is not used.
+   custom.css still loads after this file and wins. */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url("/brand/thaiger/inter-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Oswald";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/brand/thaiger/oswald.woff2") format("woff2");
+}
+
+[data-theme="thaiger"] {
+  color-scheme: dark;
+
+  --bg: #0c1222;
+  --bg-glow: #1a2238;
+  --card: #161e32;
+  --card-nested: #101828;
+  --panel: #141c30;
+  --engager-bg: #090f1c;
+
+  --text: #d9d3c5;
+  --muted: #b7c0d0;
+  --text-strong: #f4efe4;
+
+  /* Champagne gold. accent-2 stays in the same metal so leftover gradients do not turn teal. */
+  --accent: #d4bc8a;
+  --accent-2: #c6a56e;
+  --accent-soft: rgba(212, 188, 138, 0.16);
+  --accent-glow: rgba(212, 188, 138, 0.32);
+  --teal-glow: rgba(198, 165, 110, 0.14);
+
+  --danger: #e07a7a;
+  --success: #a3d9b1;
+  --border: #2c3548;
+  --border-strong: #3d4a62;
+  --input-bg: #0e1526;
+  --input-border: #3d4a62;
+  --banner-bg: #1c2438;
+  --button-text: #1c1408;
+  --button-secondary-bg: #1c263c;
+  --topbar-border: rgba(212, 188, 138, 0.28);
+
+  --status-open: #14532d;
+  --status-scheduled: #1e3a8a;
+  --status-closed: #7f1d1d;
+  --pill-bg: #1c263c;
+
+  --g-win: #a3d9b1;
+  --g-win-bg: rgba(163, 217, 177, 0.14);
+  --g-lose: #e07a7a;
+  --g-lose-bg: rgba(176, 42, 46, 0.16);
+  --g-header-bg: rgba(12, 18, 34, 0.92);
+  --g-radius: 16px;
+
+  --font: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Oswald", "Inter", sans-serif;
+}
+
+[data-theme="thaiger"] body {
+  background:
+    radial-gradient(880px 420px at 12% -10%, rgba(212, 188, 138, 0.09), transparent 58%),
+    radial-gradient(640px 380px at 100% 0%, rgba(26, 34, 56, 0.9), transparent 52%),
+    var(--bg);
+  color: var(--text);
+}
+
+[data-theme="thaiger"] h1,
+[data-theme="thaiger"] .g-join-title,
+[data-theme="thaiger"] .host-page h1,
+[data-theme="thaiger"] .host-page h2,
+[data-theme="thaiger"] .stats-page h1,
+[data-theme="thaiger"] .engager header h1,
+[data-theme="thaiger"] .engager h3,
+[data-theme="thaiger"] .g-kicker {
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+  font-weight: 500;
+}
+
+[data-theme="thaiger"] .brand-mark {
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex: none;
+}
+/* The wordmark file is black. Plate it; do not recolour the asset. */
+[data-theme="thaiger"] .brand-mark.is-lockup {
+  width: auto;
+  height: 40px;
+  max-width: min(46vw, 220px);
+  background: #f4efe4;
+  border-radius: 8px;
+  padding: 4px 8px;
+  box-sizing: content-box;
+}
+[data-theme="thaiger"] .brand-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* —— Host chrome —— */
+[data-theme="thaiger"] .topbar {
+  background: rgba(12, 18, 34, 0.94);
+  box-shadow: inset 0 -1px 0 rgba(212, 188, 138, 0.45);
+}
+[data-theme="thaiger"] .topbar .button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+}
+[data-theme="thaiger"] .card,
+[data-theme="thaiger"] .host-page .card {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+[data-theme="thaiger"] .button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #c6a56e;
+  color: #1c1408;
+  border-radius: 12px;
+  box-shadow: none;
+  font-family: var(--font);
+  letter-spacing: 0.01em;
+}
+[data-theme="thaiger"] .button.secondary {
+  background: var(--button-secondary-bg);
+  color: var(--text-strong);
+  border: 1px solid var(--border-strong);
+}
+[data-theme="thaiger"] .pill.status-open { color: #e7f6ec; box-shadow: none; }
+[data-theme="thaiger"] .pill.status-scheduled { color: #e4e9fa; }
+[data-theme="thaiger"] .pill.status-closed { color: #f8d6d6; }
+[data-theme="thaiger"] input,
+[data-theme="thaiger"] textarea,
+[data-theme="thaiger"] select {
+  font-family: var(--font);
+  font-size: 16px;
+}
+
+/* —— Guest —— */
+[data-theme="thaiger"] .g-join-hero {
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(212, 188, 138, 0.2), transparent 62%),
+    #10182c;
+}
+[data-theme="thaiger"] .g-join-hero::after {
+  background: linear-gradient(180deg, rgba(12, 18, 34, 0) 18%, var(--bg) 78%);
+}
+[data-theme="thaiger"] .g-join-card {
+  background: var(--card);
+  border: 1px solid rgba(212, 188, 138, 0.22);
+  border-radius: 22px;
+  margin-left: 16px;
+  margin-right: 16px;
+  padding: 22px 20px 8px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+[data-theme="thaiger"] .g-join-card .brand-mark.is-lockup {
+  height: 56px;
+  margin: 0 0 14px;
+}
+[data-theme="thaiger"] .g-header {
+  box-shadow: inset 0 -1px 0 rgba(212, 188, 138, 0.28);
+}
+[data-theme="thaiger"] .g-header .brand-mark {
+  width: 28px;
+  height: 28px;
+}
+[data-theme="thaiger"] .g-item,
+[data-theme="thaiger"] .g-card,
+[data-theme="thaiger"] .g-total-card {
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+}
+[data-theme="thaiger"] .g-price-value,
+[data-theme="thaiger"] .g-total {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: #e0c98a;
+  letter-spacing: 0.01em;
+}
+[data-theme="thaiger"] .g-bid,
+[data-theme="thaiger"] .g-primary {
+  background: #c6a56e;
+  color: #1c1408;
+  font-family: var(--font);
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+}
+[data-theme="thaiger"] .g-bid.is-buynow {
+  background: transparent;
+  color: #e0c98a;
+  box-shadow: inset 0 0 0 1.5px #c6a56e;
+}
+[data-theme="thaiger"] .g-outbid { background: #b52a2e; }
+[data-theme="thaiger"] .g-outbid-bid { background: #f4efe4; color: #9d2428; }
+[data-theme="thaiger"] .g-status-outbid,
+[data-theme="thaiger"] .g-chip-outbid .g-chip-count {
+  background: #b52a2e;
+  color: #fff;
+}
+[data-theme="thaiger"] .g-chip.is-active {
+  background: #c6a56e;
+  color: #1c1408;
+}
+[data-theme="thaiger"] .g-chip.is-active .g-chip-count {
+  background: #1c1408;
+  color: #f4efe4;
+}
+[data-theme="thaiger"] .g-timer {
+  background: var(--card);
+}
+[data-theme="thaiger"] .g-qr {
+  background: #fff;
+  border: 1px solid rgba(212, 188, 138, 0.35);
+}
+
+/* —— Room displays, same metal, a shade deeper —— */
+[data-theme="thaiger"] .app:has(.stats-page) main {
+  max-width: none;
+  padding: 0;
+}
+[data-theme="thaiger"] .engager {
+  background:
+    radial-gradient(900px 480px at 50% -18%, rgba(198, 165, 110, 0.12), transparent 55%),
+    #090f1c;
+}
+[data-theme="thaiger"] .stats-page {
+  min-height: 100vh;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background:
+    radial-gradient(800px 420px at 100% -10%, rgba(198, 165, 110, 0.1), transparent 55%),
+    #090f1c;
+}
+[data-theme="thaiger"] .engager .brand-mark {
+  width: 36px;
+  height: 36px;
+  align-self: center;
+}
+[data-theme="thaiger"] .stats-page .stats-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+[data-theme="thaiger"] .stats-page .stats-brand .brand-mark {
+  width: 48px;
+  height: 48px;
+}
+[data-theme="thaiger"] .stats-page h1,
+[data-theme="thaiger"] .stats-page h2 {
+  color: var(--text-strong);
+}
+[data-theme="thaiger"] .stats-page h2 {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+[data-theme="thaiger"] .stats-grid strong,
+[data-theme="thaiger"] .engager .huge,
+[data-theme="thaiger"] .engager .big-amount {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: #e0c98a;
+}
+[data-theme="thaiger"] .engager .panel {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+}
+[data-theme="thaiger"] .engager .totals {
+  border-top: 3px solid #c6a56e;
+}
+[data-theme="thaiger"] .board-item.is-hot {
+  border-color: #c6a56e;
+  box-shadow: inset 0 0 0 1px #c6a56e;
+}
+[data-theme="thaiger"] .hot-badge {
+  background: #c6a56e;
+  color: #1c1408;
+}
+
+@media (min-width: 900px) and (max-height: 820px) {
+  [data-theme="thaiger"] .engager .brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="thaiger"] .g-bid,
+  [data-theme="thaiger"] .g-primary {
+    transition: none;
+  }
+}

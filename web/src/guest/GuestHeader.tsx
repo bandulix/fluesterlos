@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BrandMark } from "../components/BrandMark";
 import { formatRemaining, EventStatus } from "../lib/bidLogic";
 import { formatTimeInZone } from "../lib/time";
 import { t } from "../i18n";
@@ -24,6 +25,7 @@ export function GuestHeader(props: {
   return (
     <header className="g-header">
       <div className="g-header-main">
+        <BrandMark />
         <h1 className="g-title" title={title}>{title}</h1>
         {right}
       </div>

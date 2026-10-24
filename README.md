@@ -42,7 +42,9 @@ More details:
 
 ## Host flow
 
-Open **`/host`**.
+Open **`/host`**. The host desk uses the same navy and gold gala skin as the phones and the big screen.
+
+<p align="center"><img src="docs/screenshots/host-auctions.png" width="760" alt="Host auctions list: navy cards, gold actions, no lime stripe"></p>
 
 1. **Register the owner.** The first registration needs the one-time `BOOTSTRAP_TOKEN` from your env; after that, registration is closed. Hosts sign in with email + password (bcrypt, httpOnly session cookie). The owner can add and remove more host logins by email.
 2. **Payment settings:** a PromptPay ID (phone or 13-digit national ID) and payee name, and/or an uploaded static QR image. Saving shows "✓ Saved — PromptPay …" next to the button.
@@ -74,7 +76,7 @@ Open **`/host`**.
 
 **Event card → Items → Import items** (only before the first bid). Upload an `.xlsx` or `.csv`; nothing is created until you press **Import N items**. The summary counts **rows to check** (exactly the rows the "only rows to check" filter shows), and the item count follows your edits as you type a price.
 
-<p align="center"><img src="docs/screenshots/host-import-preview.png" width="760" alt="Import preview: column mapping, summary, editable rows with warnings"></p>
+<p align="center"><img src="docs/screenshots/host-import-preview.png" width="760" alt="Import preview on the navy and gold theme: column mapping, summary, editable rows"></p>
 
 - **Sheet & columns:** the sheet named `Prizes` (also `Preise`, `Items`, `Lots`) is used, otherwise the first sheet that isn't a paper bid sheet (`Liste 1`, `Liste 2`, … are ignored). The header row is found automatically (last year's file has it in row 3). English and German headers are recognised (`No.`/`Nr.`, `Title`/`Titel`, `Description`/`Beschreibung`, `Sponsor Name`/`Spender`, `Approximate Value`/`Wert`, `Suggested Minimum`/`Mindestgebot`, `Minimum Steps`/`Schrittweite`, `Buy now`/`Sofortkauf`, `Quantity`/`Anzahl`, `Remark`/`Bemerkung`, `Organized by`, …). Result columns of a past auction (`Final Price achieved`, `Bought by`, `Money received?`, `Payment Method`, `Handed over?`) are never imported. Any column can be (re)mapped with a dropdown; unrecognised columns are highlighted.
 - **Defaults:** no title column → the first line of the description (dates in brackets stay in the description; a "retail value …" line is dropped because the card shows the value). Increment missing → **10 % of the starting bid** (last year's bid sheets used `=E11/10`). Starting bid missing but a value given → 20 % of the value (flagged). Type is guessed — **voucher** if the text mentions voucher / Gutschein / hotel / night / spa / brunch / dinner / restaurant / massage …, else **physical** — and can be changed per row. Sponsors are matched to existing ones by name (case-insensitive) and marked *new* / *existing*. "Organized by" goes into the host-only notes.
@@ -93,7 +95,7 @@ Open **`/host`**.
   - the **item board, paged**: as many cards as fit (8–12 per page), advancing every 8 s with a page indicator ("13–24 of 48"); the 3 **🔥 Hot** items (most bids in the last 5 minutes, then most bids) are outlined;
   - the latest bids;
   - a **single compact sponsor row** (≤ ~12 % of the height): it scrolls as a slow marquee when the sponsors don't fit, or — with `prefers-reduced-motion` — shows them page by page.
-  Amounts look like the guest app (`฿7,100`). It is live and animated (gala theme).
+  Amounts look like the guest app (`฿7,100`). It is live and animated in the active event theme.
 
 <p align="center"><img src="docs/screenshots/bigscreen.png" width="640" alt="Big screen: total, featured item, join QR, item board, latest bids, sponsors"></p>
 - **`/e/<code>/stats`:** a simpler public stats page (same "Raised so far" rule; items without bids are counted separately, not listed as leaders).
@@ -171,11 +173,16 @@ Web build argument: `VITE_API_URL` (default empty = same origin, served via the 
 
 ## Theming
 
-Restyle with **CSS only**:
+The generic look stays in [`web/public/theme.css`](web/public/theme.css) (`:root` / `[data-theme="gala"]`, plus `[data-theme="calm"]`). This checkout is dressed for **Thai.GER Supporters** without replacing those defaults.
 
-1. [`web/public/theme.css`](web/public/theme.css) holds the defaults: CSS variables on `:root` / `[data-theme="gala"]`, plus animations for the big screen and bids.
-2. [`web/public/custom.css`](web/public/custom.css) is loaded after it; override variables there. Guest-specific tokens such as `--g-win`, `--g-lose` and `--g-radius` can be overridden too.
-3. `data-theme="calm"` on `<html>` gives a quieter palette.
+The logo and the type come from [thaigersupporters.info](https://thaigersupporters.info): Oswald headings, Inter body, both the theme's own `.woff2` files under `web/public/brand/thaiger/` (SIL Open Font License) so the PWA still works offline. The site publishes no SVG logo: `lockup.png` is the header wordmark and `mark.png` is the shield (also the PWA icon). This checkout dresses every screen — guest, host, big screen and stats — as a dark navy gala with champagne gold (`#D4BC8A` / `#C6A56E`) for the bid, the prices and the raised total. The site red is only the outbid and error colour. The wordmark file is black, so the theme sets it on a small ivory plate and does not recolour it.
+
+Another event swaps the skin in one place, [`web/src/brand.ts`](web/src/brand.ts):
+
+1. Set `id` to `gala`, `calm`, or a new name, and put that same value on `<html data-theme>` in [`web/index.html`](web/index.html).
+2. Point `markSrc` / `lockupSrc` / the icon paths at that event's files (or `""` for no logo), and set `themeColor` / `backgroundColor`.
+3. For a new palette, add `web/public/themes/<id>.css` and link it after `theme.css` and before `custom.css`.
+4. [`web/public/custom.css`](web/public/custom.css) still loads last. Guest tokens such as `--g-win`, `--g-lose` and `--g-radius` can be overridden there too. Mounting a file over `custom.css` in Docker still works:
 
 ```yaml
 services:
@@ -187,6 +194,8 @@ services:
 ```css
 :root { --accent: #ff6b9d; --accent-2: #c084fc; --bg: #0a0a12; }
 ```
+
+Bump `CACHE_ID` in [`web/pwa.options.ts`](web/pwa.options.ts) when you ship new icons or fonts, so installed phones drop the old precache.
 
 ## Backups and break-glass
 

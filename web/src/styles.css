@@ -19,7 +19,18 @@ a { color: var(--accent); }
   top: 0;
   z-index: 20;
 }
-.brand { font-weight: 800; text-decoration: none; color: var(--text-strong); letter-spacing: 0.02em; }
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  font-weight: 800;
+  text-decoration: none;
+  color: var(--text-strong);
+  letter-spacing: 0.02em;
+}
+.brand-mark { display: block; width: 32px; height: 32px; object-fit: contain; flex: none; }
+.brand-mark.is-lockup { width: auto; height: 36px; max-width: min(46vw, 220px); }
 .topbar nav {
   display: flex;
   align-items: center;
@@ -150,8 +161,15 @@ textarea { min-height: 70px; }
   gap: 1rem;
   flex-wrap: wrap;
 }
+.engager header > div:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
 .engager header h1 {
-  margin: 0 0 0.35rem;
+  margin: 0;
   font-size: clamp(1.6rem, 3vw, 2.4rem);
   color: var(--text-strong);
 }
@@ -412,7 +430,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .board-body { min-height: 0; }
   /* One header row: the title gives way (ellipsis) to the countdown. */
   .engager header { flex-wrap: nowrap; }
-  .engager header > div:first-child { min-width: 0; display: flex; align-items: baseline; gap: 0.75rem; }
+  .engager header > div:first-child { flex-wrap: nowrap; }
   .engager header h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .engager header .live-badge { margin-top: 0; flex: none; }
   .engager header .countdown { flex: none; }
