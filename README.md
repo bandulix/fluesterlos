@@ -42,7 +42,9 @@ More details:
 
 ## Host flow
 
-Open **`/host`**.
+Open **`/host`**. The host desk uses the same navy and gold gala skin as the phones and the big screen.
+
+<p align="center"><img src="docs/screenshots/host-auctions.png" width="760" alt="Host auctions list: navy cards, gold actions, no lime stripe"></p>
 
 1. **Register the owner.** The first registration needs the one-time `BOOTSTRAP_TOKEN` from your env; after that, registration is closed. Hosts sign in with email + password (bcrypt, httpOnly session cookie). The owner can add and remove more host logins by email.
 2. **Payment settings:** a PromptPay ID (phone or 13-digit national ID) and payee name, and/or an uploaded static QR image. Saving shows "✓ Saved — PromptPay …" next to the button.
@@ -74,7 +76,7 @@ Open **`/host`**.
 
 **Event card → Items → Import items** (only before the first bid). Upload an `.xlsx` or `.csv`; nothing is created until you press **Import N items**. The summary counts **rows to check** (exactly the rows the "only rows to check" filter shows), and the item count follows your edits as you type a price.
 
-<p align="center"><img src="docs/screenshots/host-import-preview.png" width="760" alt="Import preview: column mapping, summary, editable rows with warnings"></p>
+<p align="center"><img src="docs/screenshots/host-import-preview.png" width="760" alt="Import preview on the navy and gold theme: column mapping, summary, editable rows"></p>
 
 - **Sheet & columns:** the sheet named `Prizes` (also `Preise`, `Items`, `Lots`) is used, otherwise the first sheet that isn't a paper bid sheet (`Liste 1`, `Liste 2`, … are ignored). The header row is found automatically (last year's file has it in row 3). English and German headers are recognised (`No.`/`Nr.`, `Title`/`Titel`, `Description`/`Beschreibung`, `Sponsor Name`/`Spender`, `Approximate Value`/`Wert`, `Suggested Minimum`/`Mindestgebot`, `Minimum Steps`/`Schrittweite`, `Buy now`/`Sofortkauf`, `Quantity`/`Anzahl`, `Remark`/`Bemerkung`, `Organized by`, …). Result columns of a past auction (`Final Price achieved`, `Bought by`, `Money received?`, `Payment Method`, `Handed over?`) are never imported. Any column can be (re)mapped with a dropdown; unrecognised columns are highlighted.
 - **Defaults:** no title column → the first line of the description (dates in brackets stay in the description; a "retail value …" line is dropped because the card shows the value). Increment missing → **10 % of the starting bid** (last year's bid sheets used `=E11/10`). Starting bid missing but a value given → 20 % of the value (flagged). Type is guessed — **voucher** if the text mentions voucher / Gutschein / hotel / night / spa / brunch / dinner / restaurant / massage …, else **physical** — and can be changed per row. Sponsors are matched to existing ones by name (case-insensitive) and marked *new* / *existing*. "Organized by" goes into the host-only notes.
