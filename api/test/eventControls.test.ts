@@ -257,6 +257,17 @@ describe("guest status on the bid page", () => {
     expect(JSON.stringify(now)).not.toContain(anna.id); // no guest ids leak into the public payload
   });
 
+  it("stores the big-screen language and rejects an unknown one", async () => {
+    const { code } = await createOpenEvent(app, cookie, [{ title: "Vase", startingBid: 1000, minIncrement: 100 }]);
+    expect((await live(code)).event.screenLanguage).toBe("en");
+    const bad = await host("PATCH", `/api/host/events/${code}`, { screenLanguage: "fr" });
+    expect(bad.statusCode).toBe(400);
+    const ok = await host("PATCH", `/api/host/events/${code}`, { screenLanguage: "both" });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().event.screenLanguage).toBe("both");
+    expect((await live(code)).event.screenLanguage).toBe("both");
+  });
+
   it("logout clears the guest cookie", async () => {
     const { code } = await createOpenEvent(app, cookie, []);
     const res = await app.inject({ method: "POST", url: `/api/events/${code}/logout`, payload: {} });

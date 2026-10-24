@@ -24,6 +24,8 @@ export type LivePayload = {
     topDonorsOnScreen?: boolean;
     /** Hold the big screen on Top Donors. */
     spotlightTopDonors?: boolean;
+    /** Big-screen language. `both` is English with a Thai line. Guest phones do not follow this. */
+    screenLanguage?: "en" | "th" | "de" | "both";
     /** IANA zone used to enter and show times for this event (default Asia/Bangkok). */
     timezone?: string;
     closedEarly?: boolean;

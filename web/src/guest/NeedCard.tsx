@@ -5,6 +5,18 @@ import { anonymousGiftLabel, stepUnits, unitsCost } from "../lib/pledgeLogic";
 import { dedupeDescription } from "../lib/text";
 import { plural, t } from "../i18n";
 
+function fundedPercent(n: { percent: number }): string {
+  const shown = Number.isInteger(n.percent) ? String(n.percent) : n.percent.toFixed(1);
+  return t("donate.percent", { n: shown });
+}
+
+/** Guest-facing progress. The API label stays English for the host. */
+function fundedText(n: { percent: number; fullyFunded: boolean; overFunded: boolean }): string {
+  if (n.overFunded) return `${t("donate.funded")} · ${fundedPercent(n)}`;
+  if (n.fullyFunded) return t("donate.funded");
+  return fundedPercent(n);
+}
+
 export type PledgeDraft = {
   amount?: number;
   units?: number;
@@ -90,21 +102,20 @@ export function NeedCard(props: {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(n.barPercent)}
-          aria-label={n.label}
+          aria-label={fundedText(n)}
         >
           <span style={{ width: `${n.barPercent}%` }} />
         </div>
         <div className="g-fund-meta">
           <strong>{fmt(n.raised)}</strong>
           <span>
-            {n.fullyFunded ? t("donate.funded") : n.label}
-            {n.overFunded ? ` · ${n.label}` : ""} · {fmt(n.targetAmount)} · {plural("donate.oneDonor", "donate.donors", n.donorCount)}
+            {fundedText(n)} · {fmt(n.targetAmount)} · {plural("donate.oneDonor", "donate.donors", n.donorCount)}
           </span>
         </div>
         {n.fullyFunded && (
           <p className={`g-funded${justFunded ? " is-new" : ""}`} role="status">
             <span aria-hidden="true">★</span> {t("donate.funded")}
-            {n.overFunded && <small>{n.label}</small>}
+            {n.overFunded && <small>{fundedPercent(n)}</small>}
           </p>
         )}
         {myAmount > 0 && <p className="g-yours-pledge">{t("donate.yours", { amount: fmt(myAmount) })}</p>}

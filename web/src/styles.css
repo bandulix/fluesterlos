@@ -733,3 +733,37 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .inline-check { display: inline-flex; flex-direction: row; align-items: center; gap: 0.35rem; margin: 0; font-size: 0.85rem; }
 .inline-check input { width: auto; }
 .export-row { align-items: center; }
+
+.screen-lang {
+  display: flex; align-items: center; gap: 0.6rem;
+  margin: 0.75rem 0; font-weight: 600;
+}
+.screen-lang select { font: inherit; min-height: 40px; }
+
+/* Bilingual big screen: English, then a Thai line. Thai glyphs use the bundled face. */
+.bi { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.bi small {
+  font-family: "Noto Sans Thai", "Inter", system-ui, sans-serif;
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.92;
+}
+.engager.lang-th,
+.engager.lang-both {
+  --font: "Noto Sans Thai", "Inter", system-ui, sans-serif;
+  --font-display: "Noto Sans Thai", "Inter", system-ui, sans-serif;
+}
+.engager.lang-th :is(.auction-clock-kicker, .live-badge, .spot-label, .example-flag),
+.engager.lang-th .bi span {
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+}
+.engager.lang-th .board-meta,
+.engager.lang-both .board-meta {
+  white-space: normal;
+  line-height: 1.3;
+}

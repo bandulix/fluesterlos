@@ -3,6 +3,7 @@ import { BrandMark } from "../components/BrandMark";
 import { formatRemaining, EventStatus } from "../lib/bidLogic";
 import { formatTimeInZone } from "../lib/time";
 import { t } from "../i18n";
+import { LangSwitch } from "./LangSwitch";
 
 /** Sticky top: event title + server-time countdown. */
 export function GuestHeader(props: {
@@ -52,6 +53,7 @@ export function GuestHeader(props: {
         )}
       </div>
       {menu}
+      <LangSwitch />
     </header>
   );
 }
