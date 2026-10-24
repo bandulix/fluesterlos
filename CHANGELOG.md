@@ -7,6 +7,10 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — CI
+
+- GitHub Actions runs typecheck, the API tests against Postgres, the web tests and the web build on every pull request and on pushes to `main` (`.github/workflows/ci.yml`).
+
 ### Added — Fund-a-Need
 
 - A second category beside the auction. Guests switch **Auction** / **Donate**. Needs have a target, preset amounts, an optional unit stepper, and a gold progress bar. Pledges are binding, with Undo for 10 seconds, and can be anonymous on the big screen. They may pass 100% (“110% funded”) unless the host caps the need. Fund-a-Need stays open after the auction, or ends at its own time.
@@ -158,7 +162,7 @@ and this project versions toward [SemVer](https://semver.org/).
 - Equal top bids (only possible in old data) go to the earliest bidder, the same on the board and on invoices.
 
 ### Added
-- API test suite (Vitest + `fastify.inject` against real Postgres), CI workflow running typecheck, tests and the web build on every PR (`ci/github-ci.yml`; move to `.github/workflows/` to enable).
+- API test suite (Vitest + `fastify.inject` against real Postgres) and a CI workflow for typecheck, tests and the web build. It now runs from `.github/workflows/ci.yml`.
 - `package-lock.json` committed; Docker images now install with `npm ci` from the lockfile. Added `.dockerignore`.
 
 ### Changed

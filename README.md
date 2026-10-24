@@ -252,7 +252,7 @@ npm run dev -w web                # Vite dev server on :5173; proxies /api to AP
 ```
 
 - API tests use Vitest with `fastify.inject` against a real Postgres. Web tests (Vitest) cover the logic: phone formatting, bid amounts and status, filters, the install hint, the restored code step, cache headers, the service worker strategy and the update/reload kill-switch.
-- **CI:** the workflow lives at [`ci/github-ci.yml`](ci/github-ci.yml) (typecheck, tests with a Postgres service, web build). To activate it, move it to `.github/workflows/ci.yml`. That push needs a token with the `workflow` scope.
+- **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs typecheck, the API tests against Postgres, the web tests and the web build on every pull request and on pushes to `main`.
 - Layout: `api/` (Fastify, `src/`, `test/`), `web/` (Vite app, `src/pages`, `src/guest`, `src/i18n`, `public/theme.css`), `docs/`.
 
 ## Out of scope / roadmap
