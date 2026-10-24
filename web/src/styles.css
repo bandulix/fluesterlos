@@ -811,9 +811,12 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   align-items: stretch;
   min-height: 0;
   flex: 1;
-  grid-template-columns: minmax(0, 0.38fr) minmax(0, 1.62fr);
+}
+.engager.lang-both .highlight-row:has(.highlight-photo) {
+  grid-template-columns: minmax(0, 0.32fr) minmax(0, 1.68fr);
 }
 .engager.lang-both .highlight-text { display: flex; flex-direction: column; justify-content: flex-start; min-height: 0; }
+.engager.lang-both .highlight-text > * { flex: none; }
 .engager.lang-both .engager-top p { margin: 0.04rem 0; }
 .engager.lang-both .huge { margin: 0.05rem 0; line-height: 0.95; }
 .engager.lang-both .big-amount { margin: 0.02rem 0 0; line-height: 1; }
@@ -841,9 +844,13 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .engager.lang-both .join-qr-url { margin-top: 0.25rem; font-size: clamp(0.95rem, 1.6vh, 1.15rem); }
   .engager.lang-both .sponsor-strip { max-height: 11vh; }
   .engager.lang-both .sponsor-strip h3 { max-width: 18rem; }
-  .engager.lang-th .engager-top { height: 24vh; }
+  .engager.lang-both .feed li:nth-child(n + 5),
+  .engager.lang-th .feed li:nth-child(n + 5) { display: none; }
+  .engager.lang-th .engager-top { height: 30vh; }
   .engager.lang-th .join-qr { justify-content: flex-start; }
-  .engager.lang-th .join-qr-code svg { width: clamp(108px, 16vh, 190px); }
+  .engager.lang-th .join-qr-code svg { width: clamp(96px, 13vh, 156px); }
+  .engager.lang-th .big-amount { font-size: clamp(1.8rem, 4.4vh, 2.7rem); line-height: 1.05; }
+  .engager.lang-th .highlight h2 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
   .engager.lang-th .auction-clock-kicker,
   .engager.lang-th .join-qr-title,
   .engager.lang-th .totals .muted:first-child,
@@ -854,15 +861,41 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 
 /* 720p: keep the second language inside the row, and leave the board a full page of cards. */
 @media (min-width: 900px) and (min-height: 500px) and (max-height: 820px) {
-  .engager.lang-both .engager-top { height: 38vh; }
-  .engager.lang-both .auction-clock-digits { font-size: clamp(3rem, 8.5vh, 4.2rem); }
+  .engager.lang-both .engager-top { height: 34vh; }
+  .engager.lang-both .auction-clock { padding: 0.15rem 0.75rem 0.25rem; }
+  .engager.lang-both .auction-clock-digits { font-size: 2.7rem; }
+  .engager.lang-both .auction-clock-kicker,
+  .engager.lang-both .live-badge,
+  .engager.lang-both .totals .muted:first-child,
+  .engager.lang-both .highlight-text > p.muted:not(.spot-sub),
+  .engager.lang-both .spot-label,
+  .engager.lang-both .join-qr-title { font-size: 1.55rem; }
+  .engager.lang-both .totals .muted,
+  .engager.lang-both .spot-sub,
+  .engager.lang-both .sponsor-strip h3 { font-size: 1.15rem; }
+  .engager.lang-both .board-head h3,
+  .engager.lang-both .feed h3 { font-size: 1.2rem; margin: 0 0 0.15rem; }
+  .engager.lang-both .engager-top > .panel { padding: 0.35rem 0.7rem 0.2rem; }
+  .engager.lang-both .feed li:nth-child(n + 5) { display: none; }
+  .engager.lang-th .feed li:nth-child(n + 5) { display: none; }
   .engager.lang-both .huge { font-size: clamp(2rem, 6.4vh, 2.8rem); }
   .engager.lang-both .big-amount { font-size: clamp(1.7rem, 4.6vh, 2.15rem); }
+  .engager.lang-both .highlight .sponsor { flex-wrap: nowrap; }
   .engager.lang-both .highlight .sponsor-logo { height: 20px; }
   .engager.lang-both .highlight h2 { font-size: 1.2rem; }
-  .engager.lang-both .join-qr-code svg { width: clamp(92px, 13vh, 128px); }
-  .engager.lang-both .feed li { padding: 0.2rem 0; }
-  .engager.lang-th .engager-top { height: 28vh; }
-  .engager.lang-th .join-qr-code svg { width: clamp(84px, 12.5vh, 128px); }
+  .engager.lang-both .join-qr-code svg { width: clamp(88px, 12vh, 120px); }
+  .engager.lang-both .feed li { font-size: 0.98rem; padding: 0.04rem 0; line-height: 1.05; }
+  .engager.lang-both .feed .bi > span,
+  .engager.lang-both .feed .bi small { line-height: 1.05; }
+  .engager.lang-both .sponsor-strip { max-height: 8vh; }
+  .engager.lang-both .engager-bottom > .panel { padding: 0.4rem 0.7rem; }
+  .engager.lang-both .spot-sub { line-height: 1.05; }
+  .engager.lang-both .highlight .sponsor { margin: 0; }
+  .engager.lang-th .engager-top { height: 30vh; }
+  .engager.lang-th .auction-clock { min-height: 0; padding: 0.2rem 0.75rem 0.3rem; }
+  .engager.lang-th .auction-clock-digits { font-size: 2.8rem; }
+  .engager.lang-th .join-qr-code svg { width: clamp(80px, 11vh, 112px); }
+  .engager.lang-th .big-amount { font-size: 1.7rem; }
+  .engager.lang-th .feed li:nth-child(n + 4) { display: none; }
   .engager.lang-th .huge { font-size: 2.4rem; }
 }

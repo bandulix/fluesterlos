@@ -379,7 +379,7 @@ export function EngagerPage() {
               <div className="highlight-text">
                 <p className="muted">{hot.includes(highlight.id) ? <>🔥 <Line mode={screenLang} k="screen.hot" /></> : <Line mode={screenLang} k="screen.featuring" />}</p>
                 <h2>{highlight.title}</h2>
-                <SponsorBadge sponsor={highlight.sponsor} size="lg" />
+                <SponsorBadge sponsor={highlight.sponsor} size="lg" mode={screenLang} />
                 <p className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, closed)} /></p>
                 <p className="big-amount">{money(spotAmount(highlight))}</p>
                 <p className="muted spot-sub"><Dual mode={screenLang} text={(lang) => spotSub(lang, highlight, closed)} /></p>
