@@ -14,10 +14,10 @@ export const brand = {
   name: "Thai.GER Supporters",
   /** Shield. Works on light and dark. Empty string hides it. */
   markSrc: "/brand/thaiger/mark.png",
-  /** Wide wordmark for light surfaces only (it is black). Empty string hides it. */
+  /** Wide wordmark. The file is black ink; the theme plates it on ivory. Empty string hides it. */
   lockupSrc: "/brand/thaiger/lockup.png",
-  themeColor: "#0b51c2",
-  backgroundColor: "#f5f7fb",
+  themeColor: "#0c1222",
+  backgroundColor: "#0c1222",
   icon192: "/brand/thaiger/icon-192.png",
   icon512: "/brand/thaiger/icon-512.png",
 } as const;

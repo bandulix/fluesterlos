@@ -1,12 +1,11 @@
-/* Thai.GER Supporters — event theme.
-   Colours and type from https://thaigersupporters.info (WordPress theme tokens:
-   primary #0B51C2, secondary #c4ff47, tertiary #F9FAFE, custom red #b52a2e;
-   headings Oswald, body Inter). Logos: the site header lockup and the shield mark.
-   Fonts are the theme's own woff2 files, self-hosted so the PWA works offline.
-   Inter and Oswald are used under the SIL Open Font License.
-
-   Select it with <html data-theme="thaiger"> (see web/src/brand.ts).
-   Another event adds its own file and leaves this one in place.
+/* Thai.GER Supporters — black-tie gala skin for this checkout.
+   The mark and wordmark files are unchanged (the wordmark is black ink, so it
+   sits on a small ivory plate). Type is the site's self-hosted Inter and Oswald.
+   The room, the phones and the host desk all use the same dark navy, because a
+   white screen glares in a dim ballroom. Gold is a champagne (#D4BC8A links and
+   figures, #C6A56E key buttons) — restrained, and checked to WCAG AA.
+   The site red (#b52a2e, lifted to #e07a7a for small text on navy) is only the
+   outbid and error colour. Lime is not used.
    custom.css still loads after this file and wins. */
 
 @font-face {
@@ -25,48 +24,47 @@
 }
 
 [data-theme="thaiger"] {
-  color-scheme: light;
+  color-scheme: dark;
 
-  --bg: #f5f7fb;
-  --bg-glow: #e7f0ff;
-  --card: #ffffff;
-  --card-nested: #f7f9fc;
-  --panel: #ffffff;
-  --engager-bg: #04183f;
+  --bg: #0c1222;
+  --bg-glow: #1a2238;
+  --card: #161e32;
+  --card-nested: #101828;
+  --panel: #141c30;
+  --engager-bg: #090f1c;
 
-  --text: #1c2838;
-  --muted: #5c6b82;
-  --text-strong: #0b1b33;
+  --text: #d9d3c5;
+  --muted: #b7c0d0;
+  --text-strong: #f4efe4;
 
-  /* Blue is the structural colour (links, focus, host actions). Lime is the bid. */
-  --accent: #0b51c2;
-  --accent-2: #083d96;
-  --accent-soft: rgba(11, 81, 194, 0.14);
-  --accent-glow: rgba(11, 81, 194, 0.28);
-  --teal-glow: rgba(196, 255, 71, 0.45);
-  --lime: #c4ff47;
+  /* Champagne gold. accent-2 stays in the same metal so leftover gradients do not turn teal. */
+  --accent: #d4bc8a;
+  --accent-2: #c6a56e;
+  --accent-soft: rgba(212, 188, 138, 0.16);
+  --accent-glow: rgba(212, 188, 138, 0.32);
+  --teal-glow: rgba(198, 165, 110, 0.14);
 
-  --danger: #b52a2e;
-  --success: #1f8a4c;
-  --border: #e1e8f2;
-  --border-strong: #c5d4ea;
-  --input-bg: #ffffff;
-  --input-border: #c5d2e6;
-  --banner-bg: #e7f0ff;
-  --button-text: #ffffff;
-  --button-secondary-bg: #e8eef8;
-  --topbar-border: #e4ebf5;
+  --danger: #e07a7a;
+  --success: #a3d9b1;
+  --border: #2c3548;
+  --border-strong: #3d4a62;
+  --input-bg: #0e1526;
+  --input-border: #3d4a62;
+  --banner-bg: #1c2438;
+  --button-text: #1c1408;
+  --button-secondary-bg: #1c263c;
+  --topbar-border: rgba(212, 188, 138, 0.28);
 
-  --status-open: #e5f6ea;
-  --status-scheduled: #e7eefc;
-  --status-closed: #fde8e8;
-  --pill-bg: #e8eef8;
+  --status-open: #14532d;
+  --status-scheduled: #1e3a8a;
+  --status-closed: #7f1d1d;
+  --pill-bg: #1c263c;
 
-  --g-win: #1f8a4c;
-  --g-win-bg: rgba(31, 138, 76, 0.12);
-  --g-lose: #b52a2e;
-  --g-lose-bg: rgba(181, 42, 46, 0.1);
-  --g-header-bg: rgba(255, 255, 255, 0.94);
+  --g-win: #a3d9b1;
+  --g-win-bg: rgba(163, 217, 177, 0.14);
+  --g-lose: #e07a7a;
+  --g-lose-bg: rgba(176, 42, 46, 0.16);
+  --g-header-bg: rgba(12, 18, 34, 0.92);
   --g-radius: 16px;
 
   --font: "Inter", system-ui, -apple-system, sans-serif;
@@ -75,8 +73,8 @@
 
 [data-theme="thaiger"] body {
   background:
-    radial-gradient(880px 420px at 100% -12%, #e7f0ff, transparent 58%),
-    radial-gradient(640px 360px at -8% -6%, rgba(196, 255, 71, 0.35), transparent 52%),
+    radial-gradient(880px 420px at 12% -10%, rgba(212, 188, 138, 0.09), transparent 58%),
+    radial-gradient(640px 380px at 100% 0%, rgba(26, 34, 56, 0.9), transparent 52%),
     var(--bg);
   color: var(--text);
 }
@@ -91,16 +89,7 @@
 [data-theme="thaiger"] .g-kicker {
   font-family: var(--font-display);
   letter-spacing: 0.03em;
-}
-
-[data-theme="thaiger"] .host-page h1,
-[data-theme="thaiger"] .host-page h2,
-[data-theme="thaiger"] .g-kicker,
-[data-theme="thaiger"] .g-join-title,
-[data-theme="thaiger"] .stats-page h1,
-[data-theme="thaiger"] .engager header h1,
-[data-theme="thaiger"] .engager h3 {
-  text-transform: uppercase;
+  font-weight: 500;
 }
 
 [data-theme="thaiger"] .brand-mark {
@@ -110,12 +99,16 @@
   object-fit: contain;
   flex: none;
 }
+/* The wordmark file is black. Plate it; do not recolour the asset. */
 [data-theme="thaiger"] .brand-mark.is-lockup {
   width: auto;
-  height: 44px;
+  height: 40px;
   max-width: min(46vw, 220px);
+  background: #f4efe4;
+  border-radius: 8px;
+  padding: 4px 8px;
+  box-sizing: content-box;
 }
-/* The lockup already spells the event name. Keep the product name for the link label only. */
 [data-theme="thaiger"] .brand-word {
   position: absolute;
   width: 1px;
@@ -130,17 +123,8 @@
 
 /* —— Host chrome —— */
 [data-theme="thaiger"] .topbar {
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: none;
-}
-[data-theme="thaiger"] .topbar::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #0b51c2 0 38%, #c4ff47 38% 62%, #0b51c2 62%);
+  background: rgba(12, 18, 34, 0.94);
+  box-shadow: inset 0 -1px 0 rgba(212, 188, 138, 0.45);
 }
 [data-theme="thaiger"] .topbar .button {
   min-height: 48px;
@@ -149,29 +133,28 @@
 }
 [data-theme="thaiger"] .card,
 [data-theme="thaiger"] .host-page .card {
-  box-shadow: 0 12px 32px rgba(11, 40, 90, 0.06);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
 }
 [data-theme="thaiger"] .button {
   min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #0b51c2;
-  color: #fff;
+  background: #c6a56e;
+  color: #1c1408;
   border-radius: 12px;
   box-shadow: none;
-  font-family: var(--font-display);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-family: var(--font);
+  letter-spacing: 0.01em;
 }
 [data-theme="thaiger"] .button.secondary {
   background: var(--button-secondary-bg);
   color: var(--text-strong);
   border: 1px solid var(--border-strong);
 }
-[data-theme="thaiger"] .pill.status-open { color: #146c36; box-shadow: none; }
-[data-theme="thaiger"] .pill.status-scheduled { color: #0b51c2; }
-[data-theme="thaiger"] .pill.status-closed { color: #8d1f24; }
+[data-theme="thaiger"] .pill.status-open { color: #e7f6ec; box-shadow: none; }
+[data-theme="thaiger"] .pill.status-scheduled { color: #e4e9fa; }
+[data-theme="thaiger"] .pill.status-closed { color: #f8d6d6; }
 [data-theme="thaiger"] input,
 [data-theme="thaiger"] textarea,
 [data-theme="thaiger"] select {
@@ -182,26 +165,27 @@
 /* —— Guest —— */
 [data-theme="thaiger"] .g-join-hero {
   background:
-    linear-gradient(115deg, #0b51c2 0 42%, #c4ff47 42% 58%, #0b51c2 58% 100%);
+    radial-gradient(120% 80% at 50% 0%, rgba(212, 188, 138, 0.2), transparent 62%),
+    #10182c;
 }
 [data-theme="thaiger"] .g-join-hero::after {
-  background: linear-gradient(180deg, rgba(245, 247, 251, 0) 18%, var(--bg) 78%);
+  background: linear-gradient(180deg, rgba(12, 18, 34, 0) 18%, var(--bg) 78%);
 }
 [data-theme="thaiger"] .g-join-card {
-  background: #fff;
-  border: 1px solid var(--border);
+  background: var(--card);
+  border: 1px solid rgba(212, 188, 138, 0.22);
   border-radius: 22px;
   margin-left: 16px;
   margin-right: 16px;
   padding: 22px 20px 8px;
-  box-shadow: 0 18px 40px rgba(11, 40, 90, 0.1);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 [data-theme="thaiger"] .g-join-card .brand-mark.is-lockup {
-  height: 64px;
-  margin: 0 0 12px;
+  height: 56px;
+  margin: 0 0 14px;
 }
 [data-theme="thaiger"] .g-header {
-  box-shadow: 0 1px 0 #e4ebf5;
+  box-shadow: inset 0 -1px 0 rgba(212, 188, 138, 0.28);
 }
 [data-theme="thaiger"] .g-header .brand-mark {
   width: 28px;
@@ -210,80 +194,67 @@
 [data-theme="thaiger"] .g-item,
 [data-theme="thaiger"] .g-card,
 [data-theme="thaiger"] .g-total-card {
-  box-shadow: 0 10px 28px rgba(11, 40, 90, 0.06);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
 }
 [data-theme="thaiger"] .g-price-value,
 [data-theme="thaiger"] .g-total {
   font-family: var(--font-display);
-  color: #0b51c2;
+  font-weight: 500;
+  color: #e0c98a;
   letter-spacing: 0.01em;
 }
 [data-theme="thaiger"] .g-bid,
 [data-theme="thaiger"] .g-primary {
-  background: var(--lime);
-  color: #142006;
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  box-shadow: 0 8px 20px rgba(11, 81, 194, 0.16);
+  background: #c6a56e;
+  color: #1c1408;
+  font-family: var(--font);
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
 }
 [data-theme="thaiger"] .g-bid.is-buynow {
-  background: #0b51c2;
-  color: #fff;
+  background: transparent;
+  color: #e0c98a;
+  box-shadow: inset 0 0 0 1.5px #c6a56e;
 }
 [data-theme="thaiger"] .g-outbid { background: #b52a2e; }
-[data-theme="thaiger"] .g-outbid-bid { color: #b52a2e; }
-[data-theme="thaiger"] .g-chip.is-active {
-  background: #0b51c2;
+[data-theme="thaiger"] .g-outbid-bid { background: #f4efe4; color: #9d2428; }
+[data-theme="thaiger"] .g-status-outbid,
+[data-theme="thaiger"] .g-chip-outbid .g-chip-count {
+  background: #b52a2e;
   color: #fff;
 }
+[data-theme="thaiger"] .g-chip.is-active {
+  background: #c6a56e;
+  color: #1c1408;
+}
 [data-theme="thaiger"] .g-chip.is-active .g-chip-count {
-  background: #fff;
-  color: #0b51c2;
+  background: #1c1408;
+  color: #f4efe4;
 }
 [data-theme="thaiger"] .g-timer {
-  background: #fff;
+  background: var(--card);
 }
 [data-theme="thaiger"] .g-qr {
-  border: 1px solid var(--border);
+  background: #fff;
+  border: 1px solid rgba(212, 188, 138, 0.35);
 }
 
-/* —— Room displays: scoreboard, not the phone UI —— */
+/* —— Room displays, same metal, a shade deeper —— */
 [data-theme="thaiger"] .app:has(.stats-page) main {
   max-width: none;
   padding: 0;
 }
-[data-theme="thaiger"] .engager,
-[data-theme="thaiger"] .stats-page {
-  --text: #e7eeff;
-  --text-strong: #ffffff;
-  --muted: #b7c7ea;
-  --card: #0c2f78;
-  --card-nested: #0a2768;
-  --panel: rgba(8, 32, 84, 0.92);
-  --border: #2c5cbc;
-  --border-strong: #3d6ed4;
-  --accent: #c4ff47;
-  --accent-2: #d4ff70;
-  --accent-soft: rgba(196, 255, 71, 0.16);
-  --accent-glow: rgba(196, 255, 71, 0.45);
-  --button-text: #142006;
-  --bg: #04183f;
-  --bg-glow: #123a8a;
-  color: var(--text);
-}
 [data-theme="thaiger"] .engager {
   background:
-    radial-gradient(900px 480px at 0% -10%, #1547b0, transparent 55%),
-    radial-gradient(640px 420px at 100% 110%, rgba(196, 255, 71, 0.16), transparent 50%),
-    #04183f;
+    radial-gradient(900px 480px at 50% -18%, rgba(198, 165, 110, 0.12), transparent 55%),
+    #090f1c;
 }
 [data-theme="thaiger"] .stats-page {
   min-height: 100vh;
   padding: clamp(1rem, 3vw, 2.5rem);
   background:
-    radial-gradient(800px 420px at 100% -10%, #1547b0, transparent 55%),
-    #04183f;
+    radial-gradient(800px 420px at 100% -10%, rgba(198, 165, 110, 0.1), transparent 55%),
+    #090f1c;
 }
 [data-theme="thaiger"] .engager .brand-mark {
   width: 36px;
@@ -299,32 +270,35 @@
   width: 48px;
   height: 48px;
 }
+[data-theme="thaiger"] .stats-page h1,
+[data-theme="thaiger"] .stats-page h2 {
+  color: var(--text-strong);
+}
 [data-theme="thaiger"] .stats-page h2 {
   font-family: var(--font-display);
-  text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #fff;
+  font-weight: 500;
 }
-[data-theme="thaiger"] .stats-page a { color: #c4ff47; }
 [data-theme="thaiger"] .stats-grid strong,
 [data-theme="thaiger"] .engager .huge,
 [data-theme="thaiger"] .engager .big-amount {
   font-family: var(--font-display);
-  color: #c4ff47;
+  font-weight: 500;
+  color: #e0c98a;
 }
 [data-theme="thaiger"] .engager .panel {
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
 }
 [data-theme="thaiger"] .engager .totals {
-  border-top: 4px solid #c4ff47;
+  border-top: 3px solid #c6a56e;
 }
 [data-theme="thaiger"] .board-item.is-hot {
-  border-color: #c4ff47;
-  box-shadow: inset 0 0 0 1px #c4ff47;
+  border-color: #c6a56e;
+  box-shadow: inset 0 0 0 1px #c6a56e;
 }
 [data-theme="thaiger"] .hot-badge {
-  background: #c4ff47;
-  color: #142006;
+  background: #c6a56e;
+  color: #1c1408;
 }
 
 @media (min-width: 900px) and (max-height: 820px) {
