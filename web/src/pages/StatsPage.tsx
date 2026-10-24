@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatAmount, parseCurrency } from "../lib/money";
+import { raisedSplit } from "../lib/pledgeLogic";
 import { useLive } from "../lib/useLive";
 import { BrandMark } from "../components/BrandMark";
 import { Countdown } from "../components/Countdown";
@@ -28,7 +29,10 @@ export function StatsPage() {
         </div>
         <Countdown variant="tiles" startsAt={live.event.startsAt} endsAt={live.event.endsAt} status={live.event.status} timezone={live.event.timezone} closedEarly={live.event.closedEarly} />
         <div className="stats-grid">
-          <div className="stat"><span className="muted">Raised so far</span><strong>{formatAmount(live.stats.totalHighBids, ccy)}</strong></div>
+          <div className="stat"><span className="muted">Raised so far</span><strong>{formatAmount(raisedSplit(live.stats).total, ccy)}</strong></div>
+          {(live.needs?.length || live.stats.totalDonations) ? (
+            <div className="stat"><span className="muted">Auction / donations</span><strong>{formatAmount(raisedSplit(live.stats).auction, ccy)} / {formatAmount(raisedSplit(live.stats).donations, ccy)}</strong></div>
+          ) : null}
           <div className="stat"><span className="muted">Bids</span><strong>{live.stats.totalBids}</strong></div>
           <div className="stat"><span className="muted">Guests</span><strong>{live.stats.guestCount}</strong></div>
           <div className="stat"><span className="muted">Items with bids</span><strong>{live.stats.itemsWithBids ?? live.items.filter((i) => i.bidCount > 0).length} / {live.stats.itemCount}</strong></div>

@@ -11,9 +11,15 @@ export async function freshApp(): Promise<FastifyInstance> {
     migrated = true;
   }
   await pool.query(`
-    TRUNCATE guest_login_codes, invoice_lines, invoices, bids, guests, items, events, sponsors,
-      host_sessions, host_users RESTART IDENTITY CASCADE;
-    UPDATE host_settings SET promptpay_id = NULL, payee_name = NULL, qr_image_path = NULL;
+    TRUNCATE recognition_audit, donation_route_audit, donation_route_overrides, pledge_audit, pledges, invoice_donations,
+      guest_login_codes, invoice_lines, invoices,
+      bids, guests, needs, items, events, sponsors, host_sessions, host_users RESTART IDENTITY CASCADE;
+    UPDATE host_settings SET
+      promptpay_id = NULL, payee_name = NULL, qr_image_path = NULL,
+      donation_threshold = 10000,
+      mercy_display_name = '', mercy_instructions = '', mercy_bank_details = '',
+      mercy_payment_link = '', mercy_qr_path = NULL, mercy_receipt_note = '',
+      wolfgang_display_name = '', wolfgang_qr_path = NULL, wolfgang_promptpay_id = NULL;
   `);
   mailbox.reset();
   const app = await buildApp({ logger: false });

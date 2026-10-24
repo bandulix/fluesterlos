@@ -17,9 +17,9 @@ Open-source, self-hosted **silent auction** for charity events. Guests scan a QR
 
 FlüsterLos grew out of a charity gala that ran its silent auction on paper bid sheets plus an Excel workbook. Collecting the sheets, finding the winners, chasing payments and handing out vouchers all happened by hand. FlüsterLos replaces that with:
 
-- **Guests** bid on their phones. There is no app store, no account and no password.
-- **Hosts** (the organising team) create the event and items, watch the bidding, collect payments and hand over prizes.
-- **The room** watches a big-screen view with live totals and recent bids.
+- **Guests** bid on their phones, and can fund a charity need together. There is no app store, no account and no password.
+- **Hosts** (the organising team) create the event, the lots and the Fund-a-Need items, watch the room, collect payments and hand over prizes.
+- **The room** watches a big-screen view with live totals, recent bids and Fund-a-Need progress.
 
 It is aimed at small and medium charity events (Rotary/Lions clubs, school galas, NGO dinners) that want to run it themselves. It is built Thailand-first (PromptPay, `Asia/Bangkok`, Thai phone numbers) but works with USD and EUR and any time zone.
 
@@ -39,6 +39,30 @@ More details:
 - **Add to home screen:** a small dismissible bottom bar, shown only after the first bid, never on the join screen and never at the same time as the outbid banner, a bid toast or the name card. iOS gets Share → "Add to Home Screen" instructions; Android gets an install button when the browser offers one. It is never shown inside LINE or other in-app browsers, and dismissing it is permanent.
 - **Accessibility:** tap targets are at least 48 px, inputs use 16 px+ text (no iOS zoom), labels are accessible, focus rings are visible and `prefers-reduced-motion` is respected.
 - **Strings:** all guest text lives in a string table ([`web/src/i18n/en.ts`](web/src/i18n/en.ts)). Thai or German can be added as another table; only English ships today.
+- **Two categories.** A segmented control at the top of the bid page switches **Auction** and **Donate**. Auction keeps All / Mine / Winning / Outbid. Donate lists the needs, each with a gold progress bar. **Raised so far** is the auction total plus donations, with the split written underneath. **Mine** on the auction list also shows the guest's pledges.
+
+## Fund-a-Need
+
+Auction lots stay as they are: a sponsor brings an item, guests bid, the highest bid wins. Fund-a-Need is the other half of the evening. Guests fund a specific thing for the charity together — a playground, uniforms, a year of lunches. Many people can give to the same need. It is not an auction.
+
+Each need has a title, the charity or beneficiary, a description, a photo (or the same gift placeholder the lots use), a target in THB, optional preset amounts (฿1,000 / ฿5,000 / ฿10,000 / ฿25,000, edited per need), and optionally units (one uniform is ฿800, chosen with the same −/+ stepper as a bid). A guest picks a preset, a number of units, or a custom amount at or above the minimum, and confirms with one gold button. The pledge is binding, like a bid. Undo sits on the toast for 10 seconds. **Name me publicly** is off unless the guest opts in. They can type a family or company name (prefilled from their guest name) and, separately, choose to show the amount. Otherwise the room says “A guest”. They can change that later from **Mine**. Each need lists **Supported by** with the public names (amount only when the donor asked), plus “+ N anonymous gifts”. **Top donors** ranks public gifts across every need — auction bids are not included — on a guest tab and on the big screen. Gold, silver and bronze mark the top three. A name that enters the top three or moves up gets a short celebration; reduced motion skips the animation. The host can turn recognition off, turn the big-screen frame off, choose how many names to show (default 10), spotlight that frame, and edit or hide a display name. The reason stays in an audit trail. Exports add **Named publicly** and **Public name**.
+
+The bar fills gold toward the target and shows the amount raised and the donor count. At 100% it reads **Fully funded!** (the pop respects `prefers-reduced-motion`). Gifts can continue past the target — the label becomes **110% funded** and the bar stays full — unless the host caps the need. Fund-a-Need does not follow the auction countdown. It stays open, or it ends at its own time. A time on one need overrides the event time.
+
+**Host.** On the event card: create, edit, reorder, hide and close needs; set the target, presets, units, end time and cap; put one need in the **spotlight**; see pledges per need and per guest; correct or void a pledge (a reason is required, and the audit line stays). **Add example needs** inserts three sample items for the Thai.GER charity (playground ฿150,000, uniforms ฿24,000 at ฿800 each, lunches ฿36,000 and capped). Each one is badged **Example** and its description starts with “Example data for the Thai.GER Supporters gala.”
+
+**Big screen.** A large **HH:MM:SS** auction countdown stays pinned on every frame — auction highlights, Fund-a-Need, spotlight, Top Donors and the pledge ticker. It uses the server end time, corrected by the same clock offset as the phones, so every screen shows the same second, and it jumps if the host extends the auction or closes it early. Under 15 minutes it pulses gold and reads **Last 15 minutes**. Under 5 minutes the digits get bigger. Under 60 seconds the main area becomes the seconds. Then it reads **Bidding closed**. Reduced motion keeps the colour and drops the pulse. If Fund-a-Need has its own end, a smaller line says **Donations open until 22:30** and is not the auction clock.
+
+The room still alternates every 6 seconds between auction highlights, Fund-a-Need progress and, when the host leaves it on, Top Donors. A new pledge pins the needs view and runs a ticker (“The Müller Family funded 3 uniforms”, or “A guest pledged ฿5,000” when the gift is not public). Crossing 100% fills the screen with **Fully funded!** for a few seconds. The host can hold one need in **Fund-a-Need spotlight**, or hold **Top donors**. With reduced motion the ticker is one static line and the celebration does not animate.
+
+**Invoice.** After the auction closes, the receipt lists won lots and donations in two sections, each with a subtotal, then a grand total. Donation lines are marked as donations and no item is handed over. A guest who only gave, and won nothing, still gets an invoice. Paying freezes it. Exports add a pledges block (CSV only when there are pledges; the xlsx file always has a Pledges sheet) with a **Payment channel** column. The auction “Results” sheet is unchanged.
+
+**Where a donation is paid.** The host sets one threshold (default ฿10,000; an equal amount goes to Mercy Centre) and two channels under **Donation payment channels**. Both start empty. The form placeholders are example text and are not saved — no account number, name or PromptPay ID is filled in for you.
+
+- **Mercy Centre** — display name, instructions, bank details and/or a payment link and/or a QR image, plus a note that Mercy Centre issues the donation receipt. The invoice asks for the name or company and an email for that receipt.
+- **Wolfgang’s QR** — display name and a QR image. If a PromptPay ID is entered and no image is uploaded, the invoice shows a PromptPay QR for the exact donation total.
+
+The rule uses the guest’s **donation total**, not each pledge on its own. Auction lots keep the existing PromptPay / desk payment and are not added into that total. The host sees the channel on the pledge list and can override it per guest; the reason is kept in an audit trail. Voiding a pledge recomputes the channel, unless an override is set.
 
 ## Host flow
 
@@ -62,11 +86,11 @@ Open **`/host`**. The host desk uses the same navy and gold gala skin as the pho
    - **Import items** from Excel / CSV and **Photos & PDFs** in bulk (see below)
 5. **Users:** list guests, or add them in advance by phone; such a guest's first join needs no code. Extra host logins are managed here too.
 6. **Help desk:** shows pending 6-digit login codes, so a host can check who someone is and read the code out.
-7. **Payment desk** (after close): one invoice per winning guest, totalling all their wins.
+7. **Payment desk** (after close): one invoice per guest who won a lot or made a pledge. Lots and donations are listed separately, with subtotals and a grand total. Donation rows say they are donations (nothing to hand over) and show the receipt name.
    - Mark paid by **cash / bank transfer / PromptPay**. Transfers without a payslip need an explicit "I checked the transfer arrived".
    - Marking paid emails the voucher PDFs (one attachment per won voucher). If a voucher PDF is missing, the desk warns ("voucher PDF missing") and holds the email until the PDF is attached; then press **Send email**.
    - Tick **Handed over** per item (only after payment; time and host are recorded). A toast confirms it, and the "At the desk — hand over: …" hint drops the item at once (and disappears when everything is handed over).
-8. **Export:** `results.xlsx` / `results.csv` with one row per lot, including unsold ones. Columns: lot, item, type, sponsor, retail value, winner, phone, email, amount, currency, paid, method, paid at, handed over, handed over at.
+8. **Export:** `results.xlsx` / `results.csv` with one row per lot, including unsold ones. Columns: lot, item, type, sponsor, retail value, winner, phone, email, amount, currency, paid, method, paid at, handed over, handed over at. When the event has pledges, the CSV continues with a pledges block and the workbook adds a **Pledges** sheet (guest, phone, receipt name, need, amount, units, anonymous, status).
    - Host-only **notes** (e.g. "Organized by: …") can contain names, so they are left out by default; tick **Include host notes** next to the export links to add them as the last column (`?notes=1`).
    - Timestamps are in the event's time zone, which is named in the header.
    - CSV phones are readable without a leading `+` (`081 234 5678` for the default country, `(+49) 1512 3456789` otherwise), so spreadsheets don't treat them as formulas.
@@ -90,7 +114,7 @@ Open **`/host`**. The host desk uses the same navy and gold gala skin as the pho
 ## Big screen
 
 - **`/e/<code>/engager`:** full-screen room display that fits one TV screen (tested at 1920×1080, 1280×720 and 1024×600 with 48 items; cards stretch to fill the height):
-  - **Raised so far** — the sum of the current high bids of items that *have* bids (buy-now sales included; starting bids of unbid items never count), with a caption of how many bids and lots that total came from;
+  - **Raised so far** — the sum of the current high bids of items that *have* bids (buy-now sales included; starting bids of unbid items never count), plus Fund-a-Need once any need or pledge exists, with the auction and donation amounts split underneath;
   - a highlighted item showing its real state (current bid and leader, starting bid, fixed price, sold); it rotates every 6 s, prefers items with recent bids and jumps to an item the moment it gets a bid; and a **scannable join QR**;
   - the **item board, paged**: as many cards as fit (8–12 per page), advancing every 8 s with a page indicator ("13–24 of 48"); the top three lots by amount wear a rank badge, a new bid washes that row gold for a few seconds, and the 3 **Hot** items (most bids in the last 5 minutes, then most bids) are outlined in gold;
   - the latest bids;

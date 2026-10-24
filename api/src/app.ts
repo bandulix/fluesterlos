@@ -10,6 +10,9 @@ import { publish } from "./sse.js";
 import { registerRestRoutes } from "./rest.js";
 import { registerInvoiceRoutes } from "./invoiceRoutes.js";
 import { registerItemImportRoutes } from "./itemImportRoutes.js";
+import { registerNeedRoutes } from "./needRoutes.js";
+import { fundTotals, listNeedRows, recentPledges, toPublicNeed } from "./needs.js";
+import { publicRecognition } from "./recognition.js";
 import { registerSponsorRoutes, sponsorLogoUrl, upsertSponsor } from "./sponsors.js";
 import { defaultEventTimeZone, isValidTimeZone, parseInstant } from "./eventTime.js";
 import { registerEventControlRoutes, rescheduleEvent } from "./eventControls.js";
@@ -74,6 +77,12 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
           timezone: string;
           closed_early_at: Date | null;
           closed_by: string | null;
+          needs_ends_at?: Date | null;
+          spotlight_need_id?: string | null;
+          donor_recognition?: boolean;
+          top_donors_screen?: boolean;
+          top_donors_limit?: number | string;
+          spotlight_top_donors?: boolean;
         }
       | undefined;
   }
@@ -133,6 +142,21 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     // Items without bids carry their starting bid in highBid for display, which must not count.
     const totalHigh = items.reduce((sum, it) => sum + (it.bidCount > 0 ? it.highBid : 0), 0);
     const totalBids = items.reduce((sum, it) => sum + it.bidCount, 0);
+    const currency = parseCurrency(event.currency);
+    const eventNeedsEndsAt = event.needs_ends_at ?? null;
+    const recognitionOn = event.donor_recognition !== false;
+    const topLimit = Number(event.top_donors_limit ?? 10) || 10;
+    const recognition = await publicRecognition(eventId, { enabled: recognitionOn, limit: topLimit });
+    const needs = (await listNeedRows(eventId, { includeHidden: false })).map((row) => {
+      const listed = recognition.byNeed.get(row.id);
+      return {
+        ...toPublicNeed(row, code, eventNeedsEndsAt),
+        supporters: listed?.donors ?? [],
+        anonymousGifts: listed?.anonymousGifts ?? 0,
+      };
+    });
+    const fund = await fundTotals(eventId);
+    const pledges = await recentPledges(eventId, currency);
     return {
       event: {
         id: event.id,
@@ -143,13 +167,25 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
         timezone: event.timezone || defaultEventTimeZone(),
         closedEarly: Boolean(event.closed_early_at),
         status,
-        currency: parseCurrency(event.currency),
+        currency,
         joinUrl: `${PUBLIC_URL}/e/${event.code}`,
+        needsEndsAt: eventNeedsEndsAt ? new Date(eventNeedsEndsAt).toISOString() : null,
+        spotlightNeedId: event.spotlight_need_id ?? null,
+        donorRecognition: recognitionOn,
+        topDonorsOnScreen: event.top_donors_screen !== false,
+        spotlightTopDonors: Boolean(event.spotlight_top_donors),
       },
       items,
+      needs,
+      topDonors: recognition.topDonors,
+      recentPledges: pledges,
       stats: {
         guestCount: guestsRes.rows[0].c,
         totalHighBids: money(totalHigh),
+        totalDonations: fund.totalDonations,
+        totalRaised: money(totalHigh + fund.totalDonations),
+        donorCount: fund.donorCount,
+        pledgeCount: fund.pledgeCount,
         totalBids,
         itemCount: items.length,
         itemsWithBids: items.filter((it) => it.bidCount > 0).length,
@@ -475,6 +511,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   registerSponsorRoutes(app, { requireHost });
   registerEventControlRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
   registerItemImportRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
+  registerNeedRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as Error & { statusCode?: number };

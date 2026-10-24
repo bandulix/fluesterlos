@@ -7,6 +7,18 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — Fund-a-Need
+
+- A second category beside the auction. Guests switch **Auction** / **Donate**. Needs have a target, preset amounts, an optional unit stepper, and a gold progress bar. Pledges are binding, with Undo for 10 seconds, and can be anonymous on the big screen. They may pass 100% (“110% funded”) unless the host caps the need. Fund-a-Need stays open after the auction, or ends at its own time.
+- Hosts create, edit, reorder, hide and close needs, spotlight one need, and correct or void a pledge with an audit trail. Tables and exports include pledges.
+- The big screen rotates between auction highlights and Fund-a-Need bars, runs a pledge ticker, celebrates 100%, and can hold a host-triggered spotlight.
+- The receipt lists won lots and donations separately, with subtotals, a grand total, and a name for the donation receipt.
+- Three example needs for the Thai.GER charity (playground, school uniforms, lunches), labelled as example data. Hosts add them from the event card.
+- Tests: `api/test/pledges.test.ts` (units, caps, the 10-second undo, concurrent pledges, totals across guest, host, big screen and invoice) and `web/test/pledges.test.ts`.
+- Donation payment routing. A guest’s donation total of ฿10,000 or more is paid via Mercy Centre; below that, via Wolfgang’s QR. The threshold and both channels are host settings and start empty (placeholders are example text, not saved accounts). Auction lots keep the existing payment flow. The host can override the channel per guest, with an audit trail, and exports include the channel. Tests: `api/test/donationRoute.test.ts`.
+- Opt-in donor recognition. **Name me publicly** is off by default, with an editable public name and a separate “show my amount” choice. Needs list **Supported by**, and **Top donors** ranks public gifts only (not auction bids) for guests and the big screen. The host can turn recognition and the big-screen frame on or off, set how many names to show, spotlight Top Donors, and edit or hide a display name with an audit trail. Exports add **Named publicly** and **Public name**. Tests: `api/test/recognition.test.ts`.
+- Big-screen auction countdown. A pinned HH:MM:SS clock stays the same size on every frame, including Fund-a-Need, spotlight, Top Donors and the ticker. Under 15 minutes it pulses gold, under 5 minutes it grows, under 60 seconds the main area shows the seconds, then **Bidding closed**. It follows the server end (extend and close-early included). A different Fund-a-Need end is a smaller “Donations open until …” line. Tests: `web/test/auctionClock.test.ts`.
+
 ### Fixed — click test round 5
 
 - **Undo after buy-now**: the Undo toast now lasts 8 s after a fixed-price purchase (5 s after a bid; the server-side undo grace stays 15 s). The toast timer is keyed to the toast and doesn't restart or close when the page re-renders or live updates arrive. It also pauses while the tab is hidden or the pointer is over the toast.

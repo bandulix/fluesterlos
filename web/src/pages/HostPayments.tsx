@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { API_BASE, uploadForm } from "../lib/api";
+import { API_BASE, api, uploadForm } from "../lib/api";
 import { DEFAULT_EVENT_TZ, formatInZone } from "../lib/time";
 import { formatMoney, parseCurrency } from "../lib/money";
 
@@ -8,6 +8,27 @@ export type HostSettings = {
   payeeName: string;
   hasQrImage: boolean;
   defaultTimezone?: string;
+  donationThreshold?: number;
+  mercyDisplayName?: string;
+  mercyInstructions?: string;
+  mercyBankDetails?: string;
+  mercyPaymentLink?: string;
+  mercyReceiptNote?: string;
+  mercyHasQr?: boolean;
+  wolfgangDisplayName?: string;
+  wolfgangPromptpayId?: string;
+  wolfgangHasQr?: boolean;
+  donationPlaceholders?: {
+    example?: boolean;
+    label?: string;
+    mercyDisplayName?: string;
+    mercyInstructions?: string;
+    mercyBankDetails?: string;
+    mercyPaymentLink?: string;
+    mercyReceiptNote?: string;
+    wolfgangDisplayName?: string;
+    wolfgangPromptpayId?: string;
+  };
 };
 
 import type { PaymentMethod } from "../lib/deskText";
@@ -107,6 +128,140 @@ export function PaymentSettingsCard(props: {
             preview
           </a>
         </p>
+      )}
+    </div>
+  );
+}
+
+export function DonationChannelsCard(props: { settings: HostSettings | null; busy: boolean; onSaved: () => void }) {
+  const ph = props.settings?.donationPlaceholders;
+  const [threshold, setThreshold] = useState(String(props.settings?.donationThreshold ?? 10000));
+  const [mercyName, setMercyName] = useState(props.settings?.mercyDisplayName ?? "");
+  const [mercyInstructions, setMercyInstructions] = useState(props.settings?.mercyInstructions ?? "");
+  const [mercyBank, setMercyBank] = useState(props.settings?.mercyBankDetails ?? "");
+  const [mercyLink, setMercyLink] = useState(props.settings?.mercyPaymentLink ?? "");
+  const [mercyNote, setMercyNote] = useState(props.settings?.mercyReceiptNote ?? "");
+  const [wolfName, setWolfName] = useState(props.settings?.wolfgangDisplayName ?? "");
+  const [wolfId, setWolfId] = useState(props.settings?.wolfgangPromptpayId ?? "");
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const s = props.settings;
+    if (!s) return;
+    setThreshold(String(s.donationThreshold ?? 10000));
+    setMercyName(s.mercyDisplayName ?? "");
+    setMercyInstructions(s.mercyInstructions ?? "");
+    setMercyBank(s.mercyBankDetails ?? "");
+    setMercyLink(s.mercyPaymentLink ?? "");
+    setMercyNote(s.mercyReceiptNote ?? "");
+    setWolfName(s.wolfgangDisplayName ?? "");
+    setWolfId(s.wolfgangPromptpayId ?? "");
+  }, [props.settings]);
+
+  async function onSave(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setNote(null);
+    const amount = Number(threshold);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Enter a threshold above 0.");
+      return;
+    }
+    try {
+      await api("/api/host/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          donationThreshold: amount,
+          mercyDisplayName: mercyName,
+          mercyInstructions,
+          mercyBankDetails: mercyBank,
+          mercyPaymentLink: mercyLink,
+          mercyReceiptNote: mercyNote,
+          wolfgangDisplayName: wolfName,
+          wolfgangPromptpayId: wolfId,
+        }),
+      });
+      setNote("Donation channels saved. Fields you leave empty stay empty.");
+      props.onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function onQr(channel: "mercy" | "wolfgang", file: File) {
+    setError(null);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      await uploadForm(`/api/host/settings/donation-qr/${channel}`, form);
+      setNote(channel === "mercy" ? "Mercy Centre QR uploaded." : "Wolfgang QR uploaded.");
+      props.onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Donation payment channels</h2>
+      <p className="muted">
+        Fund-a-Need only. A guest’s donation total at or above the threshold is paid via Mercy Centre
+        (they can issue a donation receipt). Below it, via Wolfgang’s QR. Auction lots keep the PromptPay settings above.
+        {ph?.label ? ` ${ph.label}.` : ""}
+      </p>
+      <form className="stack" onSubmit={onSave}>
+        <label>
+          Threshold (THB). Amounts equal to this go to Mercy Centre.
+          <input value={threshold} inputMode="decimal" onChange={(e) => setThreshold(e.target.value)} />
+        </label>
+        <h3>Mercy Centre</h3>
+        <label>
+          Display name
+          <input value={mercyName} placeholder={ph?.mercyDisplayName} onChange={(e) => setMercyName(e.target.value)} />
+        </label>
+        <label>
+          Instructions
+          <textarea value={mercyInstructions} placeholder={ph?.mercyInstructions} rows={2} onChange={(e) => setMercyInstructions(e.target.value)} />
+        </label>
+        <label>
+          Bank account details
+          <textarea value={mercyBank} placeholder={ph?.mercyBankDetails} rows={3} onChange={(e) => setMercyBank(e.target.value)} />
+        </label>
+        <label>
+          Payment link
+          <input value={mercyLink} placeholder={ph?.mercyPaymentLink} onChange={(e) => setMercyLink(e.target.value)} />
+        </label>
+        <label>
+          Donation receipt note
+          <input value={mercyNote} placeholder={ph?.mercyReceiptNote} onChange={(e) => setMercyNote(e.target.value)} />
+        </label>
+        <h3>Wolfgang’s QR</h3>
+        <label>
+          Display name
+          <input value={wolfName} placeholder={ph?.wolfgangDisplayName} onChange={(e) => setWolfName(e.target.value)} />
+        </label>
+        <label>
+          PromptPay ID (optional — builds a QR for the exact donation total when no image is uploaded)
+          <input value={wolfId} placeholder={ph?.wolfgangPromptpayId} onChange={(e) => setWolfId(e.target.value)} />
+        </label>
+        <button className="button secondary" disabled={props.busy}>Save donation channels</button>
+        {note && <p className="saved-note" role="status">{note}</p>}
+        {error && <p className="banner warn">{error}</p>}
+      </form>
+      <label>
+        Mercy Centre QR image
+        <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) onQr("mercy", f); }} />
+      </label>
+      {props.settings?.mercyHasQr && (
+        <p className="muted"><a href={`${API_BASE}/api/host/settings/donation-qr/mercy`} target="_blank" rel="noreferrer">Preview Mercy Centre QR</a></p>
+      )}
+      <label>
+        Wolfgang QR image
+        <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) onQr("wolfgang", f); }} />
+      </label>
+      {props.settings?.wolfgangHasQr && (
+        <p className="muted"><a href={`${API_BASE}/api/host/settings/donation-qr/wolfgang`} target="_blank" rel="noreferrer">Preview Wolfgang QR</a></p>
       )}
     </div>
   );
@@ -218,7 +373,27 @@ function InvoiceRow(props: {
             </li>
           );
         })}
+        {(inv.donations ?? []).map((d) => (
+          <li key={d.needId} className="line-row">
+            <span>
+              {d.title} — {formatMoney(d.amount, ccy)}
+              {d.beneficiary ? ` · ${d.beneficiary}` : ""}
+            </span>
+            <span className="pill">donation</span>
+            <span className="muted">no item delivered</span>
+          </li>
+        ))}
       </ul>
+      {(inv.donations?.length ?? 0) > 0 && (
+        <p className="muted">
+          Lots {formatMoney(inv.lotsTotal ?? inv.lines.reduce((s, l) => s + l.amount, 0), ccy)}
+          {" · "}
+          Donations {formatMoney(inv.donationsTotal ?? inv.donations!.reduce((s, d) => s + d.amount, 0), ccy)}
+          {inv.donationChannelLabel ? ` · ${inv.donationChannelLabel}` : ""}
+          {inv.donationChannelSource === "override" ? " (override)" : ""}
+          {inv.receiptName ? ` · receipt name: ${inv.receiptName}` : ""}
+        </p>
+      )}
       {pdfWarning && <p className="banner warn">{pdfWarning}</p>}
       {desk && <p className="banner">{desk}</p>}
       <div className="row">

@@ -204,5 +204,160 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS host_sessions_expires_idx ON host_sessions(expires_at);
     CREATE INDEX IF NOT EXISTS invoices_event_idx ON invoices(event_id);
     CREATE INDEX IF NOT EXISTS guest_login_codes_guest_idx ON guest_login_codes(guest_id, created_at DESC);
+
+    -- Fund-a-Need: shared pledges, independent of the auction clock unless the host sets an end.
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS needs_ends_at TIMESTAMPTZ;
+    -- UUID of the need featured on the big screen. No FK: needs also reference events.
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS spotlight_need_id UUID;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS receipt_name TEXT;
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS receipt_name TEXT;
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS lots_total NUMERIC(12,2);
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS donations_total NUMERIC(12,2);
+
+    CREATE TABLE IF NOT EXISTS needs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      beneficiary TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      photo_url TEXT,
+      target_amount NUMERIC(12,2) NOT NULL,
+      min_pledge NUMERIC(12,2) NOT NULL,
+      suggested_amounts JSONB NOT NULL DEFAULT '[1000,5000,10000,25000]'::jsonb,
+      unit_label TEXT,
+      unit_amount NUMERIC(12,2),
+      cap_at_target BOOLEAN NOT NULL DEFAULT false,
+      ends_at TIMESTAMPTZ,
+      hidden BOOLEAN NOT NULL DEFAULT false,
+      closed_at TIMESTAMPTZ,
+      sort_order INT NOT NULL DEFAULT 0,
+      example BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS pledges (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      need_id UUID NOT NULL REFERENCES needs(id) ON DELETE CASCADE,
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+      units INT CHECK (units IS NULL OR units > 0),
+      anonymous BOOLEAN NOT NULL DEFAULT false,
+      undone_at TIMESTAMPTZ,
+      voided_at TIMESTAMPTZ,
+      voided_by TEXT,
+      void_reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS pledge_audit (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      pledge_id UUID REFERENCES pledges(id) ON DELETE SET NULL,
+      need_id UUID NOT NULL REFERENCES needs(id) ON DELETE CASCADE,
+      guest_id UUID REFERENCES guests(id) ON DELETE SET NULL,
+      action TEXT NOT NULL CHECK (action IN ('created', 'undone', 'corrected', 'voided')),
+      actor TEXT NOT NULL,
+      amount NUMERIC(12,2),
+      previous_amount NUMERIC(12,2),
+      units INT,
+      reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS invoice_donations (
+      invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      need_id UUID NOT NULL REFERENCES needs(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      beneficiary TEXT NOT NULL DEFAULT '',
+      amount NUMERIC(12,2) NOT NULL,
+      PRIMARY KEY (invoice_id, need_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS needs_event_sort_idx ON needs(event_id, sort_order);
+    CREATE INDEX IF NOT EXISTS pledges_need_active_idx ON pledges(need_id) WHERE undone_at IS NULL AND voided_at IS NULL;
+    CREATE INDEX IF NOT EXISTS pledges_guest_idx ON pledges(guest_id);
+    CREATE INDEX IF NOT EXISTS pledge_audit_need_idx ON pledge_audit(need_id, created_at DESC);
+
+    -- Donation payment channels. Empty until the host fills them in. Threshold 10000:
+    -- a guest's donation total at or above it is paid via Mercy Centre; below it, via Wolfgang's QR.
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS donation_threshold NUMERIC(12,2) NOT NULL DEFAULT 10000;
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_display_name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_instructions TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_bank_details TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_payment_link TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_qr_path TEXT;
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_receipt_note TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS wolfgang_display_name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS wolfgang_qr_path TEXT;
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS wolfgang_promptpay_id TEXT;
+
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS donation_channel TEXT;
+    ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_donation_channel_check;
+    ALTER TABLE invoices ADD CONSTRAINT invoices_donation_channel_check
+      CHECK (donation_channel IS NULL OR donation_channel IN ('mercy', 'wolfgang'));
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS donation_channel_source TEXT;
+    ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_donation_channel_source_check;
+    ALTER TABLE invoices ADD CONSTRAINT invoices_donation_channel_source_check
+      CHECK (donation_channel_source IS NULL OR donation_channel_source IN ('threshold', 'override'));
+
+    CREATE TABLE IF NOT EXISTS donation_route_overrides (
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL CHECK (channel IN ('mercy', 'wolfgang')),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (event_id, guest_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS donation_route_audit (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      guest_id UUID REFERENCES guests(id) ON DELETE SET NULL,
+      action TEXT NOT NULL CHECK (action IN ('override', 'cleared')),
+      channel TEXT,
+      previous_channel TEXT,
+      reason TEXT,
+      actor TEXT NOT NULL,
+      donations_total NUMERIC(12,2),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS donation_route_audit_event_idx ON donation_route_audit(event_id, created_at DESC);
+
+    -- Donor recognition is opt-in. Defaults: not named, amount hidden, feature on for the event.
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS recognize_public BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS public_name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS show_pledge_amount BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS recognition_hidden BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE guests ADD COLUMN IF NOT EXISTS recognition_name TEXT NOT NULL DEFAULT '';
+    -- Pledges that already asked to be named keep that choice, under the guest's own name.
+    UPDATE guests g
+    SET recognize_public = true,
+        public_name = g.name
+    WHERE g.recognize_public = false
+      AND btrim(g.public_name) = ''
+      AND btrim(g.recognition_name) = ''
+      AND EXISTS (
+        SELECT 1 FROM pledges p
+        WHERE p.guest_id = g.id AND p.anonymous = false AND p.undone_at IS NULL AND p.voided_at IS NULL
+      );
+
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS donor_recognition BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS top_donors_screen BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS top_donors_limit INT NOT NULL DEFAULT 10;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS spotlight_top_donors BOOLEAN NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS recognition_audit (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      guest_id UUID REFERENCES guests(id) ON DELETE SET NULL,
+      action TEXT NOT NULL CHECK (action IN ('guest_update', 'host_edit', 'host_hide', 'host_restore')),
+      public_name TEXT,
+      previous_name TEXT,
+      recognize_public BOOLEAN,
+      show_amount BOOLEAN,
+      hidden BOOLEAN,
+      reason TEXT,
+      actor TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS recognition_audit_event_idx ON recognition_audit(event_id, created_at DESC);
   `);
 }

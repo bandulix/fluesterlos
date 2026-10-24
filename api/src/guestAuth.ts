@@ -16,6 +16,13 @@ export type GuestRow = {
   claimed_at?: Date | null;
   /** Per-event running number; the public default name is "Guest <guest_no>". */
   guest_no?: number | null;
+  /** Name or company as it should appear on a donation receipt. */
+  receipt_name?: string | null;
+  recognize_public?: boolean;
+  public_name?: string;
+  show_pledge_amount?: boolean;
+  recognition_hidden?: boolean;
+  recognition_name?: string;
 };
 
 const CODE_TTL_MINUTES = 10;
@@ -227,6 +234,22 @@ export async function setGuestName(guestId: string, nameRaw: string): Promise<Gu
     [guestId, name],
   );
   if (!upd.rows[0]) throw httpError(404, "Guest not found");
+  return upd.rows[0] as GuestRow;
+}
+
+/** Name or company printed on a donation receipt. Empty clears it. */
+export async function setGuestReceiptName(guestId: string, nameRaw: string): Promise<GuestRow> {
+  const name = String(nameRaw ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  const upd = await pool.query("UPDATE guests SET receipt_name = $2 WHERE id = $1 RETURNING *", [
+    guestId,
+    name || null,
+  ]);
+  if (!upd.rows[0]) throw httpError(404, "Guest not found");
+  await pool.query(
+    `UPDATE invoices SET receipt_name = $2
+     WHERE guest_id = $1 AND status <> 'paid'`,
+    [guestId, name || null],
+  );
   return upd.rows[0] as GuestRow;
 }
 

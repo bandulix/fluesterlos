@@ -2,6 +2,7 @@ import { pool } from "./db.js";
 import { auctionStatus, formatMoney, money, parseCurrency } from "./auction.js";
 import { readDataFile } from "./storage.js";
 import { sendMail, smtpConfigured } from "./mail.js";
+import { routeForGuest } from "./donationRoute.js";
 
 export type InvoiceStatus = "unpaid" | "payslip_uploaded" | "paid";
 
@@ -46,20 +47,42 @@ export async function ensureInvoicesForEvent(eventId: string) {
       [eventId],
     );
 
-    const byGuest = new Map<
-      string,
-      Array<{ item_id: string; item_title: string; amount: number; voucher_pdf_path: string | null }>
-    >();
+    const donationRows = await client.query(
+      `SELECT n.id AS need_id, n.title, n.beneficiary, p.guest_id, SUM(p.amount) AS amount
+       FROM pledges p
+       JOIN needs n ON n.id = p.need_id
+       WHERE n.event_id = $1 AND p.undone_at IS NULL AND p.voided_at IS NULL
+       GROUP BY n.id, n.title, n.beneficiary, p.guest_id`,
+      [eventId],
+    );
+
+    type Bag = {
+      lots: Array<{ item_id: string; item_title: string; amount: number; voucher_pdf_path: string | null }>;
+      donations: Array<{ need_id: string; title: string; beneficiary: string; amount: number }>;
+    };
+    const byGuest = new Map<string, Bag>();
+    const bagFor = (gid: string): Bag => {
+      const existing = byGuest.get(gid);
+      if (existing) return existing;
+      const created: Bag = { lots: [], donations: [] };
+      byGuest.set(gid, created);
+      return created;
+    };
     for (const row of winners.rows) {
-      const gid = row.guest_id as string;
-      const list = byGuest.get(gid) ?? [];
-      list.push({
+      bagFor(row.guest_id as string).lots.push({
         item_id: row.item_id,
         item_title: row.item_title,
         amount: money(row.amount),
         voucher_pdf_path: row.voucher_pdf_path,
       });
-      byGuest.set(gid, list);
+    }
+    for (const row of donationRows.rows) {
+      bagFor(row.guest_id as string).donations.push({
+        need_id: row.need_id,
+        title: row.title,
+        beneficiary: row.beneficiary ?? "",
+        amount: money(row.amount),
+      });
     }
 
     await client.query(
@@ -68,8 +91,10 @@ export async function ensureInvoicesForEvent(eventId: string) {
       [eventId, [...byGuest.keys()]],
     );
 
-    for (const [guestId, lines] of byGuest) {
-      const total = money(lines.reduce((s, l) => s + l.amount, 0));
+    for (const [guestId, bag] of byGuest) {
+      const lotsTotal = money(bag.lots.reduce((s, l) => s + l.amount, 0));
+      const donationsTotal = money(bag.donations.reduce((s, l) => s + l.amount, 0));
+      const total = money(lotsTotal + donationsTotal);
       const existing = await client.query(
         "SELECT id, status FROM invoices WHERE event_id = $1 AND guest_id = $2",
         [eventId, guestId],
@@ -80,26 +105,38 @@ export async function ensureInvoicesForEvent(eventId: string) {
       if (existing.rows[0]) {
         invoiceId = existing.rows[0].id;
         await client.query(
-          `UPDATE invoices SET total = $1,
+          `UPDATE invoices SET total = $1, lots_total = $2, donations_total = $3,
+             receipt_name = COALESCE(invoices.receipt_name, (SELECT receipt_name FROM guests WHERE id = $4)),
              status = CASE WHEN status = 'payslip_uploaded' THEN status ELSE 'unpaid' END
-           WHERE id = $2`,
-          [total, invoiceId],
+           WHERE id = $5`,
+          [total, lotsTotal, donationsTotal, guestId, invoiceId],
         );
         await client.query("DELETE FROM invoice_lines WHERE invoice_id = $1", [invoiceId]);
+        await client.query("DELETE FROM invoice_donations WHERE invoice_id = $1", [invoiceId]);
       } else {
         const ins = await client.query(
-          `INSERT INTO invoices (event_id, guest_id, total, status)
-           VALUES ($1, $2, $3, 'unpaid') RETURNING id`,
-          [eventId, guestId, total],
+          `INSERT INTO invoices (event_id, guest_id, total, lots_total, donations_total, status, receipt_name)
+           VALUES ($1, $2, $3, $4, $5, 'unpaid', (SELECT receipt_name FROM guests WHERE id = $2))
+           RETURNING id`,
+          [eventId, guestId, total, lotsTotal, donationsTotal],
         );
         invoiceId = ins.rows[0].id;
       }
-      for (const line of lines) {
+      for (const line of bag.lots) {
         await client.query(
           `INSERT INTO invoice_lines (invoice_id, item_id, amount)
            VALUES ($1, $2, $3)
            ON CONFLICT (invoice_id, item_id) DO UPDATE SET amount = EXCLUDED.amount`,
           [invoiceId, line.item_id, line.amount],
+        );
+      }
+      for (const line of bag.donations) {
+        await client.query(
+          `INSERT INTO invoice_donations (invoice_id, need_id, title, beneficiary, amount)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (invoice_id, need_id) DO UPDATE
+             SET amount = EXCLUDED.amount, title = EXCLUDED.title, beneficiary = EXCLUDED.beneficiary`,
+          [invoiceId, line.need_id, line.title, line.beneficiary, line.amount],
         );
       }
     }
@@ -124,6 +161,21 @@ const LINE_SELECT = `
   LEFT JOIN sponsors s ON s.id = i.sponsor_id
   WHERE il.invoice_id = $1
   ORDER BY i.sort_order, i.created_at`;
+
+export type InvoiceDonationRow = {
+  need_id: string;
+  title: string;
+  beneficiary: string;
+  amount: string | number;
+};
+
+async function donationRows(invoiceId: string): Promise<InvoiceDonationRow[]> {
+  const { rows } = await pool.query(
+    `SELECT need_id, title, beneficiary, amount FROM invoice_donations WHERE invoice_id = $1 ORDER BY title`,
+    [invoiceId],
+  );
+  return rows as InvoiceDonationRow[];
+}
 
 export type InvoiceLineRow = {
   item_id: string;
@@ -152,7 +204,7 @@ export async function getGuestInvoice(eventId: string, guestId: string) {
   const invoice = inv.rows[0];
   if (!invoice) return null;
   const lines = await pool.query(LINE_SELECT, [invoice.id]);
-  return { invoice, lines: lines.rows as InvoiceLineRow[] };
+  return { invoice, lines: lines.rows as InvoiceLineRow[], donations: await donationRows(invoice.id) };
 }
 
 export async function listEventInvoices(eventId: string) {
@@ -168,7 +220,7 @@ export async function listEventInvoices(eventId: string) {
   const result = [];
   for (const invoice of rows) {
     const lines = await pool.query(LINE_SELECT, [invoice.id]);
-    result.push({ invoice, lines: lines.rows as InvoiceLineRow[] });
+    result.push({ invoice, lines: lines.rows as InvoiceLineRow[], donations: await donationRows(invoice.id) });
   }
   return result;
 }
@@ -214,11 +266,14 @@ export async function markInvoicePaid(
         "No payslip uploaded — for bank transfer / PromptPay confirm that you checked the transfer, or choose cash",
       );
     }
+    const donationsTotal = money(invoice.donations_total ?? 0);
+    const route = donationsTotal > 0 ? await routeForGuest(invoice.event_id, invoice.guest_id) : null;
     await client.query(
       `UPDATE invoices SET status = 'paid', paid_at = COALESCE(paid_at, now()),
-         payment_method = $2, paid_by = $3
+         payment_method = $2, paid_by = $3,
+         donation_channel = $4, donation_channel_source = $5
        WHERE id = $1`,
-      [invoiceId, opts.method, opts.hostEmail ?? null],
+      [invoiceId, opts.method, opts.hostEmail ?? null, route?.channel ?? null, route?.source ?? null],
     );
     await client.query("COMMIT");
     return { alreadyPaid: false };
@@ -256,6 +311,7 @@ export async function sendWinnerEmail(invoiceId: string, opts: { force?: boolean
   if (missing.length) return result("voucher_pdf_missing");
 
   const currency = parseCurrency(invoice.currency);
+  const donations = await donationRows(invoiceId);
   const attachments = [];
   for (const line of lines) {
     if (line.kind !== "voucher" || !line.voucher_pdf_path) continue;
@@ -271,6 +327,12 @@ export async function sendWinnerEmail(invoiceId: string, opts: { force?: boolean
       return `- ${l.title}${sponsor}: ${formatMoney(l.amount, currency)} — ${how}`;
     })
     .join("\n");
+  const donationText = donations
+    .map(
+      (d) =>
+        `- Donation: ${d.title}${d.beneficiary ? ` (${d.beneficiary})` : ""}: ${formatMoney(d.amount, currency)} — no item delivered`,
+    )
+    .join("\n");
 
   await sendMail({
     to: invoice.guest_email,
@@ -279,7 +341,11 @@ export async function sendWinnerEmail(invoiceId: string, opts: { force?: boolean
       `Hi ${invoice.guest_name},\n\n` +
       `Thank you! We received your payment for "${invoice.event_title}" ` +
       `(total ${formatMoney(invoice.total, currency)}).\n\n` +
-      `${itemLines}\n\n` +
+      `${itemLines}${donationText ? `\n${donationText}` : ""}\n\n` +
+      (donations.length
+        ? `Donations are gifts to the charity (nothing is handed over). This note can support a donation receipt`
+          + `${invoice.receipt_name ? ` in the name of ${invoice.receipt_name}` : ""}.\n\n`
+        : "") +
       (physical.length
         ? `Please collect your item${physical.length > 1 ? "s" : ""} at the desk — bring this email or your phone.\n\n`
         : "") +

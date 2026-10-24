@@ -27,6 +27,13 @@ export type HostInvoice = {
     sponsorName: string | null;
     handedOverAt: string | null;
   }>;
+  lotsTotal?: number;
+  donationsTotal?: number;
+  donationChannel?: "mercy" | "wolfgang" | null;
+  donationChannelLabel?: string | null;
+  donationChannelSource?: "threshold" | "override" | null;
+  receiptName?: string | null;
+  donations?: Array<{ needId: string; title: string; beneficiary: string; amount: number }>;
 };
 
 export type EmailStatus =

@@ -11,6 +11,7 @@ import {
   pendingLoginRequests,
   setGuestEmail,
   setGuestName,
+  setGuestReceiptName,
   hasChosenName,
   tokenFromRequest,
   upsertGuest,
@@ -20,6 +21,7 @@ import { upsertSponsor } from "./sponsors.js";
 import { ensureDeviceId, rememberDevice } from "./devices.js";
 import { isAllowedOrigin, rateLimitFor } from "./security.js";
 import { cookieSecure } from "./hostAuth.js";
+import { listGuestPledges } from "./needs.js";
 
 /** Seconds the guest app offers "Undo" after a bid. */
 export const BID_UNDO_SECONDS = 5;
@@ -59,8 +61,37 @@ function isImageUpload(file: { filename: string; mimetype: string }) {
   return /\.(jpe?g|png|webp|gif)$/i.test(file.filename || "");
 }
 
-function guestDto(g: { id: string; name: string; email: string | null; phone: string | null; token: string; guest_no?: number | null }) {
-  return { id: g.id, name: g.name, nameSet: hasChosenName(g), guestNo: g.guest_no ?? null, email: g.email, phone: g.phone, token: g.token };
+function guestDto(g: {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  token: string;
+  guest_no?: number | null;
+  receipt_name?: string | null;
+  recognize_public?: boolean;
+  public_name?: string;
+  show_pledge_amount?: boolean;
+  recognition_hidden?: boolean;
+  recognition_name?: string;
+}) {
+  const moderated = (g.recognition_name ?? "").trim();
+  return {
+    id: g.id,
+    name: g.name,
+    nameSet: hasChosenName(g),
+    guestNo: g.guest_no ?? null,
+    email: g.email,
+    phone: g.phone,
+    token: g.token,
+    receiptName: g.receipt_name ?? null,
+    recognition: {
+      namedPublicly: Boolean(g.recognize_public),
+      publicName: moderated || (g.public_name ?? ""),
+      showAmount: Boolean(g.show_pledge_amount),
+      hiddenByHost: Boolean(g.recognition_hidden),
+    },
+  };
 }
 
 export function registerRestRoutes(
@@ -359,6 +390,7 @@ export function registerRestRoutes(
       guest: guestDto(guest),
       leaderKey: leaderKey(event.id, guest.id),
       bidItemIds: bidItems.rows.map((r) => r.item_id as string),
+      pledges: await listGuestPledges(guest.id, event.id),
     };
   });
 
@@ -382,6 +414,19 @@ export function registerRestRoutes(
     // The board shows the new name right away.
     publish(event.code, "update", await buildLivePayload(event.id, event.code));
     return { guest: guestDto(updated) };
+  });
+
+  const receiptNameSchema = z.object({ name: z.string().max(200) });
+
+  /** Donor name or company for a charity donation receipt. */
+  app.put("/api/events/:code/me/receipt-name", async (req, reply) => {
+    const event = await getEventByCode(codeOf((req.params as { code: string }).code));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const parsed = receiptNameSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "That name is too long" });
+    return { guest: guestDto(await setGuestReceiptName(guest.id, parsed.data.name)) };
   });
 
   const emailSchema = z.object({ email: z.string().email().max(200) });
