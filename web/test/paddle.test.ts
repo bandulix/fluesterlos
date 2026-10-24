@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { freshPops, paddleHit, paddleProgress, roomMain } from "../src/lib/paddleLogic";
+import { countUpAt, freshPops, paddleHit, paddleProgress, roomMain } from "../src/lib/paddleLogic";
 
 describe("paddle raise on the big screen", () => {
   it("keeps the countdown bar and lets a live paddle own the main area", () => {
@@ -15,5 +15,13 @@ describe("paddle raise on the big screen", () => {
     expect(paddleHit(9999, 10000)).toBe(false);
     expect(paddleHit(10000, 10000)).toBe(true);
     expect(freshPops(["a"], ["b", "a"])).toEqual(["b"]);
+  });
+
+  it("lands the running total on the real amount", () => {
+    expect(countUpAt(0, 60000, 0)).toBe(0);
+    expect(countUpAt(0, 60000, 350)).toBeGreaterThan(40000);
+    expect(countUpAt(0, 60000, 350)).toBeLessThan(60000);
+    expect(countUpAt(0, 60000, 700)).toBe(60000);
+    expect(countUpAt(59985, 60000, 5000)).toBe(60000);
   });
 });

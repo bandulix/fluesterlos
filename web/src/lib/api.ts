@@ -201,6 +201,8 @@ export type PaddleRaise = {
   levelIndex: number;
   levelCount: number;
   hitGoal: boolean;
+  pledgeCount: number;
+  atLevel: number;
   pops: PaddlePop[];
 };
 

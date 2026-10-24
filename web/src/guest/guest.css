@@ -664,6 +664,7 @@
   background: #101828;
 }
 .g-paddle h2 { margin: 0; font-size: 1.45rem; line-height: 1.2; color: #f4efe4; }
+.g-paddle-still { margin: 0; color: #d4bc8a; font-weight: 700; }
 .g-top-donors { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .g-top-donors li {
   display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;

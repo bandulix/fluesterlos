@@ -15,6 +15,16 @@ export function paddleHit(raised: number, goal: number): boolean {
   return goal > 0 && raised + 0.001 >= goal;
 }
 
+export const COUNT_UP_MS = 700;
+
+/** Eased step from start toward target. Once the duration has elapsed the result is exactly target. */
+export function countUpAt(start: number, target: number, elapsedMs: number, duration = COUNT_UP_MS): number {
+  if (!(duration > 0) || elapsedMs >= duration) return target;
+  const p = Math.max(0, elapsedMs) / duration;
+  const eased = 1 - (1 - p) ** 3;
+  return start + (target - start) * eased;
+}
+
 /** Names that just appeared in the pop list. */
 export function freshPops(prev: string[], next: string[]): string[] {
   const seen = new Set(prev);

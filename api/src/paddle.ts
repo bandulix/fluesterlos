@@ -27,6 +27,10 @@ export type PaddlePublic = {
   levelIndex: number;
   levelCount: number;
   hitGoal: boolean;
+  /** Pledges since this paddle raise started. */
+  pledgeCount: number;
+  /** Of those, how many are at the level being called now. */
+  atLevel: number;
   pops: PaddlePop[];
 };
 
@@ -108,6 +112,8 @@ async function paddleFromRow(event: PaddleEvent): Promise<PaddlePublic | null> {
   );
   const raised = money(raisedRes.rows[0].raised);
   const started = event.paddle_started_at ? new Date(event.paddle_started_at) : null;
+  const level = status === "ended" ? null : (levels[levelIndex] ?? null);
+  const counts = await paddleCounts(needId, started, level);
   const pops = await paddlePops(needId, event.donor_recognition !== false, started);
   return {
     status,
@@ -115,13 +121,27 @@ async function paddleFromRow(event: PaddleEvent): Promise<PaddlePublic | null> {
     needId,
     goal,
     raised,
-    level: status === "ended" ? null : (levels[levelIndex] ?? null),
+    level,
     levels,
     levelIndex,
     levelCount,
     hitGoal: goal > 0 && raised + 0.001 >= goal,
+    pledgeCount: counts.pledgeCount,
+    atLevel: counts.atLevel,
     pops,
   };
+}
+
+async function paddleCounts(needId: string, started: Date | null, level: number | null): Promise<{ pledgeCount: number; atLevel: number }> {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS n,
+            COUNT(*) FILTER (WHERE amount = $3)::int AS at_level
+     FROM pledges
+     WHERE need_id = $1 AND undone_at IS NULL AND voided_at IS NULL
+       AND ($2::timestamptz IS NULL OR created_at >= $2)`,
+    [needId, started, level ?? -1],
+  );
+  return { pledgeCount: rows[0].n as number, atLevel: level == null ? 0 : (rows[0].at_level as number) };
 }
 
 async function paddlePops(needId: string, recognitionOn: boolean, started: Date | null): Promise<PaddlePop[]> {

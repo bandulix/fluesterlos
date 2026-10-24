@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, LivePayload, PaddleRaise } from "../lib/api";
-import { formatMoney, type Currency } from "../lib/money";
+import { formatAmount, type Currency } from "../lib/money";
 import type { RunAction } from "./HostEventCard";
 
 type NeedOpt = { id: string; title: string; targetAmount: number };
@@ -82,10 +82,10 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
       <h3>Paddle raise</h3>
       {paddle && (
         <p className="muted">
-          {paddle.status === "live" && paddle.level != null && <>Calling {formatMoney(paddle.level, ccy)} · </>}
+          {paddle.status === "live" && paddle.level != null && <>Calling {formatAmount(paddle.level, ccy)} · </>}
           {paddle.status === "paused" && <>Paused · </>}
           {paddle.status === "ended" && <>Ended · </>}
-          {formatMoney(paddle.raised, ccy)} of {formatMoney(paddle.goal, ccy)}
+          {formatAmount(paddle.raised, ccy)} of {formatAmount(paddle.goal, ccy)}
           {paddle.hitGoal ? " · Goal reached" : ""}
         </p>
       )}

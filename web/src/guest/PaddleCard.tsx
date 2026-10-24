@@ -16,7 +16,14 @@ export function PaddleCard(props: {
   return (
     <section className="g-paddle" aria-live="polite">
       <p className="g-kicker">{paddle.title}</p>
-      <h2>{t("paddle.ask", { amount })}</h2>
+      {paddle.hitGoal ? (
+        <>
+          <h2>{t("paddle.thanks")}</h2>
+          <p className="g-paddle-still">{t("paddle.still", { amount })}</p>
+        </>
+      ) : (
+        <h2>{t("paddle.ask", { amount })}</h2>
+      )}
       <p className="g-muted">{t("paddle.goal", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}</p>
       {paused ? (
         <p className="g-info">{t("paddle.paused")}</p>

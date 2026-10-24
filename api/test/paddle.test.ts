@@ -89,6 +89,8 @@ describe("paddle raise", () => {
     expect(names).toContain("Siam Hotels Co.");
     expect(live.paddle.hitGoal).toBe(true);
     expect(live.paddle.raised).toBe(30000);
+    expect(live.paddle.pledgeCount).toBe(3);
+    expect(live.paddle.atLevel).toBe(3);
 
     const routes = await app.inject({ method: "GET", url: `/api/host/events/${code}/needs`, headers: { cookie } });
     const list = routes.json().donationRoutes as Array<{ name: string; donationsTotal: number; channel: string }>;
@@ -116,7 +118,7 @@ describe("paddle raise", () => {
     expect(blocked.statusCode).toBe(409);
 
     const next = await start({ action: "next" });
-    expect(next.json().live.paddle).toMatchObject({ status: "live", level: 5000 });
+    expect(next.json().live.paddle).toMatchObject({ status: "live", level: 5000, pledgeCount: 3, atLevel: 0 });
     const ended = await start({ action: "end" });
     expect(ended.json().live.paddle.status).toBe("ended");
     expect(ended.json().live.paddle.level).toBeNull();
