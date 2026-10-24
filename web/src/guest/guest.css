@@ -337,11 +337,23 @@
 .g-email-form .g-big-input { font-size: 1.15rem; letter-spacing: 0; }
 
 /* —— Toast (guest pages) —— */
+/* Solid navy, not the light chip: a fading light surface let the card title show through. */
 .g-page ~ .toast, .g-page .toast {
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  background: var(--text-strong, #fff); color: var(--bg, #070b16);
-  font-weight: 700; padding: 12px 18px; border-radius: 14px;
-  width: max-content; max-width: calc(100vw - 28px); text-align: center;
+  background: #101828;
+  color: #f4efe4;
+  opacity: 1;
+  border: 1px solid #c6a56e;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  font-weight: 700;
+  padding: 12px 18px;
+  border-radius: 14px;
+  z-index: 40;
+}
+.g-page .toast .toast-action {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #c6a56e;
+  color: #1c1408;
 }
 
 @keyframes g-slide-in {
@@ -456,6 +468,47 @@
 .toast.has-action {
   display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; overflow: hidden;
 }
+/* While a toast is up, the list scrolls in the space above it instead of running under it. */
+.g-page.has-toast {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  padding-bottom: 0;
+}
+.g-page.has-toast .g-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.g-page.has-toast > .toast {
+  position: relative;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  transform: none;
+  flex: none;
+  align-self: stretch;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-top: 2px solid #d4bc8a;
+  background: #101828;
+  color: #f4efe4;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.65);
+  animation: g-toast-dock 0.18s ease-out;
+}
+@keyframes g-toast-dock {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
 .toast-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toast-action {
   flex: none; min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px;
@@ -472,7 +525,7 @@
 /* Join: the primary button always looks tappable. */
 .g-join .g-primary:disabled { opacity: 0.7; }
 @media (prefers-reduced-motion: reduce) {
-  .g-install, .g-saved, .toast-timer { animation: none !important; }
+  .g-install, .g-saved, .toast-timer, .g-page.has-toast > .toast { animation: none !important; }
 }
 
 /* Invoice: the voucher email question sits above payment and stands out (still skippable). */

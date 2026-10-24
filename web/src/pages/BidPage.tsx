@@ -350,7 +350,7 @@ export function BidPage() {
   const outbidVisible = Boolean(outbidItem && eventStatus === "open");
 
   return (
-    <section className={`g-page g-board${showNudge ? " has-sheet" : ""}`}>
+    <section className={`g-page g-board${showNudge ? " has-sheet" : ""}${toast ? " has-toast" : ""}`}>
       <GuestHeader
         title={live.event.title}
         status={eventStatus}
