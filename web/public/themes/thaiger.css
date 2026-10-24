@@ -1,6 +1,7 @@
 /* Thai.GER Supporters — black-tie gala skin for this checkout.
-   The mark and wordmark files are unchanged (the wordmark is black ink, so it
-   sits on a small ivory plate). Type is the site's self-hosted Inter and Oswald.
+   The logo is the live site's header file, unmodified (logo.png). It already
+   has a white background, so the theme does not plate or recolor it.
+   Type is the site's self-hosted Inter and Oswald.
    The room, the phones and the host desk all use the same dark navy, because a
    white screen glares in a dim ballroom. Gold is a champagne (#D4BC8A links and
    figures, #C6A56E key buttons) — restrained, and checked to WCAG AA.
@@ -92,22 +93,18 @@
   font-weight: 500;
 }
 
-[data-theme="thaiger"] .brand-mark {
-  display: block;
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  flex: none;
-}
-/* The wordmark file is black. Plate it; do not recolour the asset. */
+[data-theme="thaiger"] .brand-mark,
 [data-theme="thaiger"] .brand-mark.is-lockup {
+  display: block;
   width: auto;
   height: 40px;
   max-width: min(46vw, 220px);
-  background: #f4efe4;
-  border-radius: 8px;
-  padding: 4px 8px;
-  box-sizing: content-box;
+  object-fit: contain;
+  object-position: left center;
+  flex: none;
+  background: none;
+  padding: 0;
+  border-radius: 0;
 }
 [data-theme="thaiger"] .brand-word {
   position: absolute;
@@ -237,15 +234,18 @@
   padding: 22px 20px 8px;
 }
 [data-theme="thaiger"] .g-join-card .brand-mark.is-lockup {
-  height: 56px;
+  width: min(100%, 280px);
+  height: auto;
+  max-width: 100%;
   margin: 0 0 14px;
 }
 [data-theme="thaiger"] .g-header {
   box-shadow: inset 0 -1px 0 rgba(212, 188, 138, 0.28);
 }
 [data-theme="thaiger"] .g-header .brand-mark {
-  width: 28px;
-  height: 28px;
+  width: auto;
+  height: 36px;
+  max-width: 42vw;
 }
 [data-theme="thaiger"] .g-price-value,
 [data-theme="thaiger"] .g-total {
@@ -315,8 +315,9 @@
     #090f1c;
 }
 [data-theme="thaiger"] .engager .brand-mark {
-  width: 36px;
-  height: 36px;
+  width: auto;
+  height: 40px;
+  max-width: 180px;
   align-self: center;
 }
 [data-theme="thaiger"] .stats-page .stats-brand {
@@ -325,8 +326,9 @@
   gap: 0.75rem;
 }
 [data-theme="thaiger"] .stats-page .stats-brand .brand-mark {
-  width: 48px;
+  width: auto;
   height: 48px;
+  max-width: 220px;
 }
 [data-theme="thaiger"] .stats-page h1,
 [data-theme="thaiger"] .stats-page h2 {
@@ -358,8 +360,9 @@
 
 @media (min-width: 900px) and (max-height: 820px) {
   [data-theme="thaiger"] .engager .brand-mark {
-    width: 28px;
+    width: auto;
     height: 28px;
+    max-width: 120px;
   }
 }
 

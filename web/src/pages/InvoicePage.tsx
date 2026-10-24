@@ -8,6 +8,7 @@ import { saveImage } from "../lib/saveImage";
 import { listTitles } from "../lib/listTitles";
 import { formatInZone } from "../lib/time";
 import { t } from "../i18n";
+import { BrandMark } from "../components/BrandMark";
 import { Toast, ToastMessage } from "../components/Toast";
 import "../guest/guest.css";
 
@@ -219,6 +220,7 @@ export function InvoicePage() {
           <Link to={`/e/${code}/bid`} className="g-back" aria-label={t("inv.back")}>
             ‹
           </Link>
+          <BrandMark />
           <h1 className="g-title">{data.event.title}</h1>
         </div>
       </header>

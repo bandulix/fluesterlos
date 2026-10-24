@@ -16,7 +16,7 @@ export function isAppNavigation({ request, url }: { request: { mode: string }; u
  * Bumping this renames the precache, so `cleanupOutdatedCaches` drops every older precache
  * (including the pre-round-3 "workbox-precache-…" one that served a stale index.html cache-first).
  */
-export const CACHE_ID = "fluesterlos-v4";
+export const CACHE_ID = "fluesterlos-v5";
 /** How long a navigation waits for the network before falling back to the cached app shell. */
 export const NAVIGATION_TIMEOUT_SECONDS = 4;
 
@@ -42,10 +42,12 @@ export const pwaOptions: Partial<VitePWAOptions> = {
     start_url: "/",
     scope: "/",
     icons: [
-      { src: brand.icon192, sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: brand.icon512, sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: brand.icon512, sizes: "512x512", type: "image/png", purpose: "maskable" },
-      { src: "/favicon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+      {
+        src: brand.icon512,
+        sizes: `${brand.logoWidth}x${brand.logoHeight}`,
+        type: "image/png",
+        purpose: "any",
+      },
     ],
   },
   workbox: {
