@@ -15,6 +15,7 @@ and this project versions toward [SemVer](https://semver.org/).
 - The receipt lists won lots and donations separately, with subtotals, a grand total, and a name for the donation receipt.
 - Three example needs for the Thai.GER charity (playground, school uniforms, lunches), labelled as example data. Hosts add them from the event card.
 - Tests: `api/test/pledges.test.ts` (units, caps, the 10-second undo, concurrent pledges, totals across guest, host, big screen and invoice) and `web/test/pledges.test.ts`.
+- Donation payment routing. A guest’s donation total of ฿10,000 or more is paid via Mercy Centre; below that, via Wolfgang’s QR. The threshold and both channels are host settings and start empty (placeholders are example text, not saved accounts). Auction lots keep the existing payment flow. The host can override the channel per guest, with an audit trail, and exports include the channel. Tests: `api/test/donationRoute.test.ts`.
 
 ### Fixed — click test round 5
 

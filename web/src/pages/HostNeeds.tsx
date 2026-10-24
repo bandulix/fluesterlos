@@ -15,6 +15,19 @@ type HostPledge = {
   status: "active" | "undone" | "voided";
   voidReason: string | null;
   receiptName: string | null;
+  paymentChannel?: "mercy" | "wolfgang" | null;
+  paymentChannelLabel?: string | null;
+};
+type DonationRoute = {
+  guestId: string;
+  name: string;
+  phone: string | null;
+  donationsTotal: number;
+  channel: "mercy" | "wolfgang";
+  source: "threshold" | "override";
+  override: "mercy" | "wolfgang" | null;
+  label: string;
+  audit: Array<{ id: string; action: string; channel: string | null; reason: string | null; actor: string }>;
 };
 type HostAudit = { id: string; action: string; actor: string; amount: number | null; previousAmount: number | null; reason: string | null; createdAt: string };
 type HostNeed = Need & {
@@ -24,7 +37,13 @@ type HostNeed = Need & {
   pledges: HostPledge[];
   audit: HostAudit[];
 };
-type FundPayload = { needs: HostNeed[]; needsEndsAt: string | null; spotlightNeedId: string | null; donations: number };
+type FundPayload = {
+  needs: HostNeed[];
+  needsEndsAt: string | null;
+  spotlightNeedId: string | null;
+  donations: number;
+  donationRoutes?: DonationRoute[];
+};
 
 const emptyDraft = () => ({
   title: "",
@@ -58,6 +77,7 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
   const [staysOpen, setStaysOpen] = useState(true);
   const [reason, setReason] = useState<Record<string, string>>({});
   const [correctAmt, setCorrectAmt] = useState<Record<string, string>>({});
+  const [routeReason, setRouteReason] = useState<Record<string, string>>({});
   const money = (n: number) => formatMoney(n, ccy);
 
   const load = useCallback(async () => {
@@ -307,6 +327,7 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
                     <span>
                       {p.guestName}
                       {p.guestPhone ? ` · ${p.guestPhone}` : ""} — {money(p.amount)}
+                      {p.paymentChannelLabel ? ` · ${p.paymentChannelLabel}` : ""}
                       {p.units ? ` · ${p.units}` : ""}
                       {p.anonymous ? " · anonymous on screen" : ""}
                       {p.receiptName ? ` · receipt: ${p.receiptName}` : ""}
@@ -375,7 +396,79 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
         ))}
       </ul>
 
-      {byGuest.size > 0 && (
+      {(data.donationRoutes?.length ?? 0) > 0 && (
+        <div className="stack">
+          <h3>Pledges by guest</h3>
+          <p className="muted">The payment channel follows each guest’s donation total. Override it here when a gift should be paid the other way. A reason is kept in the audit trail.</p>
+          <ul className="stack">
+            {data.donationRoutes!.map((g) => (
+              <li key={g.guestId} className="stack card nested">
+                <span>
+                  <strong>{g.name}</strong>
+                  {g.phone ? ` · ${g.phone}` : ""} — {money(g.donationsTotal)} · {g.label}
+                  {g.source === "override" ? " (override)" : ""}
+                </span>
+                <div className="row">
+                  <input
+                    aria-label={`Reason for ${g.name}`}
+                    placeholder="Reason"
+                    value={routeReason[g.guestId] ?? ""}
+                    onChange={(e) => setRouteReason((r) => ({ ...r, [g.guestId]: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() =>
+                      act(
+                        () =>
+                          api(`/api/host/events/${code}/donation-route`, {
+                            method: "POST",
+                            body: JSON.stringify({
+                              guestId: g.guestId,
+                              channel: g.channel === "mercy" ? "wolfgang" : "mercy",
+                              reason: (routeReason[g.guestId] ?? "").trim(),
+                            }),
+                          }).then(() => undefined),
+                        `Channel for ${g.name} updated.`,
+                      )
+                    }
+                  >
+                    Pay via {g.channel === "mercy" ? "Wolfgang’s QR" : "Mercy Centre"}
+                  </button>
+                  {g.override && (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() =>
+                        act(
+                          () =>
+                            api(`/api/host/events/${code}/donation-route`, {
+                              method: "POST",
+                              body: JSON.stringify({
+                                guestId: g.guestId,
+                                channel: null,
+                                reason: (routeReason[g.guestId] ?? "").trim(),
+                              }),
+                            }).then(() => undefined),
+                          `Override cleared for ${g.name}.`,
+                        )
+                      }
+                    >
+                      Use the threshold
+                    </button>
+                  )}
+                </div>
+                {g.audit.length > 0 && (
+                  <p className="muted">
+                    Audit: {g.audit.slice(0, 3).map((a) => `${a.action} by ${a.actor}${a.reason ? ` (${a.reason})` : ""}`).join(" · ")}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {byGuest.size > 0 && (data.donationRoutes?.length ?? 0) === 0 && (
         <div>
           <h3>Pledges by guest</h3>
           <ul className="stack">

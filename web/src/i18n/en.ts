@@ -180,6 +180,13 @@ export const en = {
   "inv.receiptLabel": "Name or company on the donation receipt",
   "inv.receiptSave": "Save receipt name",
   "inv.receiptSaved": "Donation receipt name: {name}",
+  "inv.donatePay": "Pay donations via {name}",
+  "inv.donateAmount": "Donation total {amount}",
+  "inv.lotsPay": "Pay auction lots",
+  "inv.lotsPayNote": "This QR is for the auction lots only ({amount}). Donations are paid separately.",
+  "inv.channelMissing": "Payment details for this channel have not been added yet. Ask the desk.",
+  "inv.receiptEmail": "Email for the donation receipt",
+  "inv.receiptSaveBoth": "Save receipt details",
 
   "cat.label": "Auction or donate",
   "cat.auction": "Auction",

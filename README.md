@@ -53,7 +53,14 @@ The bar fills gold toward the target and shows the amount raised and the donor c
 
 **Big screen.** The room alternates every 6 seconds between auction highlights and Fund-a-Need progress bars. A new pledge pins the needs view and runs a ticker (“Table 7 funded 3 uniforms”, or “A guest pledged ฿5,000” when the gift is anonymous). Crossing 100% fills the screen with **Fully funded!** for a few seconds. The host can hold one need in **Fund-a-Need spotlight**: one large bar and a live total, the way a paddle raise works. With reduced motion the ticker is one static line and the celebration does not animate.
 
-**Invoice.** After the auction closes, the receipt lists won lots and donations in two sections, each with a subtotal, then a grand total. Donation lines are marked as donations and no item is handed over, so the charity can write a donation receipt. The guest can set the name or company that should appear on that receipt. A guest who only gave, and won nothing, still gets an invoice. Paying freezes it. Exports add a pledges block (CSV only when there are pledges; the xlsx file always has a Pledges sheet). The auction “Results” sheet is unchanged.
+**Invoice.** After the auction closes, the receipt lists won lots and donations in two sections, each with a subtotal, then a grand total. Donation lines are marked as donations and no item is handed over. A guest who only gave, and won nothing, still gets an invoice. Paying freezes it. Exports add a pledges block (CSV only when there are pledges; the xlsx file always has a Pledges sheet) with a **Payment channel** column. The auction “Results” sheet is unchanged.
+
+**Where a donation is paid.** The host sets one threshold (default ฿10,000; an equal amount goes to Mercy Centre) and two channels under **Donation payment channels**. Both start empty. The form placeholders are example text and are not saved — no account number, name or PromptPay ID is filled in for you.
+
+- **Mercy Centre** — display name, instructions, bank details and/or a payment link and/or a QR image, plus a note that Mercy Centre issues the donation receipt. The invoice asks for the name or company and an email for that receipt.
+- **Wolfgang’s QR** — display name and a QR image. If a PromptPay ID is entered and no image is uploaded, the invoice shows a PromptPay QR for the exact donation total.
+
+The rule uses the guest’s **donation total**, not each pledge on its own. Auction lots keep the existing PromptPay / desk payment and are not added into that total. The host sees the channel on the pledge list and can override it per guest; the reason is kept in an audit trail. Voiding a pledge recomputes the channel, unless an override is set.
 
 ## Host flow
 

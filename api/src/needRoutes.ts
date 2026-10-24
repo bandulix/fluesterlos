@@ -18,6 +18,7 @@ import {
   voidPledge,
 } from "./needs.js";
 import { parseSuggestedAmounts } from "./pledges.js";
+import { listDonationRoutes, setDonationRouteOverride } from "./donationRoute.js";
 import type { HostUser } from "./hostAuth.js";
 
 type EventRow = {
@@ -185,12 +186,18 @@ export function registerNeedRoutes(
     if (!ctx) return;
     const rows = await listNeedRows(ctx.event.id, { includeHidden: true });
     const bundle = await hostPledgeBundle(ctx.event.id);
+    const donationRoutes = await listDonationRoutes(ctx.event.id);
+    const routeOf = new Map(donationRoutes.map((r) => [r.guestId, r]));
     const needs = rows.map((row) => ({
       ...toPublicNeed(row, ctx.event.code, ctx.event.needs_ends_at ?? null),
       hidden: row.hidden,
       ownEndsAt: row.ends_at ? new Date(row.ends_at).toISOString() : null,
       closedAt: row.closed_at ? new Date(row.closed_at).toISOString() : null,
-      pledges: bundle.pledges.get(row.id) ?? [],
+      pledges: (bundle.pledges.get(row.id) ?? []).map((p) => ({
+        ...p,
+        paymentChannel: routeOf.get(p.guestId)?.channel ?? null,
+        paymentChannelLabel: routeOf.get(p.guestId)?.label ?? null,
+      })),
       audit: bundle.audits.get(row.id) ?? [],
     }));
     const donations = needs.reduce((s, n) => s + n.raised, 0);
@@ -200,7 +207,35 @@ export function registerNeedRoutes(
       currency: parseCurrency(ctx.event.currency),
       donations,
       needs,
+      donationRoutes,
     };
+  });
+
+  app.post("/api/host/events/:code/donation-route", async (req, reply) => {
+    const ctx = await hostEvent(req, reply);
+    if (!ctx) return;
+    const parsed = z
+      .object({
+        guestId: z.string().uuid(),
+        channel: z.enum(["mercy", "wolfgang"]).nullable(),
+        reason: z.string().trim().min(1).max(500),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Choose a channel and give a reason" });
+    try {
+      const route = await setDonationRouteOverride({
+        eventId: ctx.event.id,
+        guestId: parsed.data.guestId,
+        channel: parsed.data.channel,
+        reason: parsed.data.reason,
+        actor: ctx.host.email,
+      });
+      return { ok: true, route };
+    } catch (e) {
+      const err = e as Error & { statusCode?: number };
+      if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.message });
+      throw e;
+    }
   });
 
   app.post("/api/host/events/:code/needs/examples", async (req, reply) => {

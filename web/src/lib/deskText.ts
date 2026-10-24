@@ -29,6 +29,9 @@ export type HostInvoice = {
   }>;
   lotsTotal?: number;
   donationsTotal?: number;
+  donationChannel?: "mercy" | "wolfgang" | null;
+  donationChannelLabel?: string | null;
+  donationChannelSource?: "threshold" | "override" | null;
   receiptName?: string | null;
   donations?: Array<{ needId: string; title: string; beneficiary: string; amount: number }>;
 };

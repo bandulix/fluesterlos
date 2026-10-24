@@ -630,6 +630,16 @@
   margin: 4px 0 8px; color: var(--muted); font-variant-numeric: tabular-nums;
 }
 .g-subtotal strong { color: var(--text-strong, #fff); }
+.g-donate-pay { display: grid; gap: 8px; }
+.g-donate-pay h2 { margin: 0; font-size: 1.05rem; }
+.g-donate-pay p { margin: 0; white-space: pre-line; }
+.g-bank {
+  padding: 10px 12px; border-radius: 12px;
+  background: var(--card-nested, #101828);
+  border: 1px solid rgba(212, 188, 138, 0.2);
+  font-variant-numeric: tabular-nums;
+}
+.g-donate-pay a { color: var(--accent, #d4bc8a); }
 @media (prefers-reduced-motion: reduce) {
   .g-need.is-celebrate .g-funded.is-new { animation: none; }
 }

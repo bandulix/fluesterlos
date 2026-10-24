@@ -36,6 +36,7 @@ import {
   InvoicesCard,
   InvoiceSummary,
   PaymentMethod,
+  DonationChannelsCard,
   PaymentSettingsCard,
   uploadHostQr,
 } from "./HostPayments";
@@ -811,6 +812,7 @@ export function HostPage() {
         onQrUpload={onQrUpload}
         savedNote={settingsSaved}
       />
+      <DonationChannelsCard settings={settings} busy={busy} onSaved={() => loadSettings().catch(() => undefined)} />
       <Toast toast={toast} onDone={clearToast} />
     </section>
   );

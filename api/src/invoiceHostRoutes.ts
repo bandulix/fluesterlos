@@ -7,6 +7,13 @@ import { listEventInvoices, markInvoicePaid, sendWinnerEmail, setHandedOver } fr
 import { eventResults, resultsCsv, resultsXlsx } from "./results.js";
 import type { HostUser } from "./hostAuth.js";
 import {
+  CHANNEL_LABEL,
+  DONATION_PLACEHOLDERS,
+  getDonationSettings,
+  listDonationRoutes,
+  type DonationChannel,
+} from "./donationRoute.js";
+import {
   contentTypeFor,
   readDataFile,
   saveUpload,
@@ -35,6 +42,36 @@ export async function getHostSettings() {
   };
 }
 
+async function settingsDto(s: Awaited<ReturnType<typeof getHostSettings>>) {
+  const d = await getDonationSettings();
+  return {
+    promptpayId: s.promptpay_id ?? "",
+    payeeName: s.payee_name ?? "",
+    hasQrImage: Boolean(s.qr_image_path),
+    defaultTimezone: defaultEventTimeZone(),
+    donationThreshold: d.threshold,
+    mercyDisplayName: d.mercyDisplayName,
+    mercyInstructions: d.mercyInstructions,
+    mercyBankDetails: d.mercyBankDetails,
+    mercyPaymentLink: d.mercyPaymentLink,
+    mercyReceiptNote: d.mercyReceiptNote,
+    mercyHasQr: Boolean(d.mercyQrPath),
+    wolfgangDisplayName: d.wolfgangDisplayName,
+    wolfgangPromptpayId: d.wolfgangPromptpayId ?? "",
+    wolfgangHasQr: Boolean(d.wolfgangQrPath),
+    donationPlaceholders: DONATION_PLACEHOLDERS,
+  };
+}
+
+async function sendDonationQr(reply: import("fastify").FastifyReply, channel: string) {
+  if (channel !== "mercy" && channel !== "wolfgang") return reply.code(404).send({ error: "Unknown channel" });
+  const d = await getDonationSettings();
+  const stored = channel === "mercy" ? d.mercyQrPath : d.wolfgangQrPath;
+  if (!stored) return reply.code(404).send({ error: "No QR image" });
+  const buf = await readDataFile(stored);
+  return reply.type(contentTypeFor(stored)).send(buf);
+}
+
 export function registerInvoiceHostRoutes(
   app: FastifyInstance,
   deps: {
@@ -49,17 +86,20 @@ export function registerInvoiceHostRoutes(
   app.get("/api/host/settings", async (req, reply) => {
     try { await requireHost(req); } catch { return reply.code(401).send({ error: "Unauthorized" }); }
     const s = await getHostSettings();
-    return {
-      promptpayId: s.promptpay_id ?? "",
-      payeeName: s.payee_name ?? "",
-      hasQrImage: Boolean(s.qr_image_path),
-      defaultTimezone: defaultEventTimeZone(),
-    };
+    return settingsDto(s);
   });
 
   const settingsSchema = z.object({
     promptpayId: z.string().max(32).optional(),
     payeeName: z.string().max(200).optional(),
+    donationThreshold: z.number().positive().max(1_000_000_000).optional(),
+    mercyDisplayName: z.string().max(200).optional(),
+    mercyInstructions: z.string().max(2000).optional(),
+    mercyBankDetails: z.string().max(2000).optional(),
+    mercyPaymentLink: z.string().max(500).optional(),
+    mercyReceiptNote: z.string().max(500).optional(),
+    wolfgangDisplayName: z.string().max(200).optional(),
+    wolfgangPromptpayId: z.string().max(32).optional(),
   });
 
   app.put("/api/host/settings", async (req, reply) => {
@@ -82,13 +122,50 @@ export function registerInvoiceHostRoutes(
         [parsed.data.payeeName.trim() || null],
       );
     }
-    const s = await getHostSettings();
-    return {
-      promptpayId: s.promptpay_id ?? "",
-      payeeName: s.payee_name ?? "",
-      hasQrImage: Boolean(s.qr_image_path),
-      defaultTimezone: defaultEventTimeZone(),
+    const donationSets: string[] = [];
+    const donationVals: unknown[] = [];
+    const put = (column: string, value: unknown) => {
+      donationVals.push(value);
+      donationSets.push(`${column} = $${donationVals.length}`);
     };
+    const d = parsed.data;
+    if (d.donationThreshold !== undefined) put("donation_threshold", d.donationThreshold);
+    if (d.mercyDisplayName !== undefined) put("mercy_display_name", d.mercyDisplayName.trim());
+    if (d.mercyInstructions !== undefined) put("mercy_instructions", d.mercyInstructions.trim());
+    if (d.mercyBankDetails !== undefined) put("mercy_bank_details", d.mercyBankDetails.trim());
+    if (d.mercyPaymentLink !== undefined) put("mercy_payment_link", d.mercyPaymentLink.trim());
+    if (d.mercyReceiptNote !== undefined) put("mercy_receipt_note", d.mercyReceiptNote.trim());
+    if (d.wolfgangDisplayName !== undefined) put("wolfgang_display_name", d.wolfgangDisplayName.trim());
+    if (d.wolfgangPromptpayId !== undefined) put("wolfgang_promptpay_id", d.wolfgangPromptpayId.trim() || null);
+    if (donationSets.length) {
+      donationSets.push("updated_at = now()");
+      await pool.query(`UPDATE host_settings SET ${donationSets.join(", ")} WHERE id = 1`, donationVals);
+    }
+    return settingsDto(await getHostSettings());
+  });
+
+  app.post("/api/host/settings/donation-qr/:channel", async (req, reply) => {
+    try { await requireHost(req); } catch { return reply.code(401).send({ error: "Unauthorized" }); }
+    const channel = (req.params as { channel: string }).channel;
+    if (channel !== "mercy" && channel !== "wolfgang") return reply.code(404).send({ error: "Unknown channel" });
+    const uploaded = await readMultipartFile(req);
+    if (!uploaded) return reply.code(400).send({ error: "QR image file required" });
+    const rel = await saveUpload("qr", uploaded.filename, uploaded.buffer, `donation-${channel}`);
+    const column = channel === "mercy" ? "mercy_qr_path" : "wolfgang_qr_path";
+    await pool.query(`UPDATE host_settings SET ${column} = $1, updated_at = now() WHERE id = 1`, [rel]);
+    return { ok: true, channel, hasQrImage: true };
+  });
+
+  app.get("/api/host/settings/donation-qr/:channel", async (req, reply) => {
+    try { await requireHost(req); } catch { return reply.code(401).send({ error: "Unauthorized" }); }
+    return sendDonationQr(reply, (req.params as { channel: string }).channel);
+  });
+
+  app.get("/api/events/:code/donation-qr/:channel", async (req, reply) => {
+    const code = codeOf((req.params as { code: string }).code);
+    const event = await getEventByCode(code);
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    return sendDonationQr(reply, (req.params as { channel: string }).channel);
   });
 
   app.post("/api/host/settings/qr", async (req, reply) => {
@@ -150,7 +227,22 @@ export function registerInvoiceHostRoutes(
       };
     }
     const list = await listEventInvoices(event.id);
-    const invoices = list.map(({ invoice, lines, donations }) => ({
+    const routes = await listDonationRoutes(event.id);
+    const routeOf = new Map(routes.map((r) => [r.guestId, r]));
+    const invoices = list.map(({ invoice, lines, donations }) => {
+      const donationsTotal = invoice.donations_total == null
+        ? money(donations.reduce((s, l) => s + money(l.amount), 0))
+        : money(invoice.donations_total);
+      const live = routeOf.get(invoice.guest_id as string);
+      const stored = invoice.donation_channel === "mercy" || invoice.donation_channel === "wolfgang"
+        ? (invoice.donation_channel as DonationChannel)
+        : null;
+      const channel = invoice.status === "paid" && stored
+        ? stored
+        : donationsTotal > 0
+          ? live?.channel ?? null
+          : null;
+      return {
       id: invoice.id,
       guestId: invoice.guest_id,
       guestName: invoice.guest_name,
@@ -158,9 +250,14 @@ export function registerInvoiceHostRoutes(
       guestPhone: invoice.guest_phone,
       total: money(invoice.total),
       lotsTotal: invoice.lots_total == null ? money(lines.reduce((s, l) => s + money(l.amount), 0)) : money(invoice.lots_total),
-      donationsTotal: invoice.donations_total == null
-        ? money(donations.reduce((s, l) => s + money(l.amount), 0))
-        : money(invoice.donations_total),
+      donationsTotal,
+      donationChannel: channel,
+      donationChannelLabel: channel
+        ? (invoice.status === "paid" && stored ? CHANNEL_LABEL[stored] : live?.label ?? CHANNEL_LABEL[channel])
+        : null,
+      donationChannelSource: invoice.status === "paid" && invoice.donation_channel_source
+        ? invoice.donation_channel_source
+        : live?.source ?? null,
       receiptName: (invoice.receipt_name as string | null) ?? null,
       status: invoice.status,
       paymentMethod: invoice.payment_method ?? null,
@@ -186,7 +283,8 @@ export function registerInvoiceHostRoutes(
         beneficiary: d.beneficiary,
         amount: money(d.amount),
       })),
-    }));
+    };
+    });
     const allLines = invoices.flatMap((i) => i.lines);
     const summary = {
       invoices: invoices.length,

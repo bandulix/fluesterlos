@@ -276,5 +276,49 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS pledges_need_active_idx ON pledges(need_id) WHERE undone_at IS NULL AND voided_at IS NULL;
     CREATE INDEX IF NOT EXISTS pledges_guest_idx ON pledges(guest_id);
     CREATE INDEX IF NOT EXISTS pledge_audit_need_idx ON pledge_audit(need_id, created_at DESC);
+
+    -- Donation payment channels. Empty until the host fills them in. Threshold 10000:
+    -- a guest's donation total at or above it is paid via Mercy Centre; below it, via Wolfgang's QR.
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS donation_threshold NUMERIC(12,2) NOT NULL DEFAULT 10000;
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_display_name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_instructions TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_bank_details TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_payment_link TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_qr_path TEXT;
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS mercy_receipt_note TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS wolfgang_display_name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS wolfgang_qr_path TEXT;
+    ALTER TABLE host_settings ADD COLUMN IF NOT EXISTS wolfgang_promptpay_id TEXT;
+
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS donation_channel TEXT;
+    ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_donation_channel_check;
+    ALTER TABLE invoices ADD CONSTRAINT invoices_donation_channel_check
+      CHECK (donation_channel IS NULL OR donation_channel IN ('mercy', 'wolfgang'));
+    ALTER TABLE invoices ADD COLUMN IF NOT EXISTS donation_channel_source TEXT;
+    ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_donation_channel_source_check;
+    ALTER TABLE invoices ADD CONSTRAINT invoices_donation_channel_source_check
+      CHECK (donation_channel_source IS NULL OR donation_channel_source IN ('threshold', 'override'));
+
+    CREATE TABLE IF NOT EXISTS donation_route_overrides (
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL CHECK (channel IN ('mercy', 'wolfgang')),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (event_id, guest_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS donation_route_audit (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      guest_id UUID REFERENCES guests(id) ON DELETE SET NULL,
+      action TEXT NOT NULL CHECK (action IN ('override', 'cleared')),
+      channel TEXT,
+      previous_channel TEXT,
+      reason TEXT,
+      actor TEXT NOT NULL,
+      donations_total NUMERIC(12,2),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS donation_route_audit_event_idx ON donation_route_audit(event_id, created_at DESC);
   `);
 }

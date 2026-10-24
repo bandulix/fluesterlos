@@ -6,6 +6,7 @@ import { promptPayPayload } from "./promptpay.js";
 import { saveUpload } from "./storage.js";
 import { guestFromRequest } from "./guestAuth.js";
 import { getHostSettings } from "./invoiceHostRoutes.js";
+import { buildDonationPayment, channelLabel, getDonationSettings, routeForGuest } from "./donationRoute.js";
 import { sponsorLogoUrl } from "./sponsors.js";
 
 type EventRow = { id: string; code: string; title: string; starts_at: Date; ends_at: Date; currency?: string };
@@ -53,15 +54,50 @@ export function registerInvoiceGuestRoutes(
       };
     }
     const settings = await getHostSettings();
-    let promptpayPayloadStr: string | null = null;
+    const donationSettings = await getDonationSettings();
+    const lotsTotal = data.invoice.lots_total == null
+      ? money(data.lines.reduce((s, l) => s + money(l.amount), 0))
+      : money(data.invoice.lots_total);
+    const donationsTotal = data.invoice.donations_total == null
+      ? money(data.donations.reduce((s, l) => s + money(l.amount), 0))
+      : money(data.invoice.donations_total);
     const total = money(data.invoice.total);
-    if (settings.promptpay_id) {
+    // Lots keep the existing PromptPay QR. When the guest also donated, that QR is only the lots subtotal.
+    const auctionAmount = donationsTotal > 0 ? lotsTotal : total;
+    let promptpayPayloadStr: string | null = null;
+    if (settings.promptpay_id && auctionAmount > 0) {
       try {
-        promptpayPayloadStr = promptPayPayload(settings.promptpay_id, currency === "THB" ? total : undefined);
+        promptpayPayloadStr = promptPayPayload(settings.promptpay_id, currency === "THB" ? auctionAmount : undefined);
       } catch {
         promptpayPayloadStr = null;
       }
     }
+    const liveRoute = await routeForGuest(event.id, guest.id);
+    const storedChannel = data.invoice.donation_channel === "mercy" || data.invoice.donation_channel === "wolfgang"
+      ? data.invoice.donation_channel
+      : null;
+    const route = liveRoute
+      ? data.invoice.status === "paid" && storedChannel
+        ? {
+            ...liveRoute,
+            channel: storedChannel,
+            source: data.invoice.donation_channel_source === "override" ? "override" as const : "threshold" as const,
+            label: channelLabel(
+              storedChannel,
+              storedChannel === "mercy" ? donationSettings.mercyDisplayName : donationSettings.wolfgangDisplayName,
+            ),
+          }
+        : liveRoute
+      : null;
+    const donationPayment = route
+      ? buildDonationPayment({
+          eventCode: event.code,
+          donationsTotal,
+          route,
+          currency,
+          settings: donationSettings,
+        })
+      : null;
     return {
       event: { id: event.id, code: event.code, title: event.title, status, currency },
       invoice: {
@@ -70,12 +106,9 @@ export function registerInvoiceGuestRoutes(
         status: data.invoice.status,
         hasPayslip: Boolean(data.invoice.payslip_path),
         paidAt: data.invoice.paid_at ? new Date(data.invoice.paid_at).toISOString() : null,
-        lotsTotal: data.invoice.lots_total == null
-          ? money(data.lines.reduce((s, l) => s + money(l.amount), 0))
-          : money(data.invoice.lots_total),
-        donationsTotal: data.invoice.donations_total == null
-          ? money(data.donations.reduce((s, l) => s + money(l.amount), 0))
-          : money(data.invoice.donations_total),
+        lotsTotal,
+        donationsTotal,
+        donationPayment,
         receiptName: (data.invoice.receipt_name as string | null) ?? (guest.receipt_name ?? null),
         lines: data.lines.map((l) => ({
           itemId: l.item_id,

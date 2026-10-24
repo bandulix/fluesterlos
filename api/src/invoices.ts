@@ -2,6 +2,7 @@ import { pool } from "./db.js";
 import { auctionStatus, formatMoney, money, parseCurrency } from "./auction.js";
 import { readDataFile } from "./storage.js";
 import { sendMail, smtpConfigured } from "./mail.js";
+import { routeForGuest } from "./donationRoute.js";
 
 export type InvoiceStatus = "unpaid" | "payslip_uploaded" | "paid";
 
@@ -265,11 +266,14 @@ export async function markInvoicePaid(
         "No payslip uploaded — for bank transfer / PromptPay confirm that you checked the transfer, or choose cash",
       );
     }
+    const donationsTotal = money(invoice.donations_total ?? 0);
+    const route = donationsTotal > 0 ? await routeForGuest(invoice.event_id, invoice.guest_id) : null;
     await client.query(
       `UPDATE invoices SET status = 'paid', paid_at = COALESCE(paid_at, now()),
-         payment_method = $2, paid_by = $3
+         payment_method = $2, paid_by = $3,
+         donation_channel = $4, donation_channel_source = $5
        WHERE id = $1`,
-      [invoiceId, opts.method, opts.hostEmail ?? null],
+      [invoiceId, opts.method, opts.hostEmail ?? null, route?.channel ?? null, route?.source ?? null],
     );
     await client.query("COMMIT");
     return { alreadyPaid: false };

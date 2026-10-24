@@ -22,6 +22,22 @@ type InvoiceResponse = {
     paidAt: string | null;
     lotsTotal?: number;
     donationsTotal?: number;
+    donationPayment?: {
+      channel: "mercy" | "wolfgang";
+      source: "threshold" | "override";
+      threshold: number;
+      donationsTotal: number;
+      displayName: string;
+      instructions: string;
+      bankDetails: string;
+      paymentLink: string | null;
+      receiptNote: string;
+      needsReceipt: boolean;
+      hasQrImage: boolean;
+      qrImageUrl: string | null;
+      promptpayPayload: string | null;
+      detailsMissing: boolean;
+    } | null;
     receiptName?: string | null;
     lines: Array<{
       itemId: string;
@@ -145,6 +161,9 @@ export function InvoicePage() {
     setError(null);
     try {
       await api(`/api/events/${code}/me/receipt-name`, { method: "PUT", body: JSON.stringify({ name: receiptName }) }, token);
+      if (email.trim()) {
+        await api(`/api/events/${code}/me/email`, { method: "PUT", body: JSON.stringify({ email }) }, token);
+      }
       say(t("inv.receiptSaved", { name: receiptName.trim() }));
       await load();
     } catch (err) {
@@ -319,42 +338,85 @@ export function InvoicePage() {
                 <strong>{fmt(inv.total)}</strong>
               </div>
             </div>
-            <div className="g-pay-method">
-              <span className="g-price-label">{t("inv.method")}</span>
-              <strong>
-                {inv.paymentMethod === "cash"
-                  ? "Cash"
-                  : inv.paymentMethod === "bank_transfer"
-                    ? "Bank transfer"
-                    : inv.paymentMethod === "promptpay" || pay?.promptpayPayload
-                      ? "PromptPay"
-                      : t("inv.deskPay")}
-              </strong>
-            </div>
+            {inv.lines.length > 0 && (
+              <div className="g-pay-method">
+                <span className="g-price-label">{t("inv.method")}</span>
+                <strong>
+                  {inv.paymentMethod === "cash"
+                    ? "Cash"
+                    : inv.paymentMethod === "bank_transfer"
+                      ? "Bank transfer"
+                      : inv.paymentMethod === "promptpay" || pay?.promptpayPayload
+                        ? "PromptPay"
+                        : t("inv.deskPay")}
+                </strong>
+              </div>
+            )}
 
-            {(inv.donations?.length ?? 0) > 0 && (
-              <form className="g-card g-card-ask" onSubmit={onReceipt}>
-                <h2>{t("inv.receiptLabel")}</h2>
-                <p className="g-muted">{t("inv.receiptHint")}</p>
-                <label className="sr-only" htmlFor="g-receipt">{t("inv.receiptLabel")}</label>
-                <input
-                  id="g-receipt"
-                  className="g-big-input"
-                  value={receiptName}
-                  onChange={(e) => setReceiptName(e.target.value)}
-                  placeholder="Name or company"
-                  maxLength={200}
-                />
-                <button className="g-primary" disabled={savingReceipt}>{t("inv.receiptSave")}</button>
-                {inv.receiptName && <p className="g-ok">{t("inv.receiptSaved", { name: inv.receiptName })}</p>}
-              </form>
+            {inv.donationPayment && (
+              <section className="g-card g-donate-pay">
+                <h2>{t("inv.donatePay", { name: inv.donationPayment.displayName })}</h2>
+                <p className="g-muted">{t("inv.donateAmount", { amount: fmt(inv.donationPayment.donationsTotal) })}</p>
+                {inv.donationPayment.receiptNote && <p>{inv.donationPayment.receiptNote}</p>}
+                {inv.donationPayment.instructions && <p className="g-muted">{inv.donationPayment.instructions}</p>}
+                {inv.donationPayment.bankDetails && <p className="g-bank">{inv.donationPayment.bankDetails}</p>}
+                {inv.donationPayment.paymentLink && (
+                  <p><a href={inv.donationPayment.paymentLink}>{inv.donationPayment.paymentLink}</a></p>
+                )}
+                {(inv.donationPayment.promptpayPayload || inv.donationPayment.qrImageUrl) && (
+                  <div className="g-qr-wrap">
+                    {inv.donationPayment.promptpayPayload ? (
+                      <PromptPayQr payload={inv.donationPayment.promptpayPayload} label={inv.donationPayment.displayName} />
+                    ) : (
+                      <img className="g-qr" src={assetUrl(inv.donationPayment.qrImageUrl)} alt={inv.donationPayment.displayName} />
+                    )}
+                  </div>
+                )}
+                {inv.donationPayment.detailsMissing && <p className="g-info">{t("inv.channelMissing")}</p>}
+                {inv.donationPayment.needsReceipt && (
+                  <form className="g-card-ask" onSubmit={onReceipt}>
+                    <h2>{t("inv.receiptLabel")}</h2>
+                    <p className="g-muted">{t("inv.receiptHint")}</p>
+                    <label className="sr-only" htmlFor="g-receipt">{t("inv.receiptLabel")}</label>
+                    <input
+                      id="g-receipt"
+                      className="g-big-input"
+                      value={receiptName}
+                      onChange={(e) => setReceiptName(e.target.value)}
+                      placeholder="Name or company"
+                      maxLength={200}
+                    />
+                    <label className="g-field-label" htmlFor="g-receipt-email">{t("inv.receiptEmail")}</label>
+                    <input
+                      id="g-receipt-email"
+                      className="g-big-input"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@example.org"
+                      maxLength={200}
+                    />
+                    <button className="g-primary" disabled={savingReceipt}>{t("inv.receiptSaveBoth")}</button>
+                    {inv.receiptName && <p className="g-ok">{t("inv.receiptSaved", { name: inv.receiptName })}</p>}
+                  </form>
+                )}
+                {!paid && inv.lines.length === 0 && (
+                  <>
+                    <h2 className="g-slip-title">{t("inv.slipTitle")}</h2>
+                    <label className={`g-primary g-upload${uploading ? " is-busy" : ""}`}>
+                      <input type="file" accept="image/*,application/pdf" className="sr-only" onChange={onPayslip} disabled={uploading} />
+                      📷 {uploading ? t("inv.slipUploading") : inv.hasPayslip ? t("inv.slipReplace") : t("inv.slipButton")}
+                    </label>
+                  </>
+                )}
+              </section>
             )}
 
             {emailFirst && emailCard}
 
-            {!paid && (
+            {!paid && inv.lines.length > 0 && (
               <div className="g-card g-pay">
-                <h2>{t("inv.payTitle")}</h2>
+                <h2>{(inv.donations?.length ?? 0) > 0 ? t("inv.lotsPay") : t("inv.payTitle")}</h2>
                 {pay?.payeeName && <p className="g-muted">{t("inv.payee", { name: pay.payeeName })}</p>}
                 <div className="g-qr-wrap" ref={qrWrap}>
                   {pay?.promptpayPayload ? (
@@ -365,7 +427,13 @@ export function InvoicePage() {
                 </div>
                 {pay?.promptpayPayload || hostQrSrc ? (
                   <>
-                    <p className="g-muted g-center">{ccy === "THB" ? t("inv.payHint") : t("inv.payAmountNote", { amount: fmt(inv.total) })}</p>
+                    <p className="g-muted g-center">
+                      {(inv.donations?.length ?? 0) > 0
+                        ? t("inv.lotsPayNote", { amount: fmt(inv.lotsTotal ?? inv.lines.reduce((s, l) => s + l.amount, 0)) })
+                        : ccy === "THB"
+                          ? t("inv.payHint")
+                          : t("inv.payAmountNote", { amount: fmt(inv.total) })}
+                    </p>
                     <button type="button" className="g-secondary" onClick={() => onSaveQr(pay?.promptpayPayload ? null : hostQrSrc)}>
                       ⬇ {t("inv.saveQr")}
                     </button>
