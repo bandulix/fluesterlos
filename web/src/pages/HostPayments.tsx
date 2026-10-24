@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { API_BASE, uploadForm } from "../lib/api";
 import { DEFAULT_EVENT_TZ, formatInZone } from "../lib/time";
 import { formatMoney, parseCurrency } from "../lib/money";
@@ -161,14 +161,25 @@ function InvoiceRow(props: {
   }
 
   return (
-    <div className="card nested">
-      <p>
-        <strong>{inv.guestName}</strong>
-        {inv.guestPhone ? ` · ${inv.guestPhone}` : ""}
-        {inv.guestEmail ? ` · ${inv.guestEmail}` : " · no email"} — <strong>{formatMoney(inv.total, ccy)}</strong> —{" "}
+    <div className="card nested desk-invoice">
+      <div className="desk-hero">
+        <strong className="desk-amount">{formatMoney(inv.total, ccy)}</strong>
         <span className={`pill status-${inv.status}`}>
           {paid ? `paid${inv.paymentMethod ? ` · ${METHOD_LABEL[inv.paymentMethod]}` : ""}` : inv.status.replace("_", " ")}
         </span>
+      </div>
+      <p>
+        <strong>{inv.guestName}</strong>
+        {inv.guestPhone ? ` · ${inv.guestPhone}` : ""}
+        {inv.guestEmail ? ` · ${inv.guestEmail}` : " · no email"}
+        {" · "}
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => navigator.clipboard?.writeText(inv.id).catch(() => undefined)}
+        >
+          Copy id
+        </button>
         {missingPdfs > 0 && (
           <>
             {" "}
@@ -279,6 +290,10 @@ export function InvoicesCard(props: {
   const ccy = parseCurrency(props.currency);
   const tz = props.timezone || DEFAULT_EVENT_TZ;
   const [filter, setFilter] = useState("");
+  const [updatedAt, setUpdatedAt] = useState(() => Date.now());
+  useEffect(() => {
+    setUpdatedAt(Date.now());
+  }, [invoices]);
   const q = filter.trim().toLowerCase();
   const digits = q.replace(/\D/g, "");
   const shown = q
@@ -292,7 +307,10 @@ export function InvoicesCard(props: {
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2>Payment desk</h2>
+        <div>
+          <h2>Payment desk</h2>
+          <p className="muted desk-updated">Updated {formatInZone(updatedAt, tz)}</p>
+        </div>
         <button type="button" className="button secondary" onClick={onRefresh} disabled={busy}>
           Refresh
         </button>

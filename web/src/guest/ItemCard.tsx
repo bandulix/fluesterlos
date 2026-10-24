@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { assetUrl, LiveItem } from "../lib/api";
 import { Currency, formatAmount } from "../lib/money";
-import { canStepDown, canStepUp, effectiveAmount, isFixedPrice, ItemStatus, onlyBuyNow } from "../lib/bidLogic";
+import { canStepDown, canStepUp, effectiveAmount, formatRemaining, isFixedPrice, ItemStatus, onlyBuyNow } from "../lib/bidLogic";
 import { dedupeDescription } from "../lib/text";
 import { plural, t } from "../i18n";
 
@@ -15,9 +15,32 @@ export type ItemCardProps = {
   highlight: boolean;
   onStep: (itemId: string, dir: 1 | -1) => void;
   onBid: (item: LiveItem, amount: number) => void;
+  /** Thin strip under the stepper when the last bid was too low. */
+  notice?: string | null;
+  /** "3m ago" for the current leader, when a recent bid is known. */
+  leadAgo?: string | null;
+  /** Last five minutes: a ring sits beside the bid pill. */
+  finalFive?: boolean;
+  remainingMs?: number;
 };
 
-function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highlight, onStep, onBid }: ItemCardProps) {
+function TimerRing({ ms }: { ms: number }) {
+  const total = 5 * 60 * 1000;
+  const p = Math.max(0, Math.min(1, ms / total));
+  const r = 16;
+  const c = 2 * Math.PI * r;
+  return (
+    <span className="g-ring" aria-hidden="true">
+      <svg width="48" height="48" viewBox="0 0 40 40">
+        <circle className="g-ring-track" cx="20" cy="20" r={r} />
+        <circle className="g-ring-value" cx="20" cy="20" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - p)} />
+      </svg>
+      <span>{formatRemaining(ms)}</span>
+    </span>
+  );
+}
+
+function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highlight, onStep, onBid, notice, leadAgo, finalFive, remainingMs }: ItemCardProps) {
   const open = eventStatus === "open";
   const closed = eventStatus === "closed";
   const sold = Boolean(it.soldViaBuyNow);
@@ -87,11 +110,18 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
             <div>
               <span className="g-price-label">{it.bidCount ? t(closed || sold ? "bid.winningBid" : "bid.current") : t("bid.starting")}</span>
               <strong className="g-price-value">{fmt(it.bidCount ? it.highBid : it.startingBid)}</strong>
+              {it.bidCount && it.highBidder && !sold ? <span className="g-leading">{t("bid.leading", { name: it.highBidder })}</span> : null}
             </div>
-            <span className="g-price-meta">
-              {it.bidCount ? plural("bid.oneBid", "bid.bids", it.bidCount) : t("bid.noBids")}
-              {it.bidCount && it.highBidder && !sold ? ` · ${it.highBidder}` : ""}
+            <span className="g-price-meta">{it.bidCount ? plural("bid.oneBid", "bid.bids", it.bidCount) : t("bid.noBids")}</span>
+          </div>
+        )}
+        {!fixed && it.bidCount > 0 && it.highBidder && !sold && !closed && (
+          <div className="g-topbid">
+            <span>
+              <span className="g-price-label">{t("bid.topBid")}</span>
+              <span className="g-topbid-who">{it.highBidder}{leadAgo ? ` · ${leadAgo}` : ""}</span>
             </span>
+            <strong>{fmt(it.highBid)}</strong>
           </div>
         )}
 
@@ -106,35 +136,42 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
         ) : (
           <div className="g-actions">
             {!buyNowOnly && (
-              <div className="g-stepper" role="group" aria-label={it.title}>
-                <button
-                  type="button"
-                  className="g-step"
-                  aria-label={t("bid.less")}
-                  disabled={!open || busy || !canStepDown(amount, it)}
-                  onClick={() => onStep(it.id, -1)}
-                >
-                  −
-                </button>
-                <button
-                  type="button"
-                  className={`g-bid${isBuyNow ? " is-buynow" : ""}`}
-                  disabled={!open || busy}
-                  aria-busy={busy}
-                  onClick={() => onBid(it, amount)}
-                >
-                  {busy ? t("bid.sending") : !open ? t("bid.notOpen") : isBuyNow ? t("bid.buyNow", { amount: fmt(amount) }) : t("bid.button", { amount: fmt(amount) })}
-                </button>
-                <button
-                  type="button"
-                  className="g-step"
-                  aria-label={t("bid.more")}
-                  disabled={!open || busy || !canStepUp(amount, it)}
-                  onClick={() => onStep(it.id, 1)}
-                >
-                  +
-                </button>
-              </div>
+              <>
+                <div className="g-stepper" role="group" aria-label={it.title}>
+                  <button
+                    type="button"
+                    className="g-step"
+                    aria-label={t("bid.less")}
+                    disabled={!open || busy || !canStepDown(amount, it)}
+                    onClick={() => onStep(it.id, -1)}
+                  >
+                    −
+                  </button>
+                  <span className="g-step-amount">{fmt(amount)}</span>
+                  <button
+                    type="button"
+                    className="g-step"
+                    aria-label={t("bid.more")}
+                    disabled={!open || busy || !canStepUp(amount, it)}
+                    onClick={() => onStep(it.id, 1)}
+                  >
+                    +
+                  </button>
+                </div>
+                {notice ? <p className="g-inline-error" role="alert">{notice}</p> : null}
+                <div className="g-bid-row">
+                  {finalFive && remainingMs != null && <TimerRing ms={remainingMs} />}
+                  <button
+                    type="button"
+                    className={`g-bid${isBuyNow ? " is-buynow" : ""}`}
+                    disabled={!open || busy}
+                    aria-busy={busy}
+                    onClick={() => onBid(it, amount)}
+                  >
+                    {busy ? t("bid.sending") : !open ? t("bid.notOpen") : isBuyNow ? t("bid.buyNow", { amount: fmt(amount) }) : t("bid.button", { amount: fmt(amount) })}
+                  </button>
+                </div>
+              </>
             )}
             {it.buyNow != null && (buyNowOnly || !isBuyNow) && (
               <button

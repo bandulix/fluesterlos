@@ -132,18 +132,30 @@
   align-items: center;
 }
 [data-theme="thaiger"] .card,
-[data-theme="thaiger"] .host-page .card {
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+[data-theme="thaiger"] .host-page .card,
+[data-theme="thaiger"] .g-item,
+[data-theme="thaiger"] .g-card,
+[data-theme="thaiger"] .g-total-card,
+[data-theme="thaiger"] .panel {
+  border-color: rgba(212, 188, 138, 0.12);
+  box-shadow: none;
+}
+[data-theme="thaiger"] .g-join-card,
+[data-theme="thaiger"] .g-total-card,
+[data-theme="thaiger"] .engager .totals {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(212, 188, 138, 0.1), transparent 46%),
+    var(--card);
 }
 [data-theme="thaiger"] .button {
   min-height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #c6a56e;
+  background: linear-gradient(180deg, #d9c08f, #c6a56e 55%, #b08f57);
   color: #1c1408;
-  border-radius: 12px;
-  box-shadow: none;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
   font-family: var(--font);
   letter-spacing: 0.01em;
 }
@@ -152,9 +164,55 @@
   color: var(--text-strong);
   border: 1px solid var(--border-strong);
 }
-[data-theme="thaiger"] .pill.status-open { color: #e7f6ec; box-shadow: none; }
-[data-theme="thaiger"] .pill.status-scheduled { color: #e4e9fa; }
-[data-theme="thaiger"] .pill.status-closed { color: #f8d6d6; }
+[data-theme="thaiger"] .pill.status-open,
+[data-theme="thaiger"] .pill.status-unpaid,
+[data-theme="thaiger"] .pill.status-payslip_uploaded {
+  background: rgba(212, 188, 138, 0.15);
+  color: #e0c98a;
+  box-shadow: none;
+}
+[data-theme="thaiger"] .pill.status-scheduled,
+[data-theme="thaiger"] .pill.status-paid,
+[data-theme="thaiger"] .pill.status-closed {
+  background: rgba(244, 239, 228, 0.1);
+  color: #f4efe4;
+}
+[data-theme="thaiger"] .auction-list { gap: 0; }
+[data-theme="thaiger"] .auction-row {
+  min-height: 48px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+[data-theme="thaiger"] .auction-list li:last-child .auction-row { border-bottom: 0; }
+[data-theme="thaiger"] .auction-row:hover,
+[data-theme="thaiger"] .auction-row.is-active {
+  border-color: transparent;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+[data-theme="thaiger"] .auction-row.is-active { box-shadow: inset 3px 0 0 #c6a56e; }
+[data-theme="thaiger"] .import-table th {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+}
+[data-theme="thaiger"] .import-table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="thaiger"] .link-button { color: #d4bc8a; min-height: 48px; }
+[data-theme="thaiger"] .desk-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+[data-theme="thaiger"] .desk-amount {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 500;
+  color: #e0c98a;
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="thaiger"] .desk-updated { margin: 0; font-size: 0.8rem; }
 [data-theme="thaiger"] input,
 [data-theme="thaiger"] textarea,
 [data-theme="thaiger"] select {
@@ -172,13 +230,11 @@
   background: linear-gradient(180deg, rgba(12, 18, 34, 0) 18%, var(--bg) 78%);
 }
 [data-theme="thaiger"] .g-join-card {
-  background: var(--card);
   border: 1px solid rgba(212, 188, 138, 0.22);
   border-radius: 22px;
   margin-left: 16px;
   margin-right: 16px;
   padding: 22px 20px 8px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 [data-theme="thaiger"] .g-join-card .brand-mark.is-lockup {
   height: 56px;
@@ -191,11 +247,6 @@
   width: 28px;
   height: 28px;
 }
-[data-theme="thaiger"] .g-item,
-[data-theme="thaiger"] .g-card,
-[data-theme="thaiger"] .g-total-card {
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
-}
 [data-theme="thaiger"] .g-price-value,
 [data-theme="thaiger"] .g-total {
   font-family: var(--font-display);
@@ -205,19 +256,26 @@
 }
 [data-theme="thaiger"] .g-bid,
 [data-theme="thaiger"] .g-primary {
-  background: #c6a56e;
+  background: linear-gradient(180deg, #d9c08f, #c6a56e 55%, #b08f57);
   color: #1c1408;
-  font-family: var(--font);
-  letter-spacing: 0.01em;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 [data-theme="thaiger"] .g-bid.is-buynow {
   background: transparent;
   color: #e0c98a;
   box-shadow: inset 0 0 0 1.5px #c6a56e;
 }
-[data-theme="thaiger"] .g-outbid { background: #b52a2e; }
-[data-theme="thaiger"] .g-outbid-bid { background: #f4efe4; color: #9d2428; }
+[data-theme="thaiger"] .g-outbid {
+  background: var(--card);
+  color: var(--text);
+  border-left-color: #b52a2e;
+}
+[data-theme="thaiger"] .g-outbid-bid { background: transparent; color: #e0c98a; }
 [data-theme="thaiger"] .g-status-outbid,
 [data-theme="thaiger"] .g-chip-outbid .g-chip-count {
   background: #b52a2e;
@@ -285,9 +343,6 @@
   font-family: var(--font-display);
   font-weight: 500;
   color: #e0c98a;
-}
-[data-theme="thaiger"] .engager .panel {
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
 }
 [data-theme="thaiger"] .engager .totals {
   border-top: 3px solid #c6a56e;

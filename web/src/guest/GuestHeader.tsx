@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { BrandMark } from "../components/BrandMark";
 import { formatRemaining, EventStatus } from "../lib/bidLogic";
 import { formatTimeInZone } from "../lib/time";
@@ -20,16 +20,27 @@ export function GuestHeader(props: {
   const { title, status, startsAt, endsAt, now, timezone, closedEarly, right, menu } = props;
   const target = status === "scheduled" ? Date.parse(startsAt) : Date.parse(endsAt);
   const remaining = target - now;
-  const urgent = status === "open" && remaining <= 60_000;
+  const urgent = status === "open" && remaining > 0 && remaining <= 60_000;
+  const finalFive = status === "open" && remaining > 0 && remaining <= 5 * 60_000;
   const tz = timezone || "Asia/Bangkok";
+  const headerRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const apply = () => el.parentElement?.style.setProperty("--g-header-h", `${el.offsetHeight}px`);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
-    <header className="g-header">
+    <header className="g-header" ref={headerRef}>
       <div className="g-header-main">
         <BrandMark />
         <h1 className="g-title" title={title}>{title}</h1>
         {right}
       </div>
-      <div className={`g-timer g-timer-${status}${urgent ? " is-urgent" : ""}`} aria-live="off">
+      <div className={`g-timer g-timer-${status}${finalFive ? " is-final" : ""}${urgent ? " is-urgent" : ""}`} aria-live="off">
         {status === "closed" ? (
           <span>{closedEarly ? t("bid.closedEarly") : t("bid.ended")}</span>
         ) : (
