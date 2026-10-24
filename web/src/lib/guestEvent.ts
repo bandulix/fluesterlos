@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { brand } from "../brand";
 import { api } from "./api";
 
 export function guestCodeFromPath(pathname: string): string | null {
@@ -64,12 +65,12 @@ export function buildGuestManifest(origin: string, code: string, title: string) 
     start_url: `${origin}/e/${encodeURIComponent(code)}/bid`,
     scope: `${origin}/`,
     display: "standalone",
-    theme_color: "#070b16",
-    background_color: "#0b1220",
+    theme_color: brand.themeColor,
+    background_color: brand.backgroundColor,
     icons: [
-      { src: `${origin}/icon-192.png`, sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: `${origin}/icon-512.png`, sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: `${origin}/icon-512.png`, sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: `${origin}${brand.icon192}`, sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: `${origin}${brand.icon512}`, sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: `${origin}${brand.icon512}`, sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

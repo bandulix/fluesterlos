@@ -93,7 +93,7 @@ Open **`/host`**.
   - the **item board, paged**: as many cards as fit (8–12 per page), advancing every 8 s with a page indicator ("13–24 of 48"); the 3 **🔥 Hot** items (most bids in the last 5 minutes, then most bids) are outlined;
   - the latest bids;
   - a **single compact sponsor row** (≤ ~12 % of the height): it scrolls as a slow marquee when the sponsors don't fit, or — with `prefers-reduced-motion` — shows them page by page.
-  Amounts look like the guest app (`฿7,100`). It is live and animated (gala theme).
+  Amounts look like the guest app (`฿7,100`). It is live and animated in the active event theme.
 
 <p align="center"><img src="docs/screenshots/bigscreen.png" width="640" alt="Big screen: total, featured item, join QR, item board, latest bids, sponsors"></p>
 - **`/e/<code>/stats`:** a simpler public stats page (same "Raised so far" rule; items without bids are counted separately, not listed as leaders).
@@ -171,11 +171,16 @@ Web build argument: `VITE_API_URL` (default empty = same origin, served via the 
 
 ## Theming
 
-Restyle with **CSS only**:
+The generic look stays in [`web/public/theme.css`](web/public/theme.css) (`:root` / `[data-theme="gala"]`, plus `[data-theme="calm"]`). This checkout is dressed for **Thai.GER Supporters** without replacing those defaults.
 
-1. [`web/public/theme.css`](web/public/theme.css) holds the defaults: CSS variables on `:root` / `[data-theme="gala"]`, plus animations for the big screen and bids.
-2. [`web/public/custom.css`](web/public/custom.css) is loaded after it; override variables there. Guest-specific tokens such as `--g-win`, `--g-lose` and `--g-radius` can be overridden too.
-3. `data-theme="calm"` on `<html>` gives a quieter palette.
+Colours, type and logos come from [thaigersupporters.info](https://thaigersupporters.info) (WordPress theme tokens: primary `#0B51C2`, secondary `#c4ff47`, tertiary `#F9FAFE`, red `#b52a2e`). Headings are Oswald, body is Inter. Both are the theme's own `.woff2` files, self-hosted under `web/public/brand/thaiger/` (SIL Open Font License) so the PWA still works offline. The site publishes no SVG logo: `lockup.png` is the header wordmark and `mark.png` is the shield (also the PWA icon). Phone and host screens are light; the big screen and stats stay a dark blue scoreboard so a projector still reads across the room. Lime is the bid button; blue stays the link and host-action colour.
+
+Another event swaps the skin in one place, [`web/src/brand.ts`](web/src/brand.ts):
+
+1. Set `id` to `gala`, `calm`, or a new name, and put that same value on `<html data-theme>` in [`web/index.html`](web/index.html).
+2. Point `markSrc` / `lockupSrc` / the icon paths at that event's files (or `""` for no logo), and set `themeColor` / `backgroundColor`.
+3. For a new palette, add `web/public/themes/<id>.css` and link it after `theme.css` and before `custom.css`.
+4. [`web/public/custom.css`](web/public/custom.css) still loads last. Guest tokens such as `--g-win`, `--g-lose` and `--g-radius` can be overridden there too. Mounting a file over `custom.css` in Docker still works:
 
 ```yaml
 services:
@@ -187,6 +192,8 @@ services:
 ```css
 :root { --accent: #ff6b9d; --accent-2: #c084fc; --bg: #0a0a12; }
 ```
+
+Bump `CACHE_ID` in [`web/pwa.options.ts`](web/pwa.options.ts) when you ship new icons or fonts, so installed phones drop the old precache.
 
 ## Backups and break-glass
 

@@ -1,0 +1,15 @@
+Inter and Oswald, as shipped in this folder, are licensed under the
+SIL Open Font License, Version 1.1.
+https://openfontlicense.org
+
+Inter
+Copyright 2020 The Inter Project Authors
+https://github.com/rsms/inter
+
+Oswald
+Copyright 2016 The Oswald Project Authors
+https://github.com/googlefonts/OswaldFont
+
+The woff2 files are the copies vendored by the Extendable WordPress theme
+on https://thaigersupporters.info and are self-hosted so the PWA can load
+them offline. The license text is at the URLs above.

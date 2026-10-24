@@ -1,8 +1,9 @@
 /**
  * FlüsterLos custom theme overrides
  * ---------------------------------
- * Loaded AFTER theme.css. Leave empty to use the default gala theme,
- * or override CSS variables / classes for your event brand.
+ * Loaded last, after theme.css and web/public/themes/*.css.
+ * Leave empty to keep the active event theme (see web/src/brand.ts).
+ * Overrides here win over both the gala defaults and the event theme.
  *
  * Examples:
  *   :root {
@@ -15,6 +16,6 @@
  *   volumes:
  *     - ./my-brand.css:/usr/share/nginx/html/custom.css:ro
  *
- * Or set <html data-theme="calm"> for the built-in calmer variant
- * (add a [data-theme="calm"] block in theme.css / here).
+ * Built-in variants: data-theme="gala" (default) and data-theme="calm".
+ * This checkout uses data-theme="thaiger" (web/public/themes/thaiger.css).
  */

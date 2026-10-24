@@ -1,0 +1,342 @@
+/* Thai.GER Supporters — event theme.
+   Colours and type from https://thaigersupporters.info (WordPress theme tokens:
+   primary #0B51C2, secondary #c4ff47, tertiary #F9FAFE, custom red #b52a2e;
+   headings Oswald, body Inter). Logos: the site header lockup and the shield mark.
+   Fonts are the theme's own woff2 files, self-hosted so the PWA works offline.
+   Inter and Oswald are used under the SIL Open Font License.
+
+   Select it with <html data-theme="thaiger"> (see web/src/brand.ts).
+   Another event adds its own file and leaves this one in place.
+   custom.css still loads after this file and wins. */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url("/brand/thaiger/inter-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Oswald";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/brand/thaiger/oswald.woff2") format("woff2");
+}
+
+[data-theme="thaiger"] {
+  color-scheme: light;
+
+  --bg: #f5f7fb;
+  --bg-glow: #e7f0ff;
+  --card: #ffffff;
+  --card-nested: #f7f9fc;
+  --panel: #ffffff;
+  --engager-bg: #04183f;
+
+  --text: #1c2838;
+  --muted: #5c6b82;
+  --text-strong: #0b1b33;
+
+  /* Blue is the structural colour (links, focus, host actions). Lime is the bid. */
+  --accent: #0b51c2;
+  --accent-2: #083d96;
+  --accent-soft: rgba(11, 81, 194, 0.14);
+  --accent-glow: rgba(11, 81, 194, 0.28);
+  --teal-glow: rgba(196, 255, 71, 0.45);
+  --lime: #c4ff47;
+
+  --danger: #b52a2e;
+  --success: #1f8a4c;
+  --border: #e1e8f2;
+  --border-strong: #c5d4ea;
+  --input-bg: #ffffff;
+  --input-border: #c5d2e6;
+  --banner-bg: #e7f0ff;
+  --button-text: #ffffff;
+  --button-secondary-bg: #e8eef8;
+  --topbar-border: #e4ebf5;
+
+  --status-open: #e5f6ea;
+  --status-scheduled: #e7eefc;
+  --status-closed: #fde8e8;
+  --pill-bg: #e8eef8;
+
+  --g-win: #1f8a4c;
+  --g-win-bg: rgba(31, 138, 76, 0.12);
+  --g-lose: #b52a2e;
+  --g-lose-bg: rgba(181, 42, 46, 0.1);
+  --g-header-bg: rgba(255, 255, 255, 0.94);
+  --g-radius: 16px;
+
+  --font: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Oswald", "Inter", sans-serif;
+}
+
+[data-theme="thaiger"] body {
+  background:
+    radial-gradient(880px 420px at 100% -12%, #e7f0ff, transparent 58%),
+    radial-gradient(640px 360px at -8% -6%, rgba(196, 255, 71, 0.35), transparent 52%),
+    var(--bg);
+  color: var(--text);
+}
+
+[data-theme="thaiger"] h1,
+[data-theme="thaiger"] .g-join-title,
+[data-theme="thaiger"] .host-page h1,
+[data-theme="thaiger"] .host-page h2,
+[data-theme="thaiger"] .stats-page h1,
+[data-theme="thaiger"] .engager header h1,
+[data-theme="thaiger"] .engager h3,
+[data-theme="thaiger"] .g-kicker {
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+}
+
+[data-theme="thaiger"] .host-page h1,
+[data-theme="thaiger"] .host-page h2,
+[data-theme="thaiger"] .g-kicker,
+[data-theme="thaiger"] .g-join-title,
+[data-theme="thaiger"] .stats-page h1,
+[data-theme="thaiger"] .engager header h1,
+[data-theme="thaiger"] .engager h3 {
+  text-transform: uppercase;
+}
+
+[data-theme="thaiger"] .brand-mark {
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex: none;
+}
+[data-theme="thaiger"] .brand-mark.is-lockup {
+  width: auto;
+  height: 44px;
+  max-width: min(46vw, 220px);
+}
+/* The lockup already spells the event name. Keep the product name for the link label only. */
+[data-theme="thaiger"] .brand-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* —— Host chrome —— */
+[data-theme="thaiger"] .topbar {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: none;
+}
+[data-theme="thaiger"] .topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0b51c2 0 38%, #c4ff47 38% 62%, #0b51c2 62%);
+}
+[data-theme="thaiger"] .topbar .button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+}
+[data-theme="thaiger"] .card,
+[data-theme="thaiger"] .host-page .card {
+  box-shadow: 0 12px 32px rgba(11, 40, 90, 0.06);
+}
+[data-theme="thaiger"] .button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0b51c2;
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: none;
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+[data-theme="thaiger"] .button.secondary {
+  background: var(--button-secondary-bg);
+  color: var(--text-strong);
+  border: 1px solid var(--border-strong);
+}
+[data-theme="thaiger"] .pill.status-open { color: #146c36; box-shadow: none; }
+[data-theme="thaiger"] .pill.status-scheduled { color: #0b51c2; }
+[data-theme="thaiger"] .pill.status-closed { color: #8d1f24; }
+[data-theme="thaiger"] input,
+[data-theme="thaiger"] textarea,
+[data-theme="thaiger"] select {
+  font-family: var(--font);
+  font-size: 16px;
+}
+
+/* —— Guest —— */
+[data-theme="thaiger"] .g-join-hero {
+  background:
+    linear-gradient(115deg, #0b51c2 0 42%, #c4ff47 42% 58%, #0b51c2 58% 100%);
+}
+[data-theme="thaiger"] .g-join-hero::after {
+  background: linear-gradient(180deg, rgba(245, 247, 251, 0) 18%, var(--bg) 78%);
+}
+[data-theme="thaiger"] .g-join-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  margin-left: 16px;
+  margin-right: 16px;
+  padding: 22px 20px 8px;
+  box-shadow: 0 18px 40px rgba(11, 40, 90, 0.1);
+}
+[data-theme="thaiger"] .g-join-card .brand-mark.is-lockup {
+  height: 64px;
+  margin: 0 0 12px;
+}
+[data-theme="thaiger"] .g-header {
+  box-shadow: 0 1px 0 #e4ebf5;
+}
+[data-theme="thaiger"] .g-header .brand-mark {
+  width: 28px;
+  height: 28px;
+}
+[data-theme="thaiger"] .g-item,
+[data-theme="thaiger"] .g-card,
+[data-theme="thaiger"] .g-total-card {
+  box-shadow: 0 10px 28px rgba(11, 40, 90, 0.06);
+}
+[data-theme="thaiger"] .g-price-value,
+[data-theme="thaiger"] .g-total {
+  font-family: var(--font-display);
+  color: #0b51c2;
+  letter-spacing: 0.01em;
+}
+[data-theme="thaiger"] .g-bid,
+[data-theme="thaiger"] .g-primary {
+  background: var(--lime);
+  color: #142006;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  box-shadow: 0 8px 20px rgba(11, 81, 194, 0.16);
+}
+[data-theme="thaiger"] .g-bid.is-buynow {
+  background: #0b51c2;
+  color: #fff;
+}
+[data-theme="thaiger"] .g-outbid { background: #b52a2e; }
+[data-theme="thaiger"] .g-outbid-bid { color: #b52a2e; }
+[data-theme="thaiger"] .g-chip.is-active {
+  background: #0b51c2;
+  color: #fff;
+}
+[data-theme="thaiger"] .g-chip.is-active .g-chip-count {
+  background: #fff;
+  color: #0b51c2;
+}
+[data-theme="thaiger"] .g-timer {
+  background: #fff;
+}
+[data-theme="thaiger"] .g-qr {
+  border: 1px solid var(--border);
+}
+
+/* —— Room displays: scoreboard, not the phone UI —— */
+[data-theme="thaiger"] .app:has(.stats-page) main {
+  max-width: none;
+  padding: 0;
+}
+[data-theme="thaiger"] .engager,
+[data-theme="thaiger"] .stats-page {
+  --text: #e7eeff;
+  --text-strong: #ffffff;
+  --muted: #b7c7ea;
+  --card: #0c2f78;
+  --card-nested: #0a2768;
+  --panel: rgba(8, 32, 84, 0.92);
+  --border: #2c5cbc;
+  --border-strong: #3d6ed4;
+  --accent: #c4ff47;
+  --accent-2: #d4ff70;
+  --accent-soft: rgba(196, 255, 71, 0.16);
+  --accent-glow: rgba(196, 255, 71, 0.45);
+  --button-text: #142006;
+  --bg: #04183f;
+  --bg-glow: #123a8a;
+  color: var(--text);
+}
+[data-theme="thaiger"] .engager {
+  background:
+    radial-gradient(900px 480px at 0% -10%, #1547b0, transparent 55%),
+    radial-gradient(640px 420px at 100% 110%, rgba(196, 255, 71, 0.16), transparent 50%),
+    #04183f;
+}
+[data-theme="thaiger"] .stats-page {
+  min-height: 100vh;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background:
+    radial-gradient(800px 420px at 100% -10%, #1547b0, transparent 55%),
+    #04183f;
+}
+[data-theme="thaiger"] .engager .brand-mark {
+  width: 36px;
+  height: 36px;
+  align-self: center;
+}
+[data-theme="thaiger"] .stats-page .stats-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+[data-theme="thaiger"] .stats-page .stats-brand .brand-mark {
+  width: 48px;
+  height: 48px;
+}
+[data-theme="thaiger"] .stats-page h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+[data-theme="thaiger"] .stats-page a { color: #c4ff47; }
+[data-theme="thaiger"] .stats-grid strong,
+[data-theme="thaiger"] .engager .huge,
+[data-theme="thaiger"] .engager .big-amount {
+  font-family: var(--font-display);
+  color: #c4ff47;
+}
+[data-theme="thaiger"] .engager .panel {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+[data-theme="thaiger"] .engager .totals {
+  border-top: 4px solid #c4ff47;
+}
+[data-theme="thaiger"] .board-item.is-hot {
+  border-color: #c4ff47;
+  box-shadow: inset 0 0 0 1px #c4ff47;
+}
+[data-theme="thaiger"] .hot-badge {
+  background: #c4ff47;
+  color: #142006;
+}
+
+@media (min-width: 900px) and (max-height: 820px) {
+  [data-theme="thaiger"] .engager .brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="thaiger"] .g-bid,
+  [data-theme="thaiger"] .g-primary {
+    transition: none;
+  }
+}
