@@ -31,9 +31,14 @@ export function gridFit(
     else if (rows > 1) rows--;
     else break;
   }
+  // A short board used to force cardH up to minCardH and paint a row past the panel.
+  // Drop rows until one minimum card fits; if even one row is too tall, shrink it.
+  const used = (r: number) => gap * Math.max(0, r - 1);
+  while (rows > 1 && height - used(rows) < minCardH * rows) rows--;
   const perPage = Math.max(1, Math.min(cols * rows, max));
-  const fill = Math.floor((height - gap * (rows - 1)) / rows);
-  const cardH = Math.max(minCardH, Math.min(maxCardH, Number.isFinite(fill) ? fill : minCardH));
+  const raw = Math.floor((height - used(rows)) / Math.max(1, rows));
+  const fill = Number.isFinite(raw) ? raw : minCardH;
+  const cardH = fill >= minCardH ? Math.min(maxCardH, fill) : Math.max(1, fill);
   return { cols, rows, perPage, cardH };
 }
 

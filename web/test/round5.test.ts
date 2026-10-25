@@ -13,6 +13,11 @@ describe("big screen: cards fill the board height", () => {
     expect(big.perPage).toBeLessThanOrEqual(12);
     expect(big.cardH * big.rows + 10 * (big.rows - 1)).toBeGreaterThanOrEqual(Math.min(600, 132 * big.rows) - 10);
     expect(gridFit(1250, 2000, 240, 84, 10).cardH).toBe(132);
+    // Shorter than one minimum card: shrink the row so it stays inside the board.
+    const tight = gridFit(400, 40, 240, 84, 10);
+    expect(tight.rows).toBe(1);
+    expect(tight.cardH).toBeLessThanOrEqual(40);
+    expect(tight.cardH * tight.rows + 10 * (tight.rows - 1)).toBeLessThanOrEqual(40);
   });
 });
 

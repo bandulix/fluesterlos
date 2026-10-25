@@ -204,8 +204,8 @@
 }
 [data-theme="thaiger"] .engager-bar-meta { color: var(--ink); }
 [data-theme="thaiger"] .engager .brand-mark {
-  height: clamp(110px, 11.4vh, 128px);
-  max-width: min(42vw, 560px);
+  height: clamp(148px, 14vh, 168px);
+  max-width: min(46vw, 620px);
   margin: 0 1.15rem 0 0;
   align-self: center;
 }
@@ -446,11 +446,11 @@
 
 @media (min-width: 900px) and (max-height: 820px) {
   [data-theme="thaiger"] .engager .brand-mark {
-    height: clamp(78px, 11vh, 92px);
-    max-width: min(34vw, 380px);
+    height: clamp(96px, 13.2vh, 108px);
+    max-width: min(40vw, 440px);
     margin-right: 0.85rem;
   }
-  [data-theme="thaiger"] .engager header { padding: 0.7rem 0.9rem; }
+  [data-theme="thaiger"] .engager header { padding: 0.55rem 0.85rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

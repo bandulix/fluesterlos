@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { formatAmount, parseCurrency } from "../lib/money";
@@ -7,7 +7,7 @@ import type { Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
 import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
 import { auctionClock, donationEndParts } from "../lib/auctionClock";
-import { DEFAULT_EVENT_TZ, formatTimeInZone } from "../lib/time";
+import { DEFAULT_EVENT_TZ } from "../lib/time";
 import { AuctionClock } from "../components/AuctionClock";
 import { PaddleStage } from "../components/PaddleStage";
 import { roomMain } from "../lib/paddleLogic";
@@ -154,6 +154,77 @@ function shortUrl(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
+/** Host plus event code, short enough to read from the room. */
+function shortJoin(url: string): string {
+  try {
+    const u = new URL(url);
+    const code = u.pathname.split("/").filter(Boolean).pop() ?? "";
+    const host = u.host.replace(/^www\./, "");
+    return code ? `${host}/${code}` : host;
+  } catch {
+    return shortUrl(url).replace(/\/e\//, "/");
+  }
+}
+
+/** Drop any child that would be sliced by an overflow:hidden ancestor. */
+function clipBottom(el: HTMLElement): number {
+  let limit = Number.POSITIVE_INFINITY;
+  let p: HTMLElement | null = el;
+  while (p) {
+    const s = getComputedStyle(p);
+    const clips = s.overflowY === "hidden" || s.overflowY === "clip" || s.overflow === "hidden" || p.classList.contains("engager");
+    if (clips) limit = Math.min(limit, p.getBoundingClientRect().bottom - (parseFloat(s.paddingBottom) || 0));
+    if (p.classList.contains("engager")) break;
+    p = p.parentElement;
+  }
+  return limit;
+}
+
+function useWholeRows<T extends HTMLElement>(dep: unknown) {
+  const cleanup = useRef<(() => void) | null>(null);
+  const setRef = useCallback((node: T | null) => {
+    cleanup.current?.();
+    cleanup.current = null;
+    if (!node) return;
+    let frame = 0;
+    const fit = () => {
+      const kids = [...node.children] as HTMLElement[];
+      for (const kid of kids) kid.hidden = false;
+      for (let guard = 0; guard < kids.length; guard++) {
+        const limit = clipBottom(node);
+        const overflow = kids.find((kid) => {
+          if (kid.hidden) return false;
+          const r = kid.getBoundingClientRect();
+          return r.height > 1 && r.bottom > limit + 0.5;
+        });
+        if (!overflow) break;
+        overflow.hidden = true;
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        fit();
+      });
+    });
+    let p: HTMLElement | null = node.parentElement;
+    while (p) {
+      ro.observe(p);
+      if (p.classList.contains("engager")) break;
+      p = p.parentElement;
+    }
+    void document.fonts?.ready.then(fit);
+    cleanup.current = () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+  }, [dep]);
+  useEffect(() => () => cleanup.current?.(), []);
+  return setRef;
+}
+
 /** One headline, then the thank-you and the night's total. Closed-early is only a note. */
 function ClosedHero(props: {
   screenLang: ScreenLang;
@@ -192,6 +263,7 @@ function Finale(props: {
   lots: Array<{ id: string; title: string; amount: string; leader: string | null }>;
 }) {
   const { screenLang, seconds, reduceMotion, total, lots } = props;
+  const lotsRef = useWholeRows<HTMLUListElement>(`${lots.map((l) => l.id).join()}-${screenLang}`);
   return (
     <div className="finale">
       <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${seconds}`}>
@@ -204,7 +276,7 @@ function Finale(props: {
         {lots.length > 0 && (
           <>
             <p className="finale-kicker"><Line mode={screenLang} k="screen.closingNow" /></p>
-            <ul className="finale-lots">
+            <ul className="finale-lots" ref={lotsRef}>
               {lots.map((it) => (
                 <li key={it.id}>
                   <span>
@@ -338,6 +410,9 @@ export function EngagerPage() {
     };
   }, [screenLang]);
 
+  const feedRef = useWholeRows<HTMLUListElement>(`${live?.recentBids?.length ?? 0}-${screenLang}-${live?.event.status ?? ""}-${boardSize.h}`);
+  const boardRowsRef = useWholeRows<HTMLUListElement>(`${boardSize.h}-${boardSize.w}-${fit.perPage}-${page}-${screenLang}-${live?.event.status ?? ""}`);
+
   if (!live) return <div className="engager"><p><Line mode={screenLang} k="screen.loading" /> {error}</p></div>;
   const ccy = parseCurrency(live.event.currency);
   const money = (n: number) => formatAmount(n, ccy);
@@ -371,7 +446,7 @@ export function EngagerPage() {
   const pageLabel = (lang: "en" | "th" | "de") => translate(lang, "screen.page", { n: curPage + 1, m: pages });
 
   return (
-    <div className={`engager lang-${screenLang}${isLive ? " is-live" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}${spotlightNeed ? " is-spotlight" : ""}`}>
+    <div className={`engager lang-${screenLang}${isLive ? " is-live" : ""}${closed ? " is-closed" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}${spotlightNeed ? " is-spotlight" : ""}`}>
       <header>
         <div>
           <BrandMark />
@@ -382,13 +457,13 @@ export function EngagerPage() {
           </h1>
           <span className={`live-badge${closed ? " is-closed" : ""}`}>{closed ? <Line mode={screenLang} k="screen.closed" /> : <Line mode={screenLang} k="screen.live" />}</span>
         </div>
-        <p className="engager-bar-meta">
-          {joinUrl && <span className="engager-join">{shortUrl(joinUrl)}</span>}
-          <span className="engager-bar-dot" aria-hidden="true">·</span>
-          <time dateTime={new Date(serverNow).toISOString()}>{formatTimeInZone(serverNow, tz)}</time>
-        </p>
+        {joinUrl && (
+          <p className="engager-bar-meta">
+            <Line mode={screenLang} k="screen.joinAt" vars={{ where: shortJoin(joinUrl) }} />
+          </p>
+        )}
       </header>
-
+      <div className="engager-stage">
       {closed ? (
         <ClosedHero
           screenLang={screenLang}
@@ -477,7 +552,7 @@ export function EngagerPage() {
             <div className="highlight-row">
               {highlight.photoUrl && <img className="highlight-photo" src={assetUrl(highlight.photoUrl)} alt="" />}
               <div className="highlight-text">
-                <p className="muted">{hot.includes(highlight.id) ? <>🔥 <Line mode={screenLang} k="screen.hot" /></> : <Line mode={screenLang} k="screen.featuring" />}</p>
+                <p className="muted">{closed ? <Line mode={screenLang} k="screen.topLot" /> : hot.includes(highlight.id) ? <>🔥 <Line mode={screenLang} k="screen.hot" /></> : <Line mode={screenLang} k="screen.featuring" />}</p>
                 <h2>{highlight.title}</h2>
                 <SponsorBadge sponsor={highlight.sponsor} size="lg" mode={screenLang} />
                 <p className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, closed)} /></p>
@@ -580,6 +655,7 @@ export function EngagerPage() {
           ) : (
           <ul
             className="board-grid"
+            ref={boardRowsRef}
             key={reduceMotion ? "static" : `p-${curPage}`}
             style={{ gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`, gridAutoRows: `${cardH}px`, ["--card-h" as string]: `${cardH}px` }}
           >
@@ -609,12 +685,13 @@ export function EngagerPage() {
           </div>
         </section>
 
+        {!closed && (
         <section className="panel feed">
           <h3><Line mode={screenLang} k="screen.latest" /></h3>
           {live.recentBids.length === 0 ? (
             <p className="muted"><Line mode={screenLang} k="screen.firstBid" /></p>
           ) : (
-            <ul>
+            <ul ref={feedRef}>
               {live.recentBids.slice(0, 7).map((b, i) => (
                 <li key={`${b.createdAt}-${i}`} className={i === 0 ? "is-latest" : undefined}>
                   <strong>{money(b.amount)}</strong>
@@ -627,9 +704,11 @@ export function EngagerPage() {
             </ul>
           )}
         </section>
+        )}
       </div>
       </div>
       )}
+      </div>
 
       {sponsors.length > 0 && <SponsorStrip sponsors={sponsors} reduceMotion={reduceMotion} screenLang={screenLang} />}
     </div>

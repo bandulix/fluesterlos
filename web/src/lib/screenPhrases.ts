@@ -12,7 +12,7 @@ export function fundedPhrase(lang: Lang, n: Pick<Need, "percent" | "fullyFunded"
 
 export function spotLabel(lang: Lang, it: LiveItem, closed: boolean): string {
   if (it.soldViaBuyNow) return translate(lang, isFixedPrice(it) ? "screen.soldFixed" : "screen.soldBuyNow");
-  if (it.bidCount > 0) return translate(lang, closed ? "screen.winningBid" : "screen.current");
+  if (it.bidCount > 0) return translate(lang, closed ? "screen.soldFor" : "screen.current");
   if (isFixedPrice(it)) return translate(lang, "screen.fixed");
   return translate(lang, "screen.starting");
 }
