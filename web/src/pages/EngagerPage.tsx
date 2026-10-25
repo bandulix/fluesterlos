@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { assetUrl } from "../lib/api";
-import type { LiveItem, Need, Sponsor } from "../lib/api";
+import type { Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
 import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
 import { auctionClock } from "../lib/auctionClock";
@@ -13,7 +13,10 @@ import { roomMain } from "../lib/paddleLogic";
 import { BrandMark } from "../components/BrandMark";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
-import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt, spotlightText } from "../lib/bigScreen";
+import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt } from "../lib/bigScreen";
+import { asScreenLang, countLabel, translate, type ScreenLang } from "../i18n";
+import { Dual, Line } from "../components/ScreenLine";
+import { cardMeta, fundedPhrase, pledgeLine, spotAmount, spotLabel, spotSub } from "../lib/screenPhrases";
 
 const CARD_MIN_W = 240;
 /** Narrower cards on 1024-wide displays, so a page still holds 8+. */
@@ -71,7 +74,7 @@ function SponsorTile({ sponsor }: { sponsor: Sponsor }) {
  * One row of sponsors, never taller than the strip. If they don't fit: a slow marquee, or — with
  * reduced motion — static pages that change every few seconds.
  */
-function SponsorStrip({ sponsors, reduceMotion }: { sponsors: Sponsor[]; reduceMotion: boolean }) {
+function SponsorStrip({ sponsors, reduceMotion, screenLang }: { sponsors: Sponsor[]; reduceMotion: boolean; screenLang: ScreenLang }) {
   const [rowRef, size] = useSize<HTMLDivElement>();
   const measureRef = useRef<HTMLDivElement | null>(null);
   const [overflow, setOverflow] = useState(false);
@@ -98,8 +101,8 @@ function SponsorStrip({ sponsors, reduceMotion }: { sponsors: Sponsor[]; reduceM
   const mode = !overflow ? "static" : reduceMotion ? "paged" : "marquee";
   const shown = mode === "paged" ? pages[page % pages.length] ?? [] : sponsors;
   return (
-    <section className={`sponsor-strip is-${mode}`} aria-label="Sponsors">
-      <h3>Thank you to our sponsors</h3>
+    <section className={`sponsor-strip is-${mode}`} aria-label={translate(screenLang === "both" ? "en" : screenLang, "screen.sponsors")}>
+      <h3><Line mode={screenLang} k="screen.sponsorThanks" /></h3>
       <div className="sponsor-viewport" ref={rowRef}>
         {/* Hidden copy to measure natural widths. */}
         <div className="sponsor-measure" ref={measureRef} aria-hidden="true">
@@ -123,23 +126,23 @@ function SponsorStrip({ sponsors, reduceMotion }: { sponsors: Sponsor[]; reduceM
   );
 }
 
-function NeedSpotlight({ need, money, spotlight }: { need: Need; money: (n: number) => string; spotlight: boolean }) {
+function NeedSpotlight({ need, money, spotlight, screenLang }: { need: Need; money: (n: number) => string; spotlight: boolean; screenLang: ScreenLang }) {
+  const progress = (lang: "en" | "th" | "de") =>
+    `${fundedPhrase(lang, need)} · ${translate(lang, "screen.of", { amount: money(need.targetAmount) })} · ${countLabel(lang, "screen.oneDonor", "screen.donors", need.donorCount)}`;
   return (
     <div className="need-spot">
       {need.photoUrl ? <img className="highlight-photo" src={assetUrl(need.photoUrl)} alt="" /> : <span className="board-thumb need-spot-gift" aria-hidden="true">🎁</span>}
       <div>
-        <p className="muted">{spotlight ? "Fund-a-Need spotlight" : "Fund a need"}</p>
+        <p className="muted">{spotlight ? <Line mode={screenLang} k="screen.fundSpot" /> : <Line mode={screenLang} k="screen.fund" />}</p>
         <h2>{need.title}</h2>
-        {need.example && <p className="example-flag">Example</p>}
+        {need.example && <p className="example-flag"><Line mode={screenLang} k="screen.example" /></p>}
         <p className="muted">{need.beneficiary}</p>
-        <div className="need-bar" role="progressbar" aria-valuenow={Math.round(need.barPercent)} aria-valuemin={0} aria-valuemax={100} aria-label={need.label}>
+        <div className="need-bar" role="progressbar" aria-valuenow={Math.round(need.barPercent)} aria-valuemin={0} aria-valuemax={100} aria-label={progress(screenLang === "de" ? "de" : "en")}>
           <span style={{ width: `${need.barPercent}%` }} />
         </div>
         <p className="big-amount">{money(need.raised)}</p>
         <p className="muted spot-sub">
-          {need.fullyFunded ? "Fully funded!" : need.label}
-          {need.overFunded ? ` · ${need.label}` : ""} · of {money(need.targetAmount)} · {need.donorCount}{" "}
-          {need.donorCount === 1 ? "donor" : "donors"}
+          <Dual mode={screenLang} text={progress} />
         </p>
       </div>
     </div>
@@ -253,7 +256,20 @@ export function EngagerPage() {
     return new Map(top.map((it, i) => [it.id, i + 1]));
   }, [items]);
 
-  if (!live) return <div className="engager"><p>Loading big screen… {error}</p></div>;
+  const screenLang = asScreenLang(live?.event.screenLanguage);
+  useEffect(() => {
+    const root = document.documentElement;
+    const prev = root.lang;
+    const had = root.dataset.screenLang;
+    root.dataset.screenLang = "1";
+    root.lang = screenLang === "th" ? "th" : screenLang === "de" ? "de" : "en";
+    return () => {
+      root.lang = prev;
+      if (!had) delete root.dataset.screenLang;
+    };
+  }, [screenLang]);
+
+  if (!live) return <div className="engager"><p><Line mode={screenLang} k="screen.loading" /> {error}</p></div>;
   const ccy = parseCurrency(live.event.currency);
   const money = (n: number) => formatAmount(n, ccy);
   const joinUrl = live.event.joinUrl;
@@ -279,20 +295,13 @@ export function EngagerPage() {
   const celebrate = needs.find((n) => n.id === celebrateId) ?? null;
   const ticker = live.recentPledges ?? [];
   const highlight = (pinned && items.find((it) => it.id === pinned)) || spotlightAt(step, items, live.recentBids);
-  const spot = highlight ? spotlightText(highlight, closed) : null;
   const sponsors = [...new Map(items.filter((i) => i.sponsor).map((i) => [i.sponsor!.id, i.sponsor!])).values()];
   const curPage = page % pages;
   const shown = boardSize.w ? pageSlice(items, curPage, fit.perPage) : [];
-
-  const priceLine = (it: LiveItem) => {
-    if (it.soldViaBuyNow) return `Sold · ${it.highBidder}`;
-    if (isFixedPrice(it)) return "Fixed price";
-    if (it.bidCount) return `${it.highBidder} · ${it.bidCount} ${it.bidCount === 1 ? "bid" : "bids"}`;
-    return "Starting bid";
-  };
+  const pageLabel = (lang: "en" | "th" | "de") => translate(lang, "screen.page", { n: curPage + 1, m: pages });
 
   return (
-    <div className={`engager${isLive ? " is-live" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}${spotlightNeed ? " is-spotlight" : ""}`}>
+    <div className={`engager lang-${screenLang}${isLive ? " is-live" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}${spotlightNeed ? " is-spotlight" : ""}`}>
       <header>
         <div>
           <BrandMark />
@@ -301,7 +310,7 @@ export function EngagerPage() {
             <span className="engager-title">{live.event.title}</span>
             <span className="star" aria-hidden="true">★</span>
           </h1>
-          <span className="live-badge">{closed ? "Closed" : "Live"}</span>
+          <span className="live-badge">{closed ? <Line mode={screenLang} k="screen.closed" /> : <Line mode={screenLang} k="screen.live" />}</span>
         </div>
       </header>
 
@@ -314,73 +323,82 @@ export function EngagerPage() {
         timezone={live.event.timezone}
         now={serverNow}
         reduceMotion={reduceMotion}
+        screenLang={screenLang}
       />
 
       {roomMain({ countdownTakeover: clock.takeover, paddleStatus: live.paddle?.status }) === "paddle" && live.paddle ? (
-        <PaddleStage paddle={live.paddle} ccy={ccy} reduceMotion={reduceMotion} />
+        <PaddleStage paddle={live.paddle} ccy={ccy} reduceMotion={reduceMotion} screenLang={screenLang} />
       ) : clock.takeover ? (
-        <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${clock.seconds} seconds`}>
-          <p className="auction-clock-kicker">Final seconds</p>
+        <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${clock.seconds}`}>
+          <p className="auction-clock-kicker"><Line mode={screenLang} k="screen.final" /></p>
           <p className="auction-seconds">{clock.seconds}</p>
         </div>
       ) : (
       <div className="engager-main">
       <div className="engager-top">
         <section className={`panel totals${flash ? " bid-flash" : ""}`}>
-          <p className="muted">{closed ? "Raised" : "Raised so far"}</p>
+          <p className="muted">{closed ? <Line mode={screenLang} k="screen.raisedClosed" /> : <Line mode={screenLang} k="screen.raised" />}</p>
           <p className="huge">{money(showSplit ? raised.total : live.stats.totalHighBids)}</p>
           {showSplit && (
-            <p className="muted">Auction {money(raised.auction)} · Donations {money(raised.donations)}</p>
+            <p className="muted">
+              <Line mode={screenLang} k="screen.split" vars={{ auction: money(raised.auction), donations: money(raised.donations) }} />
+            </p>
           )}
           <p className="muted">
-            from {live.stats.totalBids} {live.stats.totalBids === 1 ? "bid" : "bids"} on {live.stats.itemCount}{" "}
-            {live.stats.itemCount === 1 ? "lot" : "lots"}
-            {raised.donations > 0 ? ` · ${live.stats.donorCount ?? 0} donors` : ""}
+            <Dual
+              mode={screenLang}
+              text={(lang) => translate(lang, "screen.from", {
+                bids: countLabel(lang, "bid.oneBid", "bid.bids", live.stats.totalBids),
+                lots: countLabel(lang, "bid.oneLot", "bid.lots", live.stats.itemCount),
+              })}
+            />
+            {raised.donations > 0 && (
+              <>
+                {" · "}
+                <Dual mode={screenLang} text={(lang) => countLabel(lang, "screen.oneDonor", "screen.donors", live.stats.donorCount ?? 0)} />
+              </>
+            )}
           </p>
         </section>
 
         <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}${frame === "donors" ? " is-donors" : ""}`}>
           {frame === "donors" ? (
             <div className="donor-spot">
-              <p className="muted">{spotlightDonors ? "Top donors spotlight" : "Top donors"}</p>
+              <p className="muted">{spotlightDonors ? <Line mode={screenLang} k="screen.donorsSpot" /> : <Line mode={screenLang} k="screen.topDonors" />}</p>
               {topDonors[0] ? (
                 <>
                   <h2 className={rising.includes(topDonors[0].name) ? "is-rise" : ""}>{topDonors[0].name}</h2>
                   {topDonors[0].amount != null && <p className="big-amount">{money(topDonors[0].amount)}</p>}
-                  <p className="muted spot-sub">Largest public gift · auction bids are not included</p>
+                  <p className="muted spot-sub"><Line mode={screenLang} k="screen.largest" /></p>
                 </>
               ) : (
-                <p className="muted">Public donors appear here when a guest asks to be named.</p>
+                <p className="muted"><Line mode={screenLang} k="screen.topEmpty" /></p>
               )}
             </div>
           ) : frame === "needs" && featuredNeed ? (
-            <NeedSpotlight need={featuredNeed} money={money} spotlight={Boolean(spotlightNeed)} />
+            <NeedSpotlight need={featuredNeed} money={money} spotlight={Boolean(spotlightNeed)} screenLang={screenLang} />
           ) : highlight ? (
             <div className="highlight-row">
               {highlight.photoUrl && <img className="highlight-photo" src={assetUrl(highlight.photoUrl)} alt="" />}
               <div className="highlight-text">
-                <p className="muted">{hot.includes(highlight.id) ? "🔥 Hot right now" : "Now featuring"}</p>
+                <p className="muted">{hot.includes(highlight.id) ? <>🔥 <Line mode={screenLang} k="screen.hot" /></> : <Line mode={screenLang} k="screen.featuring" />}</p>
                 <h2>{highlight.title}</h2>
-                <SponsorBadge sponsor={highlight.sponsor} size="lg" />
-                {spot && (
-                  <>
-                    <p className="spot-label">{spot.label}</p>
-                    <p className="big-amount">{money(spot.amount)}</p>
-                    <p className="muted spot-sub">{spot.sub}</p>
-                  </>
-                )}
+                <SponsorBadge sponsor={highlight.sponsor} size="lg" mode={screenLang} />
+                <p className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, closed)} /></p>
+                <p className="big-amount">{money(spotAmount(highlight))}</p>
+                <p className="muted spot-sub"><Dual mode={screenLang} text={(lang) => spotSub(lang, highlight, closed)} /></p>
               </div>
             </div>
           ) : (
-            <p className="muted">Add items to spotlight</p>
+            <p className="muted"><Line mode={screenLang} k="screen.addItems" /></p>
           )}
         </section>
 
         {joinUrl && !closed && (
           <section className="panel join-qr">
-            <p className="join-qr-title">Scan to bid</p>
+            <p className="join-qr-title"><Line mode={screenLang} k="screen.scan" /></p>
             <div className="join-qr-code">
-              <QRCodeSVG value={joinUrl} size={220} marginSize={2} level="M" title={`Scan to bid: ${joinUrl}`} />
+              <QRCodeSVG value={joinUrl} size={220} marginSize={2} level="M" title={`${translate(screenLang === "de" ? "de" : "en", "screen.scan")}: ${joinUrl}`} />
             </div>
             <p className="join-qr-url">{shortUrl(joinUrl)}</p>
           </section>
@@ -391,7 +409,9 @@ export function EngagerPage() {
         <div className="pledge-ticker-wrap">
           <div className={`pledge-ticker${reduceMotion ? " is-static" : ""}`} aria-live="polite">
             {(reduceMotion ? ticker.slice(0, 1) : [...ticker, ...ticker]).map((p, i) => (
-              <span key={`${p.id}-${i}`}>{p.text}</span>
+              <span key={`${p.id}-${i}`}>
+                <Dual mode={screenLang} text={(lang) => pledgeLine(lang, p, money)} />
+              </span>
             ))}
           </div>
         </div>
@@ -399,7 +419,7 @@ export function EngagerPage() {
 
       {celebrate && (
         <div className={`fund-celebrate${reduceMotion ? " is-still" : ""}`} role="status">
-          <p>Fully funded!</p>
+          <p><Line mode={screenLang} k="screen.fully" /></p>
           <h2>{celebrate.title}</h2>
           <p className="big-amount">{money(celebrate.raised)}</p>
         </div>
@@ -408,9 +428,12 @@ export function EngagerPage() {
       <div className="engager-bottom">
         <section className="panel items-board">
           <div className="board-head">
-            <h3>{frame === "donors" ? "Top donors" : frame === "needs" ? "Fund-a-Need" : closed ? "Results" : "All items"} <span className="muted">({frame === "donors" ? topDonors.length : frame === "needs" ? needs.length : items.length})</span></h3>
+            <h3>
+              {frame === "donors" ? <Line mode={screenLang} k="screen.topDonors" /> : frame === "needs" ? <Line mode={screenLang} k="screen.fundBoard" /> : closed ? <Line mode={screenLang} k="screen.results" /> : <Line mode={screenLang} k="screen.allItems" />}{" "}
+              <span className="muted">({frame === "donors" ? topDonors.length : frame === "needs" ? needs.length : items.length})</span>
+            </h3>
             {frame === "auction" && pages > 1 && (
-              <div className="board-pager" aria-label={`Page ${curPage + 1} of ${pages}`}>
+              <div className="board-pager" aria-label={pageLabel(screenLang === "de" ? "de" : "en")}>
                 <span className="muted">
                   {curPage * fit.perPage + 1}–{Math.min(items.length, (curPage + 1) * fit.perPage)} of {items.length}
                 </span>
@@ -432,7 +455,7 @@ export function EngagerPage() {
                   {d.amount != null && <strong>{money(d.amount)}</strong>}
                 </li>
               ))}
-              {topDonors.length === 0 && <li className="muted">No public donors yet.</li>}
+              {topDonors.length === 0 && <li className="muted"><Line mode={screenLang} k="screen.noDonors" /></li>}
             </ol>
           ) : frame === "needs" ? (
             <ul className="need-board">
@@ -446,10 +469,15 @@ export function EngagerPage() {
                     </div>
                     <p className="board-amount">{money(n.raised)}</p>
                   </div>
-                  <div className="need-bar" role="progressbar" aria-valuenow={Math.round(n.barPercent)} aria-valuemin={0} aria-valuemax={100} aria-label={n.label}>
+                  <div className="need-bar" role="progressbar" aria-valuenow={Math.round(n.barPercent)} aria-valuemin={0} aria-valuemax={100} aria-label={fundedPhrase("en", n)}>
                     <span style={{ width: `${n.barPercent}%` }} />
                   </div>
-                  <p className="board-meta">{n.fullyFunded ? "Fully funded!" : n.label}{n.overFunded ? ` · ${n.label}` : ""} · {n.donorCount} {n.donorCount === 1 ? "donor" : "donors"}</p>
+                  <p className="board-meta">
+                    <Dual
+                      mode={screenLang}
+                      text={(lang) => `${fundedPhrase(lang, n)} · ${countLabel(lang, "screen.oneDonor", "screen.donors", n.donorCount)}`}
+                    />
+                  </p>
                 </li>
               ))}
             </ul>
@@ -471,11 +499,11 @@ export function EngagerPage() {
                   {it.photoUrl ? <img src={assetUrl(it.photoUrl)} alt="" /> : <span className="board-thumb" aria-hidden="true">🎁</span>}
                   <div>
                     <p className="board-title">
-                      {isHot && !rank && <span className="hot-badge">Hot</span>}
+                      {isHot && !rank && <span className="hot-badge"><Line mode={screenLang} k="screen.hotBadge" /></span>}
                       {it.title}
                     </p>
                     <p className="board-amount">{money(it.bidCount ? it.highBid : isFixedPrice(it) ? it.buyNow! : it.startingBid)}</p>
-                    <p className="board-meta">{priceLine(it)}</p>
+                    <p className="board-meta"><Dual mode={screenLang} text={(lang) => cardMeta(lang, it)} /></p>
                   </div>
                 </li>
               );
@@ -486,9 +514,9 @@ export function EngagerPage() {
         </section>
 
         <section className="panel feed">
-          <h3>Latest bids</h3>
+          <h3><Line mode={screenLang} k="screen.latest" /></h3>
           {live.recentBids.length === 0 ? (
-            <p className="muted">The first bid will show up here.</p>
+            <p className="muted"><Line mode={screenLang} k="screen.firstBid" /></p>
           ) : (
             <ul>
               {live.recentBids.slice(0, 7).map((b, i) => (
@@ -507,7 +535,7 @@ export function EngagerPage() {
       </div>
       )}
 
-      {sponsors.length > 0 && <SponsorStrip sponsors={sponsors} reduceMotion={reduceMotion} />}
+      {sponsors.length > 0 && <SponsorStrip sponsors={sponsors} reduceMotion={reduceMotion} screenLang={screenLang} />}
     </div>
   );
 }

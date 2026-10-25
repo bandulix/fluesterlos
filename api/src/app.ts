@@ -84,6 +84,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
           top_donors_screen?: boolean;
           top_donors_limit?: number | string;
           spotlight_top_donors?: boolean;
+          screen_language?: string | null;
         }
       | undefined;
   }
@@ -175,6 +176,10 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
         donorRecognition: recognitionOn,
         topDonorsOnScreen: event.top_donors_screen !== false,
         spotlightTopDonors: Boolean(event.spotlight_top_donors),
+        screenLanguage:
+          event.screen_language === "th" || event.screen_language === "de" || event.screen_language === "both"
+            ? event.screen_language
+            : "en",
       },
       paddle: await loadPaddle(eventId),
       items,
@@ -471,6 +476,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     timezone: z.string().max(64).optional(),
     startsAt: z.string().datetime({ offset: true }).optional(),
     endsAt: z.string().datetime({ offset: true }).optional(),
+    screenLanguage: z.enum(["en", "th", "de", "both"]).optional(),
   });
 
   app.patch("/api/host/events/:code", async (req, reply) => {
@@ -502,6 +508,9 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     }
     if (parsed.data.title !== undefined) {
       await pool.query("UPDATE events SET title = $1 WHERE id = $2", [parsed.data.title, event.id]);
+    }
+    if (parsed.data.screenLanguage !== undefined) {
+      await pool.query("UPDATE events SET screen_language = $1 WHERE id = $2", [parsed.data.screenLanguage, event.id]);
     }
     const live = await buildLivePayload(event.id, event.code);
     publish(event.code, "update", live);

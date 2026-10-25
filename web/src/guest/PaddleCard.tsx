@@ -2,6 +2,10 @@ import { PaddleRaise } from "../lib/api";
 import { formatAmount, type Currency } from "../lib/money";
 import { t } from "../i18n";
 
+function appealTitle(title: string): string {
+  return title === "Paddle raise" ? t("paddle.hostTitle") : title;
+}
+
 /** One tap at the level the room is being asked for. */
 export function PaddleCard(props: {
   paddle: PaddleRaise;
@@ -15,7 +19,7 @@ export function PaddleCard(props: {
   const paused = paddle.status === "paused";
   return (
     <section className="g-paddle" aria-live="polite">
-      <p className="g-kicker">{paddle.title}</p>
+      <p className="g-kicker">{appealTitle(paddle.title)}</p>
       {paddle.hitGoal ? (
         <>
           <h2>{t("paddle.thanks")}</h2>

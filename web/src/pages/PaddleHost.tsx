@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, LivePayload, PaddleRaise } from "../lib/api";
+import { t } from "../i18n";
 import { formatAmount, type Currency } from "../lib/money";
 import type { RunAction } from "./HostEventCard";
 
@@ -57,7 +58,7 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
         levels: nums,
         goal: Number(goal),
       },
-      "Paddle raise is live.",
+      t("paddle.liveNote"),
     );
   }
 
@@ -72,27 +73,27 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
       });
       setPaddle(res.live.paddle ?? null);
       return res.live;
-    }, `Paddle added for ${name}.`);
+    }, t("paddle.added", { name }));
     if (ok) setWho("");
   }
 
   const live = paddle && (paddle.status === "live" || paddle.status === "paused");
   return (
     <section className="stack paddle-host">
-      <h3>Paddle raise</h3>
+      <h3>{t("paddle.hostTitle")}</h3>
       {paddle && (
         <p className="muted">
-          {paddle.status === "live" && paddle.level != null && <>Calling {formatAmount(paddle.level, ccy)} · </>}
-          {paddle.status === "paused" && <>Paused · </>}
-          {paddle.status === "ended" && <>Ended · </>}
-          {formatAmount(paddle.raised, ccy)} of {formatAmount(paddle.goal, ccy)}
-          {paddle.hitGoal ? " · Goal reached" : ""}
+          {paddle.status === "live" && paddle.level != null && <>{t("paddle.calling", { amount: formatAmount(paddle.level, ccy) })} · </>}
+          {paddle.status === "paused" && <>{t("paddle.pausedShort")} · </>}
+          {paddle.status === "ended" && <>{t("paddle.statusEnded")} · </>}
+          {t("paddle.goal", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
+          {paddle.hitGoal ? ` · ${t("paddle.hit")}` : ""}
         </p>
       )}
       {!live && (
         <form className="stack" onSubmit={onStart}>
           <label>
-            Need
+            {t("paddle.need")}
             <select
               value={needId}
               onChange={(e) => {
@@ -105,36 +106,36 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
                 }
               }}
             >
-              <option value="">General appeal</option>
+              <option value="">{t("paddle.general")}</option>
               {needs.map((n) => (
                 <option key={n.id} value={n.id}>{n.title}</option>
               ))}
             </select>
           </label>
           <label>
-            Appeal name
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="The school fund" maxLength={200} />
+            {t("paddle.appeal")}
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("paddle.appealPh")} maxLength={200} />
           </label>
           <label>
-            Goal (THB)
+            {t("paddle.goalLabel", { currency: ccy })}
             <input inputMode="decimal" value={goal} onChange={(e) => setGoal(e.target.value.replace(/[^0-9.]/g, ""))} />
           </label>
           <label>
-            Levels, highest first
+            {t("paddle.levels")}
             <input value={levels} onChange={(e) => setLevels(e.target.value)} />
           </label>
-          <button className="button" type="submit">Start paddle raise</button>
+          <button className="button" type="submit">{t("paddle.start")}</button>
         </form>
       )}
       {live && paddle && (
         <div className="row">
-          <button type="button" className="button" onClick={() => send({ action: "next" }, "Next level.")}>Next level</button>
+          <button type="button" className="button" onClick={() => send({ action: "next" }, t("paddle.nextNote"))}>{t("paddle.next")}</button>
           {paddle.status === "live" ? (
-            <button type="button" className="button secondary" onClick={() => send({ action: "pause" }, "Paddle raise paused.")}>Pause</button>
+            <button type="button" className="button secondary" onClick={() => send({ action: "pause" }, t("paddle.pauseNote"))}>{t("paddle.pause")}</button>
           ) : (
-            <button type="button" className="button secondary" onClick={() => send({ action: "resume" }, "Paddle raise resumed.")}>Resume</button>
+            <button type="button" className="button secondary" onClick={() => send({ action: "resume" }, t("paddle.resumeNote"))}>{t("paddle.resume")}</button>
           )}
-          <button type="button" className="button secondary" onClick={() => send({ action: "end" }, "Paddle raise ended.")}>End</button>
+          <button type="button" className="button secondary" onClick={() => send({ action: "end" }, t("paddle.endNote"))}>{t("paddle.end")}</button>
         </div>
       )}
       {paddle?.status === "live" && (
@@ -142,11 +143,11 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
           <input
             value={who}
             onChange={(e) => setWho(e.target.value)}
-            placeholder="Name or guest number"
-            aria-label="Name or guest number"
+            placeholder={t("paddle.who")}
+            aria-label={t("paddle.who")}
             maxLength={80}
           />
-          <button className="button secondary" type="submit">Add paddle</button>
+          <button className="button secondary" type="submit">{t("paddle.add")}</button>
         </form>
       )}
     </section>

@@ -7,6 +7,11 @@ and this project versions toward [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — guest languages
+
+- Thai and German for every guest screen and the big screen. English stays the default. Phones remember EN / ไทย / DE and also follow the browser language. The host sets the big-screen language, including an English-and-Thai pair. Noto Sans Thai is bundled. A test checks that every string key exists in all three languages.
+- Paddle-raise copy on the guest phone, the host desk and the big screen is in Thai and German too. Thai stays polite and drops ค่ะ/ครับ. German uses Sie. The room follows the big-screen language, so English-and-Thai shows a Thai line under each paddle phrase.
+
 ### Added — CI
 
 - GitHub Actions runs typecheck, the API tests against Postgres, the web tests and the web build on every pull request and on pushes to `main` (`.github/workflows/ci.yml`).

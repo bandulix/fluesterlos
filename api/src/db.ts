@@ -343,6 +343,8 @@ export async function migrate() {
     ALTER TABLE events ADD COLUMN IF NOT EXISTS top_donors_screen BOOLEAN NOT NULL DEFAULT true;
     ALTER TABLE events ADD COLUMN IF NOT EXISTS top_donors_limit INT NOT NULL DEFAULT 10;
     ALTER TABLE events ADD COLUMN IF NOT EXISTS spotlight_top_donors BOOLEAN NOT NULL DEFAULT false;
+    -- Big-screen language. Guest phones keep their own choice. both = English with Thai underneath.
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS screen_language TEXT NOT NULL DEFAULT 'en';
 
     CREATE TABLE IF NOT EXISTS recognition_audit (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
