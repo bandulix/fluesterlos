@@ -65,8 +65,8 @@ export function HostControlRoom({
         </p>
         <Countdown variant="tiles" startsAt={ev.startsAt} endsAt={ev.endsAt} status={ev.status} timezone={ev.timezone} closedEarly={ev.closedEarly} />
         <div className="host-join">
-          <span className="host-join-label">Join code</span>
-          <div className="host-join-code" aria-label={`Join code ${ev.code}`}>
+          <span className="host-join-label">Event code</span>
+          <div className="host-join-code" aria-label={`Event code ${ev.code}`}>
             {ev.code.split("").map((ch, i) => (
               <span key={`${ch}-${i}`}>{ch}</span>
             ))}
