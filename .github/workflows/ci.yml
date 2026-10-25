@@ -1,4 +1,3 @@
-# Move to .github/workflows/ci.yml to enable (pushing workflow files needs a token with `workflow` scope).
 name: CI
 
 on:
@@ -29,8 +28,8 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://fluesterlos:fluesterlos@localhost:5432/fluesterlos_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -38,6 +37,8 @@ jobs:
       - name: Typecheck (api + web)
         run: npm run typecheck
       - name: API tests (Postgres)
-        run: npm test
+        run: npm test -w api
+      - name: Web tests
+        run: npm test -w web
       - name: Build web
         run: npm run build -w web
