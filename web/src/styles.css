@@ -1367,3 +1367,13 @@ label.file-btn input[type="file"] {
   .engager.lang-both .highlight .spot-sub { font-size: clamp(1.1rem, 2.05vh, 1.5rem); }
   .engager.lang-both .highlight-row .highlight-photo { max-height: 11vh; }
 }
+
+/* Closed top lot uses the full row: the name on the left, the sale on the right. */
+.engager.is-closed .highlight-row.is-result {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr);
+  align-items: center;
+  gap: clamp(0.75rem, 2vw, 2.5rem);
+}
+.engager.is-closed .highlight-sale { text-align: right; min-width: 0; }
+.engager.is-closed .highlight-sale .spot-sale { justify-content: flex-end; }
+.engager.is-closed .highlight-sale .spot-sub { margin: 0.1rem 0 0; }

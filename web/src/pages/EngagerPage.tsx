@@ -581,22 +581,24 @@ export function EngagerPage() {
               <div className="highlight-text">
                 <p className="muted"><Line mode={screenLang} k="screen.topLot" /></p>
                 {highlight ? (
-                  <>
-                    <h2 className="lot-title">{highlight.title}</h2>
-                    <p className="spot-sale">
-                      <span className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, true)} /></span>
-                      <span className="big-amount">{money(spotAmount(highlight))}</span>
-                    </p>
-                    {(highlight.bidCount > 0 || highlight.soldViaBuyNow) && (
-                      <p className="muted spot-sub">
-                        <Dual mode={screenLang} text={(lang) => translate(lang, "screen.wonBy", { name: highlight.highBidder ?? "—" })} />
-                      </p>
-                    )}
-                  </>
+                  <h2 className="lot-title">{highlight.title}</h2>
                 ) : (
                   <p className="muted"><Line mode={screenLang} k="screen.noBidsClosed" /></p>
                 )}
               </div>
+              {highlight && (
+                <div className="highlight-sale">
+                  <p className="spot-sale">
+                    <span className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, true)} /></span>
+                    <span className="big-amount">{money(spotAmount(highlight))}</span>
+                  </p>
+                  {(highlight.bidCount > 0 || highlight.soldViaBuyNow) && (
+                    <p className="muted spot-sub">
+                      <Dual mode={screenLang} text={(lang) => translate(lang, "screen.wonBy", { name: highlight.highBidder ?? "—" })} />
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           ) : highlight ? (
             <div className="highlight-row">
