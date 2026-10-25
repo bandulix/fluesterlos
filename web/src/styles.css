@@ -448,7 +448,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   font-variant-numeric: tabular-nums;
   font-weight: 800;
   font-size: 5.25rem;
-  line-height: 0.9;
+  line-height: 1.22;
   letter-spacing: 0.04em;
   color: var(--text-strong);
 }
@@ -463,58 +463,59 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   display: grid;
   justify-items: center;
   text-align: center;
-  gap: 0.15rem;
-  padding: 0.2rem 1rem 0.35rem;
+  gap: 0;
+  padding: 0 0.75rem;
 }
+.closed-hero .bi { gap: 0; }
 .closed-thanks {
   margin: 0;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--text-strong);
-  font-size: clamp(2rem, 4.2vh, 3.2rem);
-  line-height: 1.15;
+  font-size: clamp(1.35rem, 2.6vh, 2rem);
+  line-height: 1;
 }
 .closed-total {
   margin: 0;
   font-family: var(--font-display, inherit);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  line-height: 0.9;
+  line-height: 1.48;
   color: var(--accent);
-  font-size: clamp(3.6rem, 9vh, 6.5rem);
+  font-size: clamp(2.7rem, 5.4vh, 4.4rem);
 }
 .closed-line {
-  margin: 0.15rem 0 0;
+  margin: 0;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-strong);
-  font-size: clamp(1.35rem, 2.6vh, 2rem);
-  line-height: 1.15;
+  font-size: clamp(1.2rem, 2.3vh, 1.7rem);
+  line-height: 1;
 }
 .closed-note {
   margin: 0;
   color: var(--muted);
-  font-size: clamp(1.5rem, 2.8vh, 2.05rem);
+  font-size: clamp(1.2rem, 2.3vh, 1.7rem);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1;
 }
 .finale {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   gap: clamp(0.6rem, 1.6vw, 1.5rem);
-  align-items: center;
+  align-items: stretch;
 }
 .finale .auction-takeover { min-height: 0; }
 .finale-cheer {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  overflow: hidden;
+  justify-content: flex-start;
+  overflow: visible;
 }
 .finale-kicker {
   margin: 0.35rem 0 0.2rem;
@@ -530,6 +531,9 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   padding: 0;
   display: grid;
   gap: 0.35rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: start;
 }
 .finale-lots li {
   display: flex;
@@ -578,7 +582,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   margin: 0;
   font-size: clamp(8rem, 28vh, 16rem);
   font-weight: 800;
-  line-height: 0.85;
+  line-height: 1.12;
   color: var(--brand-red, var(--danger));
   background: var(--paper, #fff);
   padding: 0.02em 0.16em 0.06em;
@@ -611,7 +615,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   margin: 0;
   max-width: min(1400px, 96%);
   font-size: clamp(2.4rem, 6vh, 4.6rem);
-  line-height: 1.05;
+  line-height: 1.2;
   color: var(--text-strong);
   overflow-wrap: anywhere;
 }
@@ -619,7 +623,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   margin: 0.2rem 0 0;
   font-size: clamp(4.5rem, 14vh, 9rem);
   font-weight: 800;
-  line-height: 0.9;
+  line-height: 1.1;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
@@ -663,18 +667,23 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .engager.lang-th .paddle-ask,
 .engager.lang-de .paddle-ask {
   font-size: clamp(2.2rem, 5vh, 4rem);
-  line-height: 1.15;
+  line-height: 1.25;
 }
 .engager.lang-both .paddle-total,
 .engager.lang-th .paddle-total,
 .engager.lang-de .paddle-total {
-  font-size: clamp(3.4rem, 7.6vh, 6.2rem);
-  line-height: 0.9;
+  font-size: clamp(3.2rem, 7vh, 5.6rem);
+  line-height: 1.25;
 }
+.engager.lang-both .paddle-kicker { font-size: clamp(1.55rem, 3vh, 2.35rem); }
 .engager.lang-both .paddle-stage {
-  gap: 0.2rem;
+  gap: 0;
+  padding-top: 0;
   padding-bottom: 0;
+  justify-content: center;
 }
+.engager.lang-both .paddle-total { margin: 0; }
+.engager.lang-both .paddle-pops { margin-top: 0.1rem; }
 .paddle-paused {
   margin: 0;
   padding: 0.15rem 0.8rem;
@@ -700,7 +709,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   display: flex;
   gap: 0.85rem;
   align-items: baseline;
-  padding: 0.4rem 0.9rem;
+  padding: 0.22rem 0.9rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
   background: var(--card-nested);
@@ -710,7 +719,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 }
 .paddle-pops li.is-new {
   font-size: clamp(1.2rem, 2.5vh, 1.75rem);
-  padding: 0.5rem 1rem;
+  padding: 0.28rem 1rem;
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
@@ -796,6 +805,9 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .engager .highlight h2 { margin: 0.2rem 0; font-size: clamp(1.4rem, 2.4vw, 2.2rem); color: var(--text-strong); }
 .engager .spot-label { margin: 0.35rem 0 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .engager .big-amount { font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 800; margin: 0.3rem 0 0; color: var(--accent); font-variant-numeric: tabular-nums; }
+.engager .spot-sale { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.1rem 0.75rem; margin: 0.15rem 0 0; }
+.engager .spot-sale .spot-label,
+.engager .spot-sale .big-amount { margin: 0; }
 .engager .join-qr { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .engager .join-qr-title { margin: 0 0 0.5rem; font-size: 1.4rem; font-weight: 800; color: var(--text-strong); }
 .engager .join-qr-code { background: #fff; padding: 10px; border-radius: 16px; line-height: 0; }
@@ -839,11 +851,12 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .board-thumb { display: flex; align-items: center; justify-content: center; font-size: 1.6rem; background: var(--card); }
 .board-item p { margin: 0; }
 .board-title { font-weight: 700; color: var(--text-strong); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lot-title { display: block; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: inherit; }
 .hot-badge { display: inline-block; margin-right: 0.4rem; padding: 0 0.4rem; border-radius: 999px; background: #f97316; color: #fff; font-size: 0.75rem; vertical-align: 0.1em; }
 .board-amount { font-size: 1.3rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.2; }
 .board-meta { color: var(--muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.engager .feed { overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
-.engager .feed ul { min-height: 0; overflow: hidden; }
+.engager .feed { overflow: visible; display: flex; flex-direction: column; min-height: 0; }
+.engager .feed ul { flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; overflow: visible; }
 .engager .feed li { display: flex; align-items: baseline; gap: 0.75rem; font-size: 1.15rem; padding: 0.45rem 0; }
 .engager .feed li strong { flex: none; min-width: 6.5ch; font-variant-numeric: tabular-nums; }
 .engager .feed li span { display: grid; min-width: 0; }
@@ -851,7 +864,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .pledge-ticker { font-size: clamp(1.35rem, 2.4vh, 1.85rem); }
 .engager .feed li.is-latest { font-size: 1.35rem; }
 /* Sponsors: one compact row, at most ~12 % of the screen height. */
-.sponsor-strip { flex: none; display: flex; align-items: center; gap: 1rem; max-height: 12vh; min-height: 0; overflow: hidden; }
+.sponsor-strip { flex: none; display: flex; align-items: center; gap: 1rem; max-height: none; min-height: 0; overflow: visible; }
 .sponsor-strip h3 { flex: none; margin: 0; font-size: 0.95rem; color: var(--muted); max-width: 9rem; line-height: 1.2; }
 .sponsor-viewport { position: relative; flex: 1; min-width: 0; overflow: hidden; }
 .sponsor-measure { position: absolute; visibility: hidden; display: flex; gap: 16px; white-space: nowrap; pointer-events: none; }
@@ -888,15 +901,16 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
     padding: clamp(0.75rem, 1.6vh, 1.5rem);
     gap: clamp(0.4rem, 1vh, 0.8rem);
   }
-  .engager-stage { min-height: 0; overflow: hidden; }
+  .engager-stage { min-height: 0; overflow: visible; }
   .engager-stage > .paddle-stage,
   .engager-stage > .finale,
-  .engager-stage > .engager-main { flex: 1 1 auto; min-height: 0; overflow: hidden; }
-  /* The top row may shrink. The board and the feed keep only whole rows. */
-  .engager-top { flex: 0 1 auto; height: auto; max-height: 42%; min-height: 0; overflow: hidden; }
-  .engager.is-closed .engager-top { max-height: 34%; }
+  .engager-stage > .engager-main { flex: 1 1 auto; min-height: 0; overflow: visible; }
+  /* Top tiles size to their text. Lists below render only whole rows. */
+  .engager-top { flex: 0 0 auto; height: auto; max-height: none; min-height: 0; overflow: visible; }
+  .engager.is-closed .engager-top { max-height: none; }
   .engager.is-closed .engager-bottom { grid-template-columns: minmax(0, 1fr); }
-  .engager-top > .panel { padding: clamp(0.6rem, 1.6vh, 1.25rem); overflow: hidden; }
+  /* Top tiles grow to their text. A fixed row with overflow hidden was hiding the price. */
+  .engager-top > .panel { padding: clamp(0.45rem, 1.1vh, 1rem); overflow: visible; min-height: auto; height: auto; }
   .engager .highlight-row .highlight-photo { max-height: 26vh; }
   .engager .join-qr-code svg { width: clamp(110px, 20vh, 220px); }
   .engager .join-qr-title { font-size: clamp(1rem, 2.4vh, 1.4rem); margin-bottom: 0.3rem; }
@@ -908,8 +922,8 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .engager header .cd-tile strong { font-size: clamp(1.05rem, 3vh, 1.7rem); }
   .engager .huge { font-size: clamp(2.4rem, 9vh, 8rem); }
   .engager-bottom { flex: 1; min-height: 0; }
-  .engager-bottom > .panel { min-height: 0; overflow: hidden; padding: clamp(0.6rem, 1.6vh, 1.25rem); }
-  .board-body { min-height: 0; }
+  .engager-bottom > .panel { min-height: 0; overflow: visible; padding: clamp(0.6rem, 1.6vh, 1.25rem); display: flex; flex-direction: column; }
+  .board-body { min-height: 0; overflow: visible; }
   /* One header row: the title gives way (ellipsis) to the countdown. */
   .engager header { flex-wrap: nowrap; }
   .engager header > div:first-child { flex-wrap: nowrap; }
@@ -920,11 +934,11 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 }
 /* 720p / 1024×600 displays: a tighter top row so the item board keeps ≥ 8 cards per page. */
 @media (min-width: 900px) and (min-height: 500px) and (max-height: 820px) {
-  .engager-top { max-height: 40%; height: auto; }
+  .engager-top { max-height: none; height: auto; }
   .engager .huge { font-size: 2.6rem; margin: 0.2rem 0; }
   .engager header .cd-tile { min-width: 40px; padding: 2px 4px; }
   .engager header .cd-tile small { display: none; }
-  .engager .highlight h2 { font-size: 1.25rem; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .engager .highlight h2 { font-size: 1.25rem; }
   .engager .highlight .sponsor-logo { height: 26px; }
   .engager .big-amount { font-size: 1.9rem; margin: 0.1rem 0 0; }
   .engager .highlight-text p { margin: 0.1rem 0; }
@@ -938,14 +952,11 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .board-amount { font-size: 1.1rem; }
   .engager .feed li { font-size: 1rem; padding: 0.3rem 0; }
   .engager .feed li.is-latest { font-size: 1.1rem; }
-  .engager .feed li:nth-child(n + 7) { display: none; }
   /* Spotlight: smaller photo, one-line title and sponsor, so the price + sub-line always fit. */
   .engager .highlight-row { grid-template-columns: minmax(0, 0.55fr) minmax(0, 1.45fr); gap: 0.9rem; }
   .engager .highlight .sponsor { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; margin: 0.1rem 0; }
   .engager .highlight .sponsor strong { overflow: hidden; text-overflow: ellipsis; }
   .engager .highlight .spot-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .engager .feed li span { white-space: nowrap; }
-  .engager .feed li span, .engager .feed li span small { overflow: hidden; text-overflow: ellipsis; }
 }
 /* ~600px tall displays (1024×600): drop the spotlight kicker and keep the feed to what fits. */
 @media (min-width: 900px) and (min-height: 500px) and (max-height: 660px) {
@@ -954,7 +965,6 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .engager .big-amount { font-size: 1.6rem; line-height: 1.1; }
   .engager .highlight .sponsor-logo { height: 22px; }
   .engager .highlight .sponsor .muted { display: none; }
-  .engager .feed li:nth-child(n + 5) { display: none; }
 }
 @media (max-width: 899px) {
   .engager-top { grid-template-columns: 1fr 1fr; }
@@ -1171,14 +1181,14 @@ label.file-btn input[type="file"] {
 
 /* Bilingual big screen: English, then a Thai line at 70% of that size. */
 .bi { display: inline-flex; flex-direction: column; vertical-align: top; gap: 0.08em; min-width: 0; max-width: 100%; }
-.bi > span { line-height: 1.15; }
+.bi > span { line-height: 1.42; }
 .bi small,
 .engager .bi > small {
   font-family: "Noto Sans Thai", "Inter", system-ui, sans-serif;
   /* 70% of the English line, with room for Thai vowels. */
   font-size: 0.7em;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.45;
   letter-spacing: 0;
   text-transform: none;
   opacity: 1;
@@ -1208,7 +1218,7 @@ label.file-btn input[type="file"] {
 /* English + Thai needs a taller top row. The old 22vh / 18vh row clipped the bid and the QR caption
    once every label grew a second line. Stage labels are large enough that 70% Thai still reads
    from the back of the room at 1080p and 720p. */
-.engager.lang-both .auction-clock { min-height: 0; gap: 0.08rem; padding: 0.35rem 1rem 0.45rem; }
+.engager.lang-both .auction-clock { min-height: 0; gap: 0; padding: 0.15rem 1rem 0.1rem; }
 .engager.lang-both .totals .muted,
 .engager.lang-both .highlight-text > p.muted,
 .engager.lang-both .spot-label,
@@ -1237,7 +1247,11 @@ label.file-btn input[type="file"] {
   font-size: clamp(2.15rem, 4.4vh, 3.35rem);
   line-height: 1.15;
 }
+.engager.lang-both .paddle-kicker { font-size: clamp(1.55rem, 3vh, 2.35rem); }
 .engager.lang-both .highlight .spot-sub { white-space: normal; overflow: visible; text-overflow: unset; }
+.engager.lang-both .closed-thanks { font-size: clamp(1.35rem, 2.6vh, 2rem); line-height: 1; }
+.engager.lang-both .closed-line,
+.engager.lang-both .closed-note { font-size: clamp(1.2rem, 2.3vh, 1.7rem); line-height: 1; margin: 0; }
 .engager.lang-both .live-badge { letter-spacing: 0.06em; }
 .engager.lang-both .totals,
 .engager.lang-both .highlight,
@@ -1246,11 +1260,11 @@ label.file-btn input[type="file"] {
   align-items: stretch;
 }
 .engager.lang-both .totals { display: flex; flex-direction: column; }
-.engager.lang-both .highlight { display: flex; flex-direction: column; min-height: 0; }
+.engager.lang-both .highlight { display: flex; flex-direction: column; min-height: auto; }
 .engager.lang-both .highlight-row {
-  align-items: stretch;
-  min-height: 0;
-  flex: 1;
+  align-items: start;
+  min-height: auto;
+  flex: none;
 }
 .engager.lang-both .highlight-row:has(.highlight-photo) {
   grid-template-columns: minmax(0, 0.32fr) minmax(0, 1.68fr);
@@ -1258,39 +1272,40 @@ label.file-btn input[type="file"] {
 .engager.lang-both .highlight-text { display: flex; flex-direction: column; justify-content: flex-start; min-height: 0; }
 .engager.lang-both .highlight-text > * { flex: none; }
 .engager.lang-both .engager-top p { margin: 0.04rem 0; }
-.engager.lang-both .huge { margin: 0.05rem 0; line-height: 0.95; }
-.engager.lang-both .big-amount { margin: 0.02rem 0 0; line-height: 1; }
+.engager.lang-both .huge { margin: 0.05rem 0; line-height: 1.48; }
+.engager.lang-both .big-amount { margin: 0.02rem 0 0; line-height: 1.5; }
 .engager.lang-both .feed .bi small { color: #d5deef; }
 
 @media (min-width: 900px) and (min-height: 500px) {
   .engager.lang-both .engager-top,
   .engager.lang-th .engager-top { height: auto; }
-  .engager.lang-both .auction-clock-digits { font-size: clamp(3.6rem, 8vh, 5.1rem); }
+  .engager.lang-both .auction-clock-digits { font-size: clamp(3.1rem, 6.2vh, 4.3rem); }
   .engager.lang-both .huge { font-size: clamp(2.4rem, 6.2vh, 4.4rem); }
   .engager.lang-both .big-amount { font-size: clamp(1.9rem, 4.4vh, 2.8rem); }
   .engager.lang-both .highlight h2 {
     font-size: clamp(1.25rem, 2.6vh, 1.8rem);
     margin: 0.05rem 0;
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
+  }
+  .engager.lang-both .highlight h2.lot-title,
+  .engager.lang-th .highlight h2.lot-title {
+    display: block;
     overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .engager.lang-both .highlight .sponsor { margin: 0.05rem 0; }
   .engager.lang-both .highlight .sponsor-logo { height: 28px; }
-  .engager.lang-both .highlight-row .highlight-photo { max-height: none; height: 100%; }
+  .engager.lang-both .highlight-row .highlight-photo { max-height: 16vh; height: auto; width: 100%; align-self: center; object-fit: cover; }
   .engager.lang-both .join-qr-code { padding: 6px; }
   .engager.lang-both .join-qr-code svg { width: clamp(108px, 15vh, 168px); }
   .engager.lang-both .join-qr-title { margin-bottom: 0.2rem; }
   .engager.lang-both .join-qr-url { margin-top: 0.25rem; }
-  .engager.lang-both .sponsor-strip { max-height: 11vh; }
+  .engager.lang-both .sponsor-strip { max-height: none; overflow: visible; }
   .engager.lang-both .sponsor-strip h3 { max-width: 18rem; }
-  .engager.lang-both .feed li:nth-child(n + 5),
-  .engager.lang-th .feed li:nth-child(n + 5) { display: none; }
   .engager.lang-th .join-qr { justify-content: flex-start; }
   .engager.lang-th .join-qr-code svg { width: clamp(96px, 13vh, 156px); }
   .engager.lang-th .big-amount { font-size: clamp(1.8rem, 4.4vh, 2.7rem); line-height: 1.05; }
-  .engager.lang-th .highlight h2 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .engager.lang-th .highlight h2.lot-title { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .engager.lang-th .auction-clock-kicker,
   .engager.lang-th .join-qr-title,
   .engager.lang-th .totals .muted:first-child,
@@ -1302,7 +1317,7 @@ label.file-btn input[type="file"] {
 /* 720p: keep the second language inside the row, and leave the board a full page of cards. */
 @media (min-width: 900px) and (min-height: 500px) and (max-height: 820px) {
   .engager.lang-both .engager-top,
-  .engager.lang-th .engager-top { height: auto; max-height: 38%; }
+  .engager.lang-th .engager-top { height: auto; max-height: none; }
   .engager.lang-both .auction-clock { padding: 0.15rem 0.75rem 0.25rem; }
   .engager.lang-both .auction-clock-digits { font-size: 2.7rem; }
   .engager.lang-both .auction-clock-kicker,
@@ -1321,11 +1336,21 @@ label.file-btn input[type="file"] {
   .engager.lang-both .highlight h2 { font-size: 1.2rem; }
   .engager.lang-both .join-qr-code svg { width: clamp(88px, 12vh, 120px); }
   .engager.lang-both .feed li { font-size: 1.2rem; padding: 0.12rem 0; line-height: 1.2; }
-  .engager.lang-both .sponsor-strip { max-height: 8vh; }
+  .engager.lang-both .sponsor-strip { max-height: none; }
+  .engager.is-closed .pledge-ticker-wrap { display: none; }
   .engager.lang-both .engager-bottom > .panel { padding: 0.4rem 0.7rem; }
   .engager.lang-th .auction-clock { min-height: 0; padding: 0.2rem 0.75rem 0.3rem; }
   .engager.lang-th .auction-clock-digits { font-size: 2.8rem; }
   .engager.lang-th .join-qr-code svg { width: clamp(80px, 11vh, 112px); }
   .engager.lang-th .big-amount { font-size: 1.7rem; }
   .engager.lang-th .huge { font-size: 2.4rem; }
+}
+/* Leave a band under the tiles for whole list rows. Closed keeps that band for results. */
+@media (min-width: 900px) and (min-height: 500px) {
+  .engager.is-closed .pledge-ticker-wrap { display: none; }
+  .engager.lang-both .auction-clock-kicker { font-size: clamp(1.5rem, 2.8vh, 2.15rem); }
+  .engager.lang-both .highlight-text > p.muted,
+  .engager.lang-both .highlight .spot-label,
+  .engager.lang-both .highlight .spot-sub { font-size: clamp(1.1rem, 2.05vh, 1.5rem); }
+  .engager.lang-both .highlight-row .highlight-photo { max-height: 11vh; }
 }

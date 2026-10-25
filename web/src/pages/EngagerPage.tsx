@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { formatAmount, parseCurrency } from "../lib/money";
@@ -19,13 +19,13 @@ import { asScreenLang, countLabel, translate, type ScreenLang } from "../i18n";
 import { Dual, Line } from "../components/ScreenLine";
 import { cardMeta, fundedPhrase, pledgeLine, spotAmount, spotLabel, spotSub } from "../lib/screenPhrases";
 
-const CARD_MIN_W = 240;
+const CARD_MIN_W = 300;
 /** Narrower cards on 1024-wide displays, so a page still holds 8+. */
-const CARD_MIN_W_SMALL = 200;
+const CARD_MIN_W_SMALL = 260;
 const CARD_H = 84;
 const SPOTLIGHT_MS = 6000;
-/** Matches the 720p CSS block (max-height: 820px): smaller cards so a page still holds 8+. */
-const CARD_H_COMPACT = 66;
+/** 720p: title, price and meta must sit inside the card, so a short board drops a row. */
+const CARD_H_COMPACT = 76;
 const GRID_GAP = 10;
 const SPONSOR_PAGE_MS = 6000;
 
@@ -166,63 +166,69 @@ function shortJoin(url: string): string {
   }
 }
 
-/** Drop any child that would be sliced by an overflow:hidden ancestor. */
-function clipBottom(el: HTMLElement): number {
-  let limit = Number.POSITIVE_INFINITY;
-  let p: HTMLElement | null = el;
-  while (p) {
-    const s = getComputedStyle(p);
-    const clips = s.overflowY === "hidden" || s.overflowY === "clip" || s.overflow === "hidden" || p.classList.contains("engager");
-    if (clips) limit = Math.min(limit, p.getBoundingClientRect().bottom - (parseFloat(s.paddingBottom) || 0));
-    if (p.classList.contains("engager")) break;
-    p = p.parentElement;
+/**
+ * Render only as many list rows as fit in the list box. The list must be a flex child with
+ * min-height: 0 so clientHeight is the free slot, not the content height.
+ */
+function useFitCount(itemCount: number, dep: unknown) {
+  const ref = useRef<HTMLUListElement | null>(null);
+  const rowH = useRef(0);
+  const [count, setCount] = useState(itemCount);
+  const itemRef = useRef(itemCount);
+  if (itemRef.current !== itemCount) {
+    itemRef.current = itemCount;
+    setCount(itemCount);
   }
-  return limit;
-}
-
-function useWholeRows<T extends HTMLElement>(dep: unknown) {
-  const cleanup = useRef<(() => void) | null>(null);
-  const setRef = useCallback((node: T | null) => {
-    cleanup.current?.();
-    cleanup.current = null;
-    if (!node) return;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
     let frame = 0;
     const fit = () => {
-      const kids = [...node.children] as HTMLElement[];
-      for (const kid of kids) kid.hidden = false;
-      for (let guard = 0; guard < kids.length; guard++) {
-        const limit = clipBottom(node);
-        const overflow = kids.find((kid) => {
-          if (kid.hidden) return false;
-          const r = kid.getBoundingClientRect();
-          return r.height > 1 && r.bottom > limit + 0.5;
-        });
-        if (!overflow) break;
-        overflow.hidden = true;
+      const available = el.clientHeight;
+      const kids = [...el.children] as HTMLElement[];
+      if (kids[0] && kids[0].offsetHeight > 0) rowH.current = kids[0].offsetHeight;
+      // A slot shorter than one measured row shows nothing, and stays there.
+      if (available < 8 || (rowH.current > 0 && available + 1 < rowH.current)) {
+        if (count !== 0) setCount(0);
+        return;
       }
+      if (kids.length === 0) {
+        if (itemCount > 0 && count === 0) setCount(Math.min(itemCount, 1));
+        return;
+      }
+      const gap = kids.length >= 2 ? Math.max(0, kids[1].offsetTop - kids[0].offsetTop - kids[0].offsetHeight) : 0;
+      let used = 0;
+      let n = 0;
+      for (const kid of kids) {
+        const h = kid.offsetHeight;
+        if (h < 1) continue;
+        const next = used + (n > 0 ? gap : 0) + h;
+        if (next > available + 1) break;
+        used = next;
+        n += 1;
+      }
+      if (n === kids.length && kids.length < itemCount) {
+        const nextH = kids[kids.length - 1].offsetHeight;
+        if (used + gap + nextH <= available + 1) {
+          setCount(kids.length + 1);
+          return;
+        }
+      }
+      if (n !== count) setCount(n);
     };
     fit();
     const ro = new ResizeObserver(() => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        fit();
-      });
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
     });
-    let p: HTMLElement | null = node.parentElement;
-    while (p) {
-      ro.observe(p);
-      if (p.classList.contains("engager")) break;
-      p = p.parentElement;
-    }
-    void document.fonts?.ready.then(fit);
-    cleanup.current = () => {
+    ro.observe(el);
+    void document.fonts?.ready.then(() => requestAnimationFrame(fit));
+    return () => {
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [dep]);
-  useEffect(() => () => cleanup.current?.(), []);
-  return setRef;
+  }, [count, itemCount, dep]);
+  return [ref, Math.min(count, itemCount)] as const;
 }
 
 /** One headline, then the thank-you and the night's total. Closed-early is only a note. */
@@ -263,7 +269,8 @@ function Finale(props: {
   lots: Array<{ id: string; title: string; amount: string; leader: string | null }>;
 }) {
   const { screenLang, seconds, reduceMotion, total, lots } = props;
-  const lotsRef = useWholeRows<HTMLUListElement>(`${lots.map((l) => l.id).join()}-${screenLang}`);
+  const [lotsRef, lotCount] = useFitCount(lots.length, `${lots.map((l) => l.id).join()}-${screenLang}`);
+  const shownLots = lots.slice(0, lotCount);
   return (
     <div className="finale">
       <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${seconds}`}>
@@ -277,10 +284,10 @@ function Finale(props: {
           <>
             <p className="finale-kicker"><Line mode={screenLang} k="screen.closingNow" /></p>
             <ul className="finale-lots" ref={lotsRef}>
-              {lots.map((it) => (
+              {shownLots.map((it) => (
                 <li key={it.id}>
                   <span>
-                    {it.title}
+                    <b className="lot-title">{it.title}</b>
                     {it.leader && <small>{it.leader}</small>}
                   </span>
                   <strong>{it.amount}</strong>
@@ -410,8 +417,8 @@ export function EngagerPage() {
     };
   }, [screenLang]);
 
-  const feedRef = useWholeRows<HTMLUListElement>(`${live?.recentBids?.length ?? 0}-${screenLang}-${live?.event.status ?? ""}-${boardSize.h}`);
-  const boardRowsRef = useWholeRows<HTMLUListElement>(`${boardSize.h}-${boardSize.w}-${fit.perPage}-${page}-${screenLang}-${live?.event.status ?? ""}`);
+  const bidCount = live?.recentBids?.length ?? 0;
+  const [feedRef, feedCount] = useFitCount(Math.min(bidCount, 7), `${screenLang}-${live?.event.status ?? ""}`);
 
   if (!live) return <div className="engager"><p><Line mode={screenLang} k="screen.loading" /> {error}</p></div>;
   const ccy = parseCurrency(live.event.currency);
@@ -442,7 +449,12 @@ export function EngagerPage() {
   const highlight = (pinned && items.find((it) => it.id === pinned)) || spotlightAt(step, items, live.recentBids);
   const sponsors = [...new Map(items.filter((i) => i.sponsor).map((i) => [i.sponsor!.id, i.sponsor!])).values()];
   const curPage = page % pages;
-  const shown = boardSize.w ? pageSlice(items, curPage, fit.perPage) : [];
+  const pageItems = boardSize.w ? pageSlice(items, curPage, fit.perPage) : [];
+  // A card shorter than its text would hide the price. Show whole rows, or none.
+  const rowBudget = cardH >= minCardH
+    ? Math.floor((Math.max(0, boardSize.h) + GRID_GAP) / (cardH + GRID_GAP))
+    : 0;
+  const shown = pageItems.slice(0, Math.max(0, rowBudget) * fit.cols);
   const pageLabel = (lang: "en" | "th" | "de") => translate(lang, "screen.page", { n: curPage + 1, m: pages });
 
   return (
@@ -510,25 +522,18 @@ export function EngagerPage() {
         <section className={`panel totals${flash ? " bid-flash" : ""}${closed ? " is-supporting" : ""}`}>
           {!closed && <p className="muted"><Line mode={screenLang} k="screen.raised" /></p>}
           {!closed && <p className="huge">{money(showSplit ? raised.total : live.stats.totalHighBids)}</p>}
-          {showSplit && (
-            <p className="muted">
-              <Line mode={screenLang} k="screen.split" vars={{ auction: money(raised.auction), donations: money(raised.donations) }} />
-            </p>
-          )}
           <p className="muted">
             <Dual
               mode={screenLang}
-              text={(lang) => translate(lang, "screen.from", {
-                bids: countLabel(lang, "bid.oneBid", "bid.bids", live.stats.totalBids),
-                lots: countLabel(lang, "bid.oneLot", "bid.lots", live.stats.itemCount),
-              })}
+              text={(lang) => {
+                const parts = [
+                  countLabel(lang, "bid.oneBid", "bid.bids", live.stats.totalBids),
+                  countLabel(lang, "bid.oneLot", "bid.lots", live.stats.itemCount),
+                ];
+                if ((live.stats.donorCount ?? 0) > 0) parts.push(countLabel(lang, "screen.oneDonor", "screen.donors", live.stats.donorCount ?? 0));
+                return parts.join(" · ");
+              }}
             />
-            {raised.donations > 0 && (
-              <>
-                {" · "}
-                <Dual mode={screenLang} text={(lang) => countLabel(lang, "screen.oneDonor", "screen.donors", live.stats.donorCount ?? 0)} />
-              </>
-            )}
           </p>
         </section>
 
@@ -548,16 +553,32 @@ export function EngagerPage() {
             </div>
           ) : frame === "needs" && featuredNeed ? (
             <NeedSpotlight need={featuredNeed} money={money} spotlight={Boolean(spotlightNeed)} screenLang={screenLang} />
+          ) : highlight && closed ? (
+            <div className="highlight-row is-result">
+              <div className="highlight-text">
+                <p className="muted"><Line mode={screenLang} k="screen.topLot" /></p>
+                <h2 className="lot-title">{highlight.title}</h2>
+                <p className="spot-sale">
+                  <span className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, true)} /></span>
+                  <span className="big-amount">{money(spotAmount(highlight))}</span>
+                </p>
+                {highlight.bidCount > 0 && (
+                  <p className="muted spot-sub">
+                    <Dual mode={screenLang} text={(lang) => translate(lang, "screen.wonBy", { name: highlight.highBidder ?? "—" })} />
+                  </p>
+                )}
+              </div>
+            </div>
           ) : highlight ? (
             <div className="highlight-row">
               {highlight.photoUrl && <img className="highlight-photo" src={assetUrl(highlight.photoUrl)} alt="" />}
               <div className="highlight-text">
-                <p className="muted">{closed ? <Line mode={screenLang} k="screen.topLot" /> : hot.includes(highlight.id) ? <>🔥 <Line mode={screenLang} k="screen.hot" /></> : <Line mode={screenLang} k="screen.featuring" />}</p>
-                <h2>{highlight.title}</h2>
+                <p className="muted">{hot.includes(highlight.id) ? <>🔥 <Line mode={screenLang} k="screen.hot" /></> : <Line mode={screenLang} k="screen.featuring" />}</p>
+                <h2 className="lot-title">{highlight.title}</h2>
                 <SponsorBadge sponsor={highlight.sponsor} size="lg" mode={screenLang} />
-                <p className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, closed)} /></p>
+                <p className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, false)} /></p>
                 <p className="big-amount">{money(spotAmount(highlight))}</p>
-                <p className="muted spot-sub"><Dual mode={screenLang} text={(lang) => spotSub(lang, highlight, closed)} /></p>
+                <p className="muted spot-sub"><Dual mode={screenLang} text={(lang) => spotSub(lang, highlight, false)} /></p>
               </div>
             </div>
           ) : (
@@ -571,7 +592,6 @@ export function EngagerPage() {
             <div className="join-qr-code">
               <QRCodeSVG value={joinUrl} size={220} marginSize={2} level="M" title={`${translate(screenLang === "de" ? "de" : "en", "screen.scan")}: ${joinUrl}`} />
             </div>
-            <p className="join-qr-url">{shortUrl(joinUrl)}</p>
           </section>
         )}
       </div>
@@ -655,7 +675,6 @@ export function EngagerPage() {
           ) : (
           <ul
             className="board-grid"
-            ref={boardRowsRef}
             key={reduceMotion ? "static" : `p-${curPage}`}
             style={{ gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`, gridAutoRows: `${cardH}px`, ["--card-h" as string]: `${cardH}px` }}
           >
@@ -692,11 +711,11 @@ export function EngagerPage() {
             <p className="muted"><Line mode={screenLang} k="screen.firstBid" /></p>
           ) : (
             <ul ref={feedRef}>
-              {live.recentBids.slice(0, 7).map((b, i) => (
+              {live.recentBids.slice(0, feedCount).map((b, i) => (
                 <li key={`${b.createdAt}-${i}`} className={i === 0 ? "is-latest" : undefined}>
                   <strong>{money(b.amount)}</strong>
                   <span>
-                    {b.itemTitle}
+                    <b className="lot-title">{b.itemTitle}</b>
                     <small>{b.guestName}</small>
                   </span>
                 </li>
