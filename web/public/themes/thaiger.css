@@ -189,19 +189,12 @@
 }
 [data-theme="thaiger"] .engager header h1 { color: var(--brand-blue); }
 [data-theme="thaiger"] .engager header h1 .star { color: var(--brand-red); }
-[data-theme="thaiger"] .engager header .live-badge,
-[data-theme="thaiger"] .engager header .live-badge.is-closed {
-  background: var(--ink);
-  color: var(--paper);
+[data-theme="thaiger"] .engager header .live-status {
+  background: none;
+  color: var(--ink);
 }
-[data-theme="thaiger"] .engager.is-live header .live-badge {
-  background: var(--brand-red);
-  color: var(--paper);
-}
-[data-theme="thaiger"] .engager header .live-badge::before {
-  background: var(--paper);
-  box-shadow: none;
-}
+[data-theme="thaiger"] .engager.is-live header .live-status { color: var(--brand-red); }
+[data-theme="thaiger"] .engager header .live-status.is-closed { color: var(--ink); }
 [data-theme="thaiger"] .engager-bar-meta { color: var(--ink); }
 [data-theme="thaiger"] .engager .brand-mark {
   height: clamp(148px, 14vh, 168px);

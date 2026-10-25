@@ -480,12 +480,25 @@ export function EngagerPage() {
       <header>
         <div>
           <BrandMark />
-          <h1>
-            <span className="star" aria-hidden="true">★</span>
-            <span className="engager-title">{live.event.title}</span>
-            <span className="star" aria-hidden="true">★</span>
-          </h1>
-          <span className={`live-badge${closed ? " is-closed" : ""}`}>{closed ? <Line mode={screenLang} k="screen.closed" /> : <Line mode={screenLang} k="screen.live" />}</span>
+          <div className="engager-titleblock">
+            <h1>
+              <span className="star" aria-hidden="true">★</span>
+              <span className="engager-title">{live.event.title}</span>
+              <span className="star" aria-hidden="true">★</span>
+            </h1>
+            <p className={`live-status${closed ? " is-closed" : ""}`}>
+              <span className="live-status-dot" aria-hidden="true" />
+              {screenLang === "both" ? (
+                <span className="bi">
+                  <span>{translate("en", closed ? "screen.closed" : "screen.live")}</span>
+                  <span className="live-status-sep" aria-hidden="true">·</span>
+                  <small lang="th">{translate("th", closed ? "screen.closed" : "screen.live")}</small>
+                </span>
+              ) : (
+                <Line mode={screenLang} k={closed ? "screen.closed" : "screen.live"} />
+              )}
+            </p>
+          </div>
         </div>
         {joinUrl && (
           <p className="engager-bar-meta">
