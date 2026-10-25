@@ -17,6 +17,7 @@ export const de = {
   "join.oneItem": "1 Artikel zum Bieten",
   "join.items": "{n} Artikel zum Bieten",
   "join.privacy": "Ihre Nummer erscheint nie auf der Leinwand.",
+  "join.payNote": "Jetzt wird nichts abgebucht. Wenn Sie einen Artikel gewinnen oder eine Zusage geben, zahlen Sie danach per PromptPay-QR.",
   "join.needFullNumber": "Bitte geben Sie Ihre vollständige Handynummer ein (z. B. 081 234 5678).",
   "join.notFound": "Wir finden diese Auktion nicht. Bitte scannen Sie den QR-Code erneut.",
 
@@ -142,6 +143,7 @@ export const de = {
   "inv.statusSlip": "Zahlungsbeleg erhalten — die Gastgeber bestätigen ihn in Kürze",
   "inv.statusPaid": "Bezahlt — vielen Dank!",
   "inv.payTitle": "Mit PromptPay zahlen",
+  "inv.payCta": "Zahlen Sie {amount}",
   "inv.method": "Zahlung",
   "inv.deskPay": "Am Infostand zahlen",
   "inv.payHint": "Scannen Sie mit Ihrer Banking-App oder speichern Sie den QR-Code und öffnen Sie ihn dort.",
@@ -227,6 +229,8 @@ export const de = {
   "donate.open": "Offen — unabhängig von der Auktionsuhr",
   "donate.until": "Offen bis {time}",
   "donate.funded": "Vollständig finanziert!",
+  "donate.toGo": "Noch {amount} bis zum Ziel",
+  "donate.you": "Sie",
   "bid.raisedSplit": "Auktion {auction} · Spenden {donations}",
   "bid.pledgesReady": "Ihre Spenden können jetzt bezahlt werden.",
 
@@ -236,6 +240,7 @@ export const de = {
   "paddle.raise": "Paddel für {amount}",
   "paddle.paused": "Die Paddel-Runde pausiert",
   "paddle.goal": "{raised} von {goal}",
+  "paddle.toGo": "Noch {amount}",
   "paddle.generous": "Ein großzügiger Gast",
   "paddle.hit": "Ziel erreicht",
   "paddle.pledges": "{count} Zusagen",

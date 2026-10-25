@@ -18,6 +18,7 @@ export const th = {
   "join.oneItem": "มี 1 รายการให้ประมูล",
   "join.items": "มี {n} รายการให้ประมูล",
   "join.privacy": "เบอร์ของคุณจะไม่ปรากฏบนจอ",
+  "join.payNote": "ตอนนี้ยังไม่มีการเรียกเก็บเงิน หากชนะล็อตหรือให้คำมั่น ชำระภายหลังด้วย QR พร้อมเพย์",
   "join.needFullNumber": "กรุณากรอกเบอร์มือถือให้ครบ (เช่น 081 234 5678)",
   "join.notFound": "ไม่พบการประมูลนี้ กรุณาสแกนคิวอาร์โค้ดอีกครั้ง",
 
@@ -143,6 +144,7 @@ export const th = {
   "inv.statusSlip": "ได้รับสลิปแล้ว เจ้าภาพจะยืนยันในไม่ช้า",
   "inv.statusPaid": "ชำระแล้ว ขอบคุณ",
   "inv.payTitle": "ชำระด้วย PromptPay",
+  "inv.payCta": "ชำระ {amount}",
   "inv.method": "การชำระเงิน",
   "inv.deskPay": "ชำระที่เคาน์เตอร์",
   "inv.payHint": "สแกนด้วยแอปธนาคาร หรือบันทึกคิวอาร์แล้วเปิดในแอป",
@@ -228,6 +230,8 @@ export const th = {
   "donate.open": "เปิดอยู่ ไม่ผูกกับนาฬิกาประมูล",
   "donate.until": "เปิดถึง {time}",
   "donate.funded": "ระดมครบแล้ว",
+  "donate.toGo": "อีก {amount}",
+  "donate.you": "คุณ",
   "bid.raisedSplit": "ประมูล {auction} · บริจาค {donations}",
   "bid.pledgesReady": "เงินบริจาคของคุณพร้อมชำระแล้ว",
 
@@ -237,6 +241,7 @@ export const th = {
   "paddle.raise": "ยกป้าย {amount}",
   "paddle.paused": "การยกป้ายหยุดชั่วคราว",
   "paddle.goal": "{raised} จาก {goal}",
+  "paddle.toGo": "อีก {amount}",
   "paddle.generous": "ผู้ร่วมงานใจกว้าง",
   "paddle.hit": "ถึงเป้าหมายแล้ว",
   "paddle.pledges": "{count} คำมั่น",

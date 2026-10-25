@@ -1,13 +1,9 @@
-/* Thai.GER Supporters — black-tie gala skin for this checkout.
-   The logo is the live site's header file, unmodified (logo.png). It already
-   has a white background, so the theme does not plate or recolor it.
-   Type is the site's self-hosted Inter and Oswald.
-   The room, the phones and the host desk all use the same dark navy, because a
-   white screen glares in a dim ballroom. Gold is a champagne (#D4BC8A links and
-   figures, #C6A56E key buttons) — restrained, and checked to WCAG AA.
-   The site red (#b52a2e, lifted to #e07a7a for small text on navy) is only the
-   outbid and error colour. Lime is not used.
-   custom.css still loads after this file and wins. */
+/* Thai.GER Supporters. Every hex below is measured in docs/brand.md.
+   The logo file is the live header image, unmodified. It is opaque white,
+   so it sits on a #ffffff plate with clear space around the file.
+   Room surfaces are the logo ink (#231f20). Filled actions are the site red
+   (#b52a2e, white type). Figures and the goal are the logo gold (#f6911f).
+   Headings on the white plates use the site primary blue (#0B51C2). */
 
 @font-face {
   font-family: "Inter";
@@ -27,45 +23,59 @@
 [data-theme="thaiger"] {
   color-scheme: dark;
 
-  --bg: #0c1222;
-  --bg-glow: #1a2238;
-  --card: #161e32;
-  --card-nested: #101828;
-  --panel: #141c30;
-  --engager-bg: #090f1c;
+  /* Logo ink, and the same ink lifted with the logo's own white.
+     #302c2d = 6% white, #393536 = 10%, #535051 = 22%. */
+  --ink: #231f20;
+  --paper: #ffffff;
+  --paper-2: #f9fafe;
+  --bg: #231f20;
+  --bg-glow: #393536;
+  --card: #393536;
+  --card-nested: #302c2d;
+  --panel: #393536;
+  --engager-bg: #231f20;
 
-  --text: #d9d3c5;
-  --muted: #b7c0d0;
-  --text-strong: #f4efe4;
+  --text: #ffffff;
+  --muted: #c1c1c1;
+  --text-strong: #ffffff;
+  --ink-soft: #333333;
 
-  /* Champagne gold. accent-2 stays in the same metal so leftover gradients do not turn teal. */
-  --accent: #d4bc8a;
-  --accent-2: #c6a56e;
-  --accent-soft: rgba(212, 188, 138, 0.16);
-  --accent-glow: rgba(212, 188, 138, 0.32);
-  --teal-glow: rgba(198, 165, 110, 0.14);
+  /* Logo gold. accent-2 stays the same gold so a second stop cannot invent a metal. */
+  --accent: #f6911f;
+  --accent-2: #f6911f;
+  --on-accent: #231f20;
+  --accent-soft: color-mix(in srgb, #f6911f 16%, transparent);
+  --accent-glow: color-mix(in srgb, #f6911f 32%, transparent);
+  --teal-glow: color-mix(in srgb, #b52a2e 14%, transparent);
 
-  --danger: #e07a7a;
-  --success: #a3d9b1;
-  --border: #2c3548;
-  --border-strong: #3d4a62;
-  --input-bg: #0e1526;
-  --input-border: #3d4a62;
-  --banner-bg: #1c2438;
-  --button-text: #1c1408;
-  --button-secondary-bg: #1c263c;
-  --topbar-border: rgba(212, 188, 138, 0.28);
+  /* Site custom red. White on this red is 6.30:1. */
+  --brand-red: #b52a2e;
+  --brand-blue: #0b51c2;
+  --danger: #b52a2e;
+  --success: #f6911f;
+  --button-bg: #b52a2e;
+  --button-text: #ffffff;
+  --medal-silver: #c1c1c1;
+  --medal-bronze: #b52a2e;
 
-  --status-open: #14532d;
-  --status-scheduled: #1e3a8a;
-  --status-closed: #7f1d1d;
-  --pill-bg: #1c263c;
+  --border: #535051;
+  --border-strong: #6b6667;
+  --input-bg: #302c2d;
+  --input-border: #6b6667;
+  --banner-bg: #393536;
+  --button-secondary-bg: transparent;
+  --topbar-border: color-mix(in srgb, #231f20 14%, #ffffff);
 
-  --g-win: #a3d9b1;
-  --g-win-bg: rgba(163, 217, 177, 0.14);
-  --g-lose: #e07a7a;
-  --g-lose-bg: rgba(176, 42, 46, 0.16);
-  --g-header-bg: rgba(12, 18, 34, 0.92);
+  --status-open: #393536;
+  --status-scheduled: #302c2d;
+  --status-closed: #231f20;
+  --pill-bg: #302c2d;
+
+  --g-win: #f6911f;
+  --g-win-bg: color-mix(in srgb, #f6911f 16%, transparent);
+  --g-lose: #ffffff;
+  --g-lose-bg: color-mix(in srgb, #b52a2e 22%, transparent);
+  --g-header-bg: #ffffff;
   --g-radius: 16px;
 
   --font: "Inter", system-ui, -apple-system, sans-serif;
@@ -74,8 +84,8 @@
 
 [data-theme="thaiger"] body {
   background:
-    radial-gradient(880px 420px at 12% -10%, rgba(212, 188, 138, 0.09), transparent 58%),
-    radial-gradient(640px 380px at 100% 0%, rgba(26, 34, 56, 0.9), transparent 52%),
+    radial-gradient(880px 420px at 12% -10%, color-mix(in srgb, #f6911f 12%, transparent), transparent 58%),
+    radial-gradient(640px 380px at 100% 0%, color-mix(in srgb, #b52a2e 16%, transparent), transparent 52%),
     var(--bg);
   color: var(--text);
 }
@@ -97,14 +107,17 @@
 [data-theme="thaiger"] .brand-mark.is-lockup {
   display: block;
   width: auto;
-  height: 40px;
-  max-width: min(46vw, 220px);
+  height: 64px;
+  max-width: min(70vw, 280px);
   object-fit: contain;
   object-position: left center;
   flex: none;
   background: none;
   padding: 0;
+  border: 0;
   border-radius: 0;
+  filter: none;
+  box-shadow: none;
 }
 [data-theme="thaiger"] .brand-word {
   position: absolute;
@@ -118,11 +131,73 @@
   border: 0;
 }
 
-/* —— Host chrome —— */
+/* White plates. The logo file is #ffffff, so the plate is the same white. */
 [data-theme="thaiger"] .topbar {
-  background: rgba(12, 18, 34, 0.94);
-  box-shadow: inset 0 -1px 0 rgba(212, 188, 138, 0.45);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: none;
+  border-bottom: 1px solid var(--topbar-border);
+  padding: 0.85rem 1.25rem;
 }
+[data-theme="thaiger"] .topbar .brand { color: var(--ink); }
+[data-theme="thaiger"] .topbar .brand-mark {
+  height: 64px;
+  width: auto;
+  max-width: min(46vw, 260px);
+}
+[data-theme="thaiger"] .topbar nav a,
+[data-theme="thaiger"] .topbar .session { color: var(--ink-soft); }
+[data-theme="thaiger"] .topbar nav a:hover { color: var(--brand-red); }
+[data-theme="thaiger"] .topbar .button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1.5px solid var(--ink);
+  box-shadow: none;
+}
+
+[data-theme="thaiger"] .g-header {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: none;
+  border-bottom: 1px solid var(--topbar-border);
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px;
+}
+[data-theme="thaiger"] .g-header .brand-mark {
+  height: 64px;
+  width: auto;
+  max-width: min(58vw, 240px);
+  margin-right: 8px;
+}
+[data-theme="thaiger"] .g-header .g-title,
+[data-theme="thaiger"] .g-header .g-back { color: var(--brand-blue); }
+[data-theme="thaiger"] .g-header .g-lang button {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+[data-theme="thaiger"] .g-header .g-lang button.is-on {
+  background: var(--brand-red);
+  color: var(--paper);
+  border-color: transparent;
+}
+
+[data-theme="thaiger"] .engager header {
+  background: var(--paper);
+  color: var(--ink);
+  /* Match the projector padding so the plate reaches the edges without sliding off. */
+  margin: calc(-1 * clamp(0.75rem, 1.6vh, 1.5rem)) calc(-1 * clamp(0.75rem, 1.6vh, 1.5rem)) 0;
+  padding: 0.55rem clamp(1rem, 2vw, 1.5rem);
+}
+[data-theme="thaiger"] .engager header h1 { color: var(--brand-blue); }
+[data-theme="thaiger"] .engager header h1 .star { color: var(--brand-red); }
+[data-theme="thaiger"] .engager header .live-badge { color: var(--brand-red); }
+[data-theme="thaiger"] .engager .brand-mark {
+  height: clamp(72px, 8.5vh, 100px);
+  max-width: min(36vw, 480px);
+  margin: 0 1.25rem 0 0;
+  align-self: center;
+}
+
+/* —— Host chrome —— */
 [data-theme="thaiger"] .topbar .button {
   min-height: 48px;
   display: inline-flex;
@@ -134,14 +209,14 @@
 [data-theme="thaiger"] .g-card,
 [data-theme="thaiger"] .g-total-card,
 [data-theme="thaiger"] .panel {
-  border-color: rgba(212, 188, 138, 0.12);
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
   box-shadow: none;
 }
 [data-theme="thaiger"] .g-join-card,
 [data-theme="thaiger"] .g-total-card,
 [data-theme="thaiger"] .engager .totals {
   background:
-    radial-gradient(120% 80% at 0% 0%, rgba(212, 188, 138, 0.1), transparent 46%),
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 46%),
     var(--card);
 }
 [data-theme="thaiger"] .button {
@@ -149,30 +224,30 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(180deg, #d9c08f, #c6a56e 55%, #b08f57);
-  color: #1c1408;
+  background: var(--button-bg);
+  color: var(--button-text);
   border-radius: 999px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow: none;
   font-family: var(--font);
   letter-spacing: 0.01em;
 }
 [data-theme="thaiger"] .button.secondary {
-  background: var(--button-secondary-bg);
-  color: var(--text-strong);
-  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
 }
 [data-theme="thaiger"] .pill.status-open,
 [data-theme="thaiger"] .pill.status-unpaid,
 [data-theme="thaiger"] .pill.status-payslip_uploaded {
-  background: rgba(212, 188, 138, 0.15);
-  color: #e0c98a;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
   box-shadow: none;
 }
 [data-theme="thaiger"] .pill.status-scheduled,
 [data-theme="thaiger"] .pill.status-paid,
 [data-theme="thaiger"] .pill.status-closed {
-  background: rgba(244, 239, 228, 0.1);
-  color: #f4efe4;
+  background: color-mix(in srgb, var(--paper) 10%, transparent);
+  color: var(--text-strong);
 }
 [data-theme="thaiger"] .auction-list { gap: 0; }
 [data-theme="thaiger"] .auction-row {
@@ -180,15 +255,15 @@
   background: transparent;
   border: 0;
   border-radius: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid color-mix(in srgb, var(--paper) 8%, transparent);
 }
 [data-theme="thaiger"] .auction-list li:last-child .auction-row { border-bottom: 0; }
 [data-theme="thaiger"] .auction-row:hover,
 [data-theme="thaiger"] .auction-row.is-active {
   border-color: transparent;
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+  border-bottom-color: color-mix(in srgb, var(--paper) 8%, transparent);
 }
-[data-theme="thaiger"] .auction-row.is-active { box-shadow: inset 3px 0 0 #c6a56e; }
+[data-theme="thaiger"] .auction-row.is-active { box-shadow: inset 3px 0 0 var(--brand-red); }
 [data-theme="thaiger"] .import-table th {
   font-size: 12px;
   letter-spacing: 0.08em;
@@ -197,16 +272,16 @@
   background: transparent;
 }
 [data-theme="thaiger"] .import-table td {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid color-mix(in srgb, var(--paper) 8%, transparent);
   font-variant-numeric: tabular-nums;
 }
-[data-theme="thaiger"] .link-button { color: #d4bc8a; min-height: 48px; }
+[data-theme="thaiger"] .link-button { color: var(--accent); min-height: 48px; }
 [data-theme="thaiger"] .desk-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 [data-theme="thaiger"] .desk-amount {
   font-family: var(--font-display);
   font-size: 2rem;
   font-weight: 500;
-  color: #e0c98a;
+  color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
 [data-theme="thaiger"] .desk-updated { margin: 0; font-size: 0.8rem; }
@@ -219,121 +294,116 @@
 
 /* —— Guest —— */
 [data-theme="thaiger"] .g-join-hero {
-  background:
-    radial-gradient(120% 80% at 50% 0%, rgba(212, 188, 138, 0.2), transparent 62%),
-    #10182c;
+  background: var(--paper);
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
-[data-theme="thaiger"] .g-join-hero::after {
-  background: linear-gradient(180deg, rgba(12, 18, 34, 0) 18%, var(--bg) 78%);
-}
+[data-theme="thaiger"] .g-join-hero::after { display: none; }
+[data-theme="thaiger"] .g-join-card { margin-top: 12px; }
+[data-theme="thaiger"] .g-join .g-join-card:only-child { margin-top: 6vh; }
 [data-theme="thaiger"] .g-join-card {
-  border: 1px solid rgba(212, 188, 138, 0.22);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   border-radius: 22px;
   margin-left: 16px;
   margin-right: 16px;
   padding: 22px 20px 8px;
 }
 [data-theme="thaiger"] .g-join-card .brand-mark.is-lockup {
-  width: min(100%, 280px);
+  width: min(100%, 300px);
   height: auto;
   max-width: 100%;
-  margin: 0 0 14px;
-}
-[data-theme="thaiger"] .g-header {
-  box-shadow: inset 0 -1px 0 rgba(212, 188, 138, 0.28);
-}
-[data-theme="thaiger"] .g-header .brand-mark {
-  width: auto;
-  height: 36px;
-  max-width: 42vw;
+  margin: 0 auto 16px;
+  padding: 24px 20px;
+  background: var(--paper);
+  border-radius: 18px;
+  box-sizing: border-box;
 }
 [data-theme="thaiger"] .g-price-value,
 [data-theme="thaiger"] .g-total {
   font-family: var(--font-display);
   font-weight: 500;
-  color: #e0c98a;
+  color: var(--accent);
   letter-spacing: 0.01em;
 }
 [data-theme="thaiger"] .g-bid,
-[data-theme="thaiger"] .g-primary {
-  background: linear-gradient(180deg, #d9c08f, #c6a56e 55%, #b08f57);
-  color: #1c1408;
+[data-theme="thaiger"] .g-primary,
+[data-theme="thaiger"] .g-pay-sticky {
+  background: var(--button-bg);
+  color: var(--button-text);
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   border-radius: 999px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  box-shadow: none;
 }
-[data-theme="thaiger"] .g-bid.is-buynow {
+[data-theme="thaiger"] .g-bid.is-buynow,
+[data-theme="thaiger"] .g-secondary {
   background: transparent;
-  color: #e0c98a;
-  box-shadow: inset 0 0 0 1.5px #c6a56e;
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 [data-theme="thaiger"] .g-outbid {
   background: var(--card);
   color: var(--text);
-  border-left-color: #b52a2e;
+  border-left-color: var(--brand-red);
 }
-[data-theme="thaiger"] .g-outbid-bid { background: transparent; color: #e0c98a; }
+[data-theme="thaiger"] .g-outbid-bid {
+  background: transparent;
+  color: var(--accent);
+}
 [data-theme="thaiger"] .g-status-outbid,
 [data-theme="thaiger"] .g-chip-outbid .g-chip-count {
-  background: #b52a2e;
-  color: #fff;
+  background: var(--brand-red);
+  color: var(--paper);
 }
 [data-theme="thaiger"] .g-chip.is-active {
-  background: #c6a56e;
-  color: #1c1408;
+  background: var(--brand-red);
+  color: var(--paper);
 }
 [data-theme="thaiger"] .g-chip.is-active .g-chip-count {
-  background: #1c1408;
-  color: #f4efe4;
+  background: var(--paper);
+  color: var(--brand-red);
 }
-[data-theme="thaiger"] .g-timer {
-  background: var(--card);
-}
+[data-theme="thaiger"] .g-timer { background: var(--card); }
 [data-theme="thaiger"] .g-qr {
-  background: #fff;
-  border: 1px solid rgba(212, 188, 138, 0.35);
+  background: var(--paper);
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, var(--paper));
 }
 
-/* —— Room displays, same metal, a shade deeper —— */
+/* —— Room —— */
 [data-theme="thaiger"] .app:has(.stats-page) main {
   max-width: none;
   padding: 0;
 }
 [data-theme="thaiger"] .engager {
   background:
-    radial-gradient(900px 480px at 50% -18%, rgba(198, 165, 110, 0.12), transparent 55%),
-    #090f1c;
+    radial-gradient(900px 480px at 50% -18%, color-mix(in srgb, var(--brand-red) 18%, transparent), transparent 55%),
+    var(--engager-bg);
 }
 [data-theme="thaiger"] .stats-page {
   min-height: 100vh;
   padding: clamp(1rem, 3vw, 2.5rem);
   background:
-    radial-gradient(800px 420px at 100% -10%, rgba(198, 165, 110, 0.1), transparent 55%),
-    #090f1c;
-}
-[data-theme="thaiger"] .engager .brand-mark {
-  width: auto;
-  height: 40px;
-  max-width: 180px;
-  align-self: center;
+    radial-gradient(800px 420px at 100% -10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%),
+    var(--engager-bg);
 }
 [data-theme="thaiger"] .stats-page .stats-brand {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  background: var(--paper);
+  margin: -1rem -1rem 1rem;
+  padding: 0.85rem 1.25rem;
 }
 [data-theme="thaiger"] .stats-page .stats-brand .brand-mark {
   width: auto;
-  height: 48px;
-  max-width: 220px;
+  height: 64px;
+  max-width: 260px;
 }
 [data-theme="thaiger"] .stats-page h1,
-[data-theme="thaiger"] .stats-page h2 {
-  color: var(--text-strong);
-}
+[data-theme="thaiger"] .stats-page h2 { color: var(--text-strong); }
 [data-theme="thaiger"] .stats-page h2 {
   font-family: var(--font-display);
   letter-spacing: 0.04em;
@@ -344,31 +414,28 @@
 [data-theme="thaiger"] .engager .big-amount {
   font-family: var(--font-display);
   font-weight: 500;
-  color: #e0c98a;
+  color: var(--accent);
 }
-[data-theme="thaiger"] .engager .totals {
-  border-top: 3px solid #c6a56e;
-}
+[data-theme="thaiger"] .engager .totals { border-top: 3px solid var(--accent); }
 [data-theme="thaiger"] .board-item.is-hot {
-  border-color: #c6a56e;
-  box-shadow: inset 0 0 0 1px #c6a56e;
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 [data-theme="thaiger"] .hot-badge {
-  background: #c6a56e;
-  color: #1c1408;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 @media (min-width: 900px) and (max-height: 820px) {
   [data-theme="thaiger"] .engager .brand-mark {
-    width: auto;
-    height: 28px;
-    max-width: 120px;
+    height: clamp(64px, 9vh, 88px);
+    max-width: min(32vw, 340px);
+    margin-right: 1rem;
   }
+  [data-theme="thaiger"] .engager header { padding: 0.55rem 1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   [data-theme="thaiger"] .g-bid,
-  [data-theme="thaiger"] .g-primary {
-    transition: none;
-  }
+  [data-theme="thaiger"] .g-primary { transition: none; }
 }

@@ -423,7 +423,7 @@ export function InvoicePage() {
             {emailFirst && emailCard}
 
             {!paid && inv.lines.length > 0 && (
-              <div className="g-card g-pay">
+              <div className="g-card g-pay" id="pay">
                 <h2>{(inv.donations?.length ?? 0) > 0 ? t("inv.lotsPay") : t("inv.payTitle")}</h2>
                 {pay?.payeeName && <p className="g-muted">{t("inv.payee", { name: pay.payeeName })}</p>}
                 <div className="g-qr-wrap" ref={qrWrap}>
@@ -466,6 +466,9 @@ export function InvoicePage() {
         )}
         {error && <p className="g-error" role="alert">{error}</p>}
       </div>
+      {inv && !paid && (
+        <a className="g-pay-sticky" href="#pay">{t("inv.payCta", { amount: fmt(inv.total) })}</a>
+      )}
       <Toast toast={toast} onDone={clearToast} ms={2600} />
     </section>
   );

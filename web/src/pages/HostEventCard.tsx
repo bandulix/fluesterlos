@@ -144,6 +144,16 @@ export function HostEventCard(props: {
       </div>
       <p>Code: <code>{code}</code></p>
       <Countdown variant="tiles" startsAt={ev.startsAt} endsAt={ev.endsAt} status={ev.status} timezone={tz} closedEarly={ev.closedEarly} />
+      <div className="room-preview">
+        <p className="room-preview-label">
+          <span className={`live-dot${ev.status === "open" ? " is-on" : ""}`} aria-hidden="true" />
+          {ev.status === "open" ? "Live" : ev.status === "scheduled" ? "Not started" : "Closed"} · room display
+          <Link to={`/e/${code}/engager`}>Open big screen</Link>
+        </p>
+        <div className="room-preview-frame">
+          <iframe title={`${ev.title} big screen`} src={`/e/${code}/engager`} tabIndex={-1} />
+        </div>
+      </div>
       <div className="event-times">
         <span>
           <strong>Start</strong> {formatInZone(ev.startsAt, tz)} · <strong>End</strong> {formatInZone(ev.endsAt, tz)}{" "}
