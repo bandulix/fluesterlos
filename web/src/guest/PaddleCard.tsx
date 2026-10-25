@@ -35,21 +35,18 @@ export function PaddleCard(props: {
         <p className="g-info">{t("paddle.paused")}</p>
       ) : (
         <div className="g-paddle-tiles">
-          {tiles.map((level) => {
-            const label = formatAmount(level, ccy);
-            const current = level === paddle.level;
-            return (
-              <button
-                key={level}
-                type="button"
-                className={current ? "g-bid" : "g-tile"}
-                disabled={busy}
-                onClick={() => onRaise(level)}
-              >
-                {busy ? t("bid.sending") : current ? t("paddle.raise", { amount: label }) : t("paddle.tile", { amount: label })}
-              </button>
-            );
-          })}
+          <button type="button" className="g-bid g-paddle-now" disabled={busy} onClick={() => onRaise(paddle.level!)}>
+            {busy ? t("bid.sending") : t("paddle.raiseNow", { amount })}
+          </button>
+          {tiles.some((level) => level !== paddle.level) && (
+            <div className="g-paddle-neighbours">
+              {tiles.filter((level) => level !== paddle.level).map((level) => (
+                <button key={level} type="button" className="g-tile" disabled={busy} onClick={() => onRaise(level)}>
+                  {formatAmount(level, ccy)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>

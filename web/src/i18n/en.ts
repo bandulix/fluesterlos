@@ -239,6 +239,9 @@ export const en = {
   "paddle.thanks": "Goal reached, thank you!",
   "paddle.still": "Still raising: {amount}",
   "paddle.raise": "Raise {amount}",
+  "paddle.raiseNow": "Raise {amount} (now calling)",
+  "paddle.notStarted": "Not started",
+  "paddle.lastRaise": "Last raise: {raised} of {goal}",
   "paddle.paused": "Paddle raise is paused",
   "paddle.goal": "{raised} of {goal}",
   "paddle.toGo": "{amount} to go",
@@ -376,6 +379,7 @@ export const en = {
   "max.label": "Your maximum",
   "max.set": "Set max bid",
   "max.save": "Save",
+  "max.saveAmount": "Save {amount}",
   "max.yours": "Your max: {amount}",
   "max.edit": "Edit",
   "max.cancel": "Cancel",
@@ -394,6 +398,10 @@ export const en = {
   "bar.tooLow": "At least {amount}",
   "paddle.tile": "Pledge {amount}",
   "lot.closed": "This lot is closed",
+  "time.justNow": "just now",
+  "time.minutesAgo": "{n}m ago",
+  "time.hoursAgo": "{n}h ago",
+  "time.daysAgo": "{n}d ago",
 } as const;
 
 export type StringKey = keyof typeof en;

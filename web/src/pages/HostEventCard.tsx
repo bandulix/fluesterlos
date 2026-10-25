@@ -11,7 +11,6 @@ import {
   uploadForm,
 } from "../lib/api";
 import { Currency, CURRENCY_OPTIONS, formatAmount, parseCurrency } from "../lib/money";
-import { Countdown } from "../components/Countdown";
 import {
   browserTimeZone,
   DEFAULT_EVENT_TZ,
@@ -145,12 +144,13 @@ export function HostEventCard(props: {
         <span className={`pill status-${ev.status}`}>{ev.status}</span>
       </div>
       <p>Code: <code>{code}</code></p>
-      <Countdown variant="tiles" startsAt={ev.startsAt} endsAt={ev.endsAt} status={ev.status} timezone={tz} closedEarly={ev.closedEarly} />
-      <div className="host-night">
-        <HostControlRoom
+      <HostControlRoom
           live={live}
           ccy={ccy}
           busy={busy}
+          paddleSetup={
+            <PaddleHost code={code} ccy={ccy} run={run} paddle={live.paddle ?? null} needs={live.needs} startFromRoom nextFromRoom />
+          }
           onStartPaddle={() =>
             run(
               async () => {
@@ -201,8 +201,6 @@ export function HostEventCard(props: {
             );
           }}
         />
-        <PaddleHost code={code} ccy={ccy} run={run} paddle={live.paddle ?? null} needs={live.needs} />
-      </div>
       <div className="event-times">
         <span>
           <strong>Start</strong> {formatInZone(ev.startsAt, tz)} · <strong>End</strong> {formatInZone(ev.endsAt, tz)}{" "}

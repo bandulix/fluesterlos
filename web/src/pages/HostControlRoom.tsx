@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { LivePayload } from "../lib/api";
 import { formatAmount, type Currency } from "../lib/money";
 import { hostNextActions } from "../lib/p2";
 import { Countdown } from "../components/Countdown";
+import { BrandMark } from "../components/BrandMark";
+import { t } from "../i18n";
 
 /**
  * Host view of the night. It reads the live payload the host page already holds,
@@ -19,6 +21,7 @@ export function HostControlRoom({
   onCloseAuction,
   confirmClose,
   onCancelClose,
+  paddleSetup,
 }: {
   live: LivePayload;
   ccy: Currency;
@@ -29,6 +32,7 @@ export function HostControlRoom({
   onCloseAuction: () => void;
   confirmClose?: boolean;
   onCancelClose?: () => void;
+  paddleSetup?: ReactNode;
 }) {
   const ev = live.event;
   const openLots = live.items.filter((it) => !it.closed && !it.soldViaBuyNow);
@@ -41,72 +45,118 @@ export function HostControlRoom({
   });
   const [lotId, setLotId] = useState(openLots[0]?.id ?? "");
   const chosen = openLots.some((it) => it.id === lotId) ? lotId : (openLots[0]?.id ?? "");
+  const words = ev.title.trim().split(/\s+/).filter(Boolean);
+  const last = words[words.length - 1] ?? "";
+  const lead = words.slice(0, -1).join(" ");
+  const statusLabel = ev.status === "open" ? "Live" : ev.status === "scheduled" ? "Not started" : "Closed";
+  const primary =
+    actions.paddle === "start"
+      ? t("paddle.start")
+      : actions.paddle === "next"
+        ? "Next paddle level"
+        : null;
 
   return (
     <section className="host-control" aria-label="Control room">
-      <div className="host-control-main">
-        <p className="host-control-kicker">
+      <header className="host-studio-top">
+        <p className={`host-studio-live${ev.status === "open" ? " is-on" : ""}`}>
           <span className={`live-dot${ev.status === "open" ? " is-on" : ""}`} aria-hidden="true" />
-          {ev.status === "open" ? "Live" : ev.status === "scheduled" ? "Not started" : "Closed"}
+          {statusLabel}
         </p>
         <Countdown variant="tiles" startsAt={ev.startsAt} endsAt={ev.endsAt} status={ev.status} timezone={ev.timezone} closedEarly={ev.closedEarly} />
-        <div className="host-actions">
-          {actions.paddle === "start" && (
-            <button type="button" className="button" disabled={busy} onClick={onStartPaddle}>Start paddle</button>
-          )}
-          {actions.paddle === "next" && (
-            <button type="button" className="button" disabled={busy || live.paddle?.status === "paused"} onClick={onNextLevel}>
-              Next paddle level
-            </button>
-          )}
-          {actions.closeLot && (
-            <>
-              <label>
-                Close lot
-                <select value={chosen} onChange={(e) => setLotId(e.target.value)}>
-                  {openLots.map((it) => (
-                    <option key={it.id} value={it.id}>{it.title}</option>
-                  ))}
-                </select>
-              </label>
-              <button type="button" className="button secondary" disabled={busy || !chosen} onClick={() => onCloseLot(chosen)}>
-                Close lot
-              </button>
-            </>
-          )}
-          {actions.closeAuction && (
-            confirmClose ? (
-              <>
-                <span>Close the auction now? Bidding stops immediately.</span>
-                <button type="button" className="button danger" disabled={busy} onClick={onCloseAuction}>
-                  Yes, close now
-                </button>
-                <button type="button" className="button secondary" disabled={busy} onClick={onCancelClose}>
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <button type="button" className="button danger" disabled={busy} onClick={onCloseAuction}>
-                Close auction
-              </button>
-            )
-          )}
+        <div className="host-join">
+          <span className="host-join-label">Join code</span>
+          <div className="host-join-code" aria-label={`Join code ${ev.code}`}>
+            {ev.code.split("").map((ch, i) => (
+              <span key={`${ch}-${i}`}>{ch}</span>
+            ))}
+          </div>
         </div>
+      </header>
+
+      <div className="host-studio-actions">
+        <article className="host-card">
+          <h3>Next action</h3>
+          {actions.paddle === "start" && paddleSetup ? (
+            <button type="submit" form="paddle-setup" className="button host-primary" disabled={busy}>
+              {primary}
+            </button>
+          ) : actions.paddle === "start" ? (
+            <button type="button" className="button host-primary" disabled={busy} onClick={onStartPaddle}>
+              {primary}
+            </button>
+          ) : actions.paddle === "next" ? (
+            <button type="button" className="button host-primary" disabled={busy || live.paddle?.status === "paused"} onClick={onNextLevel}>
+              {primary}
+            </button>
+          ) : (
+            <p className="host-quiet">The night is closed.</p>
+          )}
+        </article>
+
+        {(actions.closeLot || actions.closeAuction) && (
+          <article className="host-card">
+            <h3>Other controls</h3>
+            <div className="host-secondary">
+              {actions.closeLot && (
+                <div className="host-close-lot">
+                  <label>
+                    Close lot
+                    <select value={chosen} onChange={(e) => setLotId(e.target.value)}>
+                      {openLots.map((it) => (
+                        <option key={it.id} value={it.id}>{it.title}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" className="button secondary" disabled={busy || !chosen} onClick={() => onCloseLot(chosen)}>
+                    Close lot
+                  </button>
+                </div>
+              )}
+              {actions.closeAuction && (
+                confirmClose ? (
+                  <div className="host-confirm">
+                    <p>Close the auction now? Bidding stops immediately.</p>
+                    <button type="button" className="button danger" disabled={busy} onClick={onCloseAuction}>
+                      Yes, close now
+                    </button>
+                    <button type="button" className="button secondary" disabled={busy} onClick={onCancelClose}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" className="button danger" disabled={busy} onClick={onCloseAuction}>
+                    Close auction
+                  </button>
+                )
+              )}
+            </div>
+          </article>
+        )}
       </div>
+
       <aside className="host-room-preview" aria-label="Room preview">
-        <p className="host-room-title">{ev.title}</p>
-        <p className="host-room-status">{ev.status === "open" ? "Live" : ev.status === "closed" ? "Closed" : "Soon"}</p>
+        <div className="host-mini-band">
+          <BrandMark />
+          <span className="host-mini-slash" aria-hidden="true" />
+          <div className="host-mini-lockup">
+            <p className="host-mini-title">
+              {lead ? <span>{lead}</span> : null}
+              <span className="is-last">{last}</span>
+            </p>
+            <p className={`host-mini-status${ev.status === "open" ? " is-on" : ""}`}>{statusLabel}</p>
+          </div>
+        </div>
         {featured && (
           <p className="host-room-lot">
             <span>{featured.title}</span>
             <strong>{formatAmount(featured.bidCount ? featured.highBid : featured.startingBid, ccy)}</strong>
           </p>
         )}
-        {live.paddle && live.paddle.level != null && (
-          <p className="host-room-paddle">Paddle {formatAmount(live.paddle.level, ccy)}</p>
-        )}
         <Link to={`/e/${ev.code}/engager`}>Open big screen</Link>
       </aside>
+
+      {paddleSetup && <div className="host-studio-paddle">{paddleSetup}</div>}
     </section>
   );
 }

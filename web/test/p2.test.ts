@@ -8,6 +8,7 @@ import {
   otpType,
   otpValue,
   paddleTiles,
+  relativeAgo,
   ringState,
 } from "../src/lib/p2";
 
@@ -79,6 +80,18 @@ describe("host next actions", () => {
       closeLot: false,
       closeAuction: false,
     });
+    expect(hostNextActions({ status: "open", paddle: "ended", openLots: 2 }).paddle).toBe("start");
+  });
+});
+
+describe("relative time", () => {
+  it("stays on just now, then minutes, hours and days", () => {
+    expect(relativeAgo(10).key).toBe("time.justNow");
+    expect(relativeAgo(59).key).toBe("time.justNow");
+    expect(relativeAgo(60)).toEqual({ key: "time.minutesAgo", n: 1 });
+    expect(relativeAgo(90)).toEqual({ key: "time.minutesAgo", n: 1 });
+    expect(relativeAgo(3600)).toEqual({ key: "time.hoursAgo", n: 1 });
+    expect(relativeAgo(90000)).toEqual({ key: "time.daysAgo", n: 1 });
   });
 });
 

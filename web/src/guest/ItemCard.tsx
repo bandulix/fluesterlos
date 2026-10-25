@@ -99,6 +99,12 @@ function ItemCardImpl({
         {eventStatus === "open" && remainingMs != null && totalMs != null && remainingMs > 0 && (
           <TimerRing remainingMs={remainingMs} totalMs={totalMs} />
         )}
+        {onWatch && !auctionClosed && (
+          <button type="button" className={`g-watch g-watch-badge${watching ? " is-on" : ""}`} aria-pressed={watching} onClick={onWatch}>
+            <span aria-hidden="true">{watching ? "★" : "☆"}</span>
+            {watching ? t("watch.watching") : t("watch.watch")}
+          </button>
+        )}
       </div>
       <div className="g-item-body">
         <h2 id={titleId}>{it.title}</h2>
@@ -220,11 +226,6 @@ function ItemCardImpl({
               </button>
             )}
           </div>
-        )}
-        {onWatch && !auctionClosed && (
-          <button type="button" className={`g-watch${watching ? " is-on" : ""}`} aria-pressed={watching} onClick={onWatch}>
-            {watching ? "★" : "☆"} {watching ? t("watch.watching") : t("watch.watch")}
-          </button>
         )}
         {open && myMax == null && onEditMax && !fixed && !sold && (
           <button type="button" className="g-max-open" onClick={onEditMax}>{t("max.set")}</button>

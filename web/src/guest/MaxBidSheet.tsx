@@ -3,6 +3,8 @@ import { t } from "../i18n";
 import { formatAmount, type Currency } from "../lib/money";
 import { customBidAmount } from "../lib/p2";
 
+const SYMBOL: Record<Currency, string> = { USD: "$", EUR: "€", THB: "฿" };
+
 export function MaxBidSheet({
   title,
   floor,
@@ -22,6 +24,8 @@ export function MaxBidSheet({
 }) {
   const [raw, setRaw] = useState(current != null ? String(current) : String(floor));
   const parsed = customBidAmount(raw, floor);
+  const typed = Number(String(raw).replace(/[,\s]/g, ""));
+  const shown = parsed.ok ? parsed.amount : Number.isFinite(typed) && typed > 0 ? typed : floor;
   function submit(e: FormEvent) {
     e.preventDefault();
     if (parsed.ok) onSave(parsed.amount);
@@ -45,17 +49,21 @@ export function MaxBidSheet({
         <p className="g-muted">{title}</p>
         <p>{t("max.intro")}</p>
         <label className="g-field-label" htmlFor="max-bid-amount">{t("max.label")}</label>
-        <input
-          id="max-bid-amount"
-          className="g-big-input"
-          inputMode="decimal"
-          value={raw}
-          onChange={(e) => setRaw(e.target.value)}
-          autoFocus
-        />
-        {!parsed.ok && <p className="g-inline-error">{t("max.tooLow", { amount: formatAmount(floor, ccy) })}</p>}
-        <button type="submit" className="g-bid" disabled={busy || !parsed.ok}>
-          {busy ? t("bid.sending") : current != null ? t("max.save") : t("max.set")}
+        <div className="g-amount-field">
+          <span aria-hidden="true">{SYMBOL[ccy]}</span>
+          <input
+            id="max-bid-amount"
+            inputMode="numeric"
+            value={raw}
+            onChange={(e) => setRaw(e.target.value.replace(/[^\d.,]/g, ""))}
+            autoFocus
+          />
+        </div>
+        {!parsed.ok && (
+          <p className="g-inline-error" role="alert">{t("max.tooLow", { amount: formatAmount(floor, ccy) })}</p>
+        )}
+        <button type="submit" className="g-bid g-bid-block" disabled={busy || !parsed.ok}>
+          {busy ? t("bid.sending") : t("max.saveAmount", { amount: formatAmount(shown, ccy) })}
         </button>
       </form>
     </div>

@@ -160,13 +160,18 @@
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--topbar-border, #1f2a44);
 }
-.g-header-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.g-header-main { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; min-width: 0; }
 .g-title {
-  margin: 0; font-size: 1.05rem; line-height: 1.25; color: var(--text-strong, #fff);
-  /* Long event names wrap to two lines instead of being cut off. */
-  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow-wrap: anywhere;
+  margin: 0;
+  display: flex; align-items: baseline; gap: 0.18em;
+  font-family: "Barlow Condensed", "Oswald", sans-serif;
+  font-weight: 800; font-style: italic;
+  font-size: clamp(22px, 6.2vw, 28px);
+  letter-spacing: 0.01em; line-height: 0.9;
+  text-transform: uppercase; color: #231f20;
+  white-space: nowrap;
 }
+.g-title-last { color: #b52a2e; }
 .g-back {
   display: inline-flex; align-items: center; justify-content: center;
   width: 44px; height: 44px; margin-left: -8px;
@@ -890,6 +895,14 @@ html[lang="th"] :is(.g-join-title, .g-title, .g-card h2) { line-height: 1.35; le
 }
 .g-watch { margin-top: 8px; }
 .g-watch.is-on { color: #f6911f; }
+.g-item-media .g-watch-badge {
+  position: absolute; right: 8px; bottom: 8px; z-index: 2;
+  margin: 0; min-height: 44px; padding: 0 12px;
+  border-radius: 999px;
+  background: #fff; color: #231f20;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+.g-item-media .g-watch-badge.is-on { color: #b52a2e; }
 .g-max-open { display: inline-flex; align-items: center; margin-top: 6px; }
 .g-watch-nudge {
   margin: 8px 14px 0; padding: 10px 12px; border-radius: 12px;
@@ -953,6 +966,23 @@ html[lang="th"] :is(.g-join-title, .g-title, .g-card h2) { line-height: 1.35; le
 .g-bidbar .g-inline-error { grid-column: 1 / -1; margin: 0; }
 .g-bidbar .g-bid { min-height: 48px; min-width: 96px; }
 .g-paddle-tiles { display: grid; gap: 8px; margin-top: 8px; }
+.g-paddle-now { width: 100%; min-height: 48px; }
+.g-paddle-neighbours { display: flex; gap: 8px; }
+.g-paddle-neighbours .g-tile { flex: 1; min-height: 48px; }
+.g-amount-field {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 48px; padding: 0 12px; border-radius: 12px;
+  border: 2px solid var(--input-border, #334155);
+  background: var(--input-bg, #080e1a);
+}
+.g-amount-field span { font-weight: 800; font-size: 1.25rem; color: var(--text-strong, #fff); }
+.g-amount-field input {
+  flex: 1; min-width: 0; min-height: 44px; border: 0; padding: 0;
+  background: transparent; color: var(--text-strong, #fff);
+  font: inherit; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.g-amount-field input:focus { outline: none; }
+.g-bid-block { width: 100%; margin-top: 12px; }
 .g-tile {
   min-height: 48px; border-radius: 999px;
   border: 1.5px solid var(--accent); background: transparent; color: var(--accent);

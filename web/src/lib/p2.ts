@@ -34,6 +34,17 @@ export function otpValue(slots: string[]): string {
 
 export const FINAL_MS = 5 * 60 * 1000;
 
+/** Relative time for a bid, as an i18n key. Under 45 seconds is "just now". */
+export function relativeAgo(seconds: number): { key: "time.justNow" | "time.minutesAgo" | "time.hoursAgo" | "time.daysAgo"; n?: number } {
+  const s = Number.isFinite(seconds) ? Math.max(0, Math.round(seconds)) : 0;
+  if (s < 60) return { key: "time.justNow" };
+  const m = Math.floor(s / 60);
+  if (m < 60) return { key: "time.minutesAgo", n: m };
+  const h = Math.floor(m / 60);
+  if (h < 24) return { key: "time.hoursAgo", n: h };
+  return { key: "time.daysAgo", n: Math.floor(h / 24) };
+}
+
 /** Full-night ring. The last five minutes use the urgent colour. */
 export function ringState(remainingMs: number, totalMs: number): { fraction: number; urgent: boolean } {
   const total = Math.max(1, totalMs);
@@ -67,7 +78,7 @@ export function hostNextActions(input: {
   openLots: number;
 }): { paddle: "start" | "next" | "none"; closeLot: boolean; closeAuction: boolean } {
   const open = input.status === "open";
-  const paddle = !open || input.paddle === "ended" ? "none" : input.paddle === "live" || input.paddle === "paused" ? "next" : "start";
+  const paddle = !open ? "none" : input.paddle === "live" || input.paddle === "paused" ? "next" : "start";
   return {
     paddle,
     closeLot: open && input.openLots > 0,

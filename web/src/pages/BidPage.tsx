@@ -36,6 +36,7 @@ import { OutbidBanner } from "../guest/OutbidBanner";
 import { BidHistorySheet, type HistoryBid } from "../guest/BidHistorySheet";
 import { MaxBidSheet } from "../guest/MaxBidSheet";
 import { BidBar } from "../guest/BidBar";
+import { relativeAgo } from "../lib/p2";
 import { useNow } from "../guest/useNow";
 import "../guest/guest.css";
 
@@ -43,11 +44,8 @@ type BidError = Error & { body?: { currentHigh?: number; minNext?: number; outbi
 
 function agoLabel(iso: string, now: number): string {
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
-  if (!Number.isFinite(s) || s < 45) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+  const ago = relativeAgo(s);
+  return t(ago.key, ago.n != null ? { n: ago.n } : undefined);
 }
 
 const nudgeKey = (code: string) => `fl_name_nudge_${code.toLowerCase()}`;

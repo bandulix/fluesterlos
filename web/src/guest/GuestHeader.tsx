@@ -5,6 +5,19 @@ import { formatTimeInZone } from "../lib/time";
 import { t } from "../i18n";
 import { LangSwitch } from "./LangSwitch";
 
+/** Last word in red, the rest in ink. CSS uppercases the stored title. */
+function HeaderTitle({ title }: { title: string }) {
+  const words = title.trim().split(/\s+/).filter(Boolean);
+  const last = words[words.length - 1] ?? "";
+  const lead = words.slice(0, -1).join(" ");
+  return (
+    <h1 className="g-title" title={title}>
+      {lead ? <span className="g-title-lead">{lead}</span> : null}
+      <span className="g-title-last">{last}</span>
+    </h1>
+  );
+}
+
 /** Sticky top: event title + server-time countdown. */
 export function GuestHeader(props: {
   title: string;
@@ -38,7 +51,7 @@ export function GuestHeader(props: {
     <header className="g-header" ref={headerRef}>
       <div className="g-header-main">
         <BrandMark />
-        <h1 className="g-title" title={title}>{title}</h1>
+        <HeaderTitle title={title} />
         {right}
       </div>
       <div className={`g-timer g-timer-${status}${finalFive ? " is-final" : ""}${urgent ? " is-urgent" : ""}`} aria-live="off">
