@@ -491,7 +491,7 @@ export function EngagerPage() {
               {screenLang === "both" ? (
                 <span className="bi">
                   <span>{translate("en", closed ? "screen.closed" : "screen.live")}</span>
-                  <span className="live-status-sep" aria-hidden="true"> · </span>
+                  <span className="live-status-sep" aria-hidden="true">·</span>
                   <small lang="th">{translate("th", closed ? "screen.closed" : "screen.live")}</small>
                 </span>
               ) : (
