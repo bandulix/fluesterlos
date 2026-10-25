@@ -33,6 +33,9 @@ import { RecognitionEditor } from "../guest/RecognitionEditor";
 import { TopDonorsList } from "../guest/TopDonors";
 import { PaddleCard } from "../guest/PaddleCard";
 import { OutbidBanner } from "../guest/OutbidBanner";
+import { BidHistorySheet, type HistoryBid } from "../guest/BidHistorySheet";
+import { MaxBidSheet } from "../guest/MaxBidSheet";
+import { BidBar } from "../guest/BidBar";
 import { useNow } from "../guest/useNow";
 import "../guest/guest.css";
 
@@ -75,6 +78,10 @@ export function BidPage() {
   const [editName, setEditName] = useState(false);
   const [savedName, setSavedName] = useState<string | null>(null);
   const [confirmSwitch, setConfirmSwitch] = useState(false);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const [history, setHistory] = useState<{ bids: HistoryBid[]; soClose: { amount: number } | null } | null>(null);
+  const [maxFor, setMaxFor] = useState<string | null>(null);
+  const [liveLot, setLiveLot] = useState<string | null>(null);
   const prevStatus = useRef<Record<string, ItemStatus> | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
   const say = useCallback((text: string) => setToast({ id: Date.now(), text }), []);
@@ -245,11 +252,12 @@ export function BidPage() {
       const ccy = parseCurrency(live?.event.currency);
       setBusyId(it.id);
       try {
-        const res = await api<{ bidId?: string; undoSeconds?: number }>(
+        const res = await api<{ bidId?: string; undoSeconds?: number; outbid?: boolean }>(
           `/api/events/${code}/bids`,
           { method: "POST", body: JSON.stringify({ itemId: it.id, amount }) },
           token,
         );
+        if (res.outbid) setOutbid(it.id);
         const bought = it.buyNow != null && amount >= it.buyNow;
         const text = bought ? t("bid.boughtNow", { title: it.title }) : t("bid.placedShort", { amount: formatAmount(amount, ccy), title: it.title });
         // Accidental-tap protection without an extra confirm step: a few seconds to take it back.
@@ -264,7 +272,8 @@ export function BidPage() {
           const { [it.id]: _drop, ...rest } = c;
           return rest;
         });
-        if (outbid === it.id) setOutbid(null);
+        if (res.outbid) setOutbid(it.id);
+        else if (outbid === it.id) setOutbid(null);
         setNotice((n) => (n?.id === it.id ? null : n));
         await loadMe().catch(() => undefined);
       } catch (err) {
@@ -315,8 +324,9 @@ export function BidPage() {
   }
 
   const ccy = parseCurrency(live.event.currency);
-  const counts = filterCounts(live.items, me);
-  const visible = filterItems(live.items, filter, me);
+  const watched = me?.watchedItemIds ?? [];
+  const counts = filterCounts(live.items, me, watched);
+  const visible = filterItems(live.items, filter, me, watched);
   const won = wonItems(live.items, me);
   const needs = live.needs ?? [];
   const myPledgeIds = pledgedNeedIds(me?.pledges);
@@ -370,6 +380,16 @@ export function BidPage() {
           ) : null
         }
       />
+
+      {(() => {
+        const lost = live.items.find((it) => watched.includes(it.id) && statuses?.[it.id] === "outbid" && outbid !== it.id);
+        if (lost) return <p className="g-watch-nudge" role="status">{t("watch.outbid", { title: lost.title })}</p>;
+        const left = Date.parse(live.event.endsAt) - now;
+        const soon = eventStatus === "open" && left > 0 && left <= 5 * 60_000
+          ? live.items.find((it) => watched.includes(it.id) && !it.closed)
+          : undefined;
+        return soon ? <p className="g-watch-nudge" role="status">{t("watch.closing", { title: soon.title })}</p> : null;
+      })()}
 
       {outbidItem && outbidVisible && (
         <OutbidBanner
@@ -425,12 +445,12 @@ export function BidPage() {
             paddle={live.paddle}
             ccy={ccy}
             busy={busyId === "paddle"}
-            onRaise={() => {
+            onRaise={(amount) => {
               const ccyNow = parseCurrency(live.event.currency);
               setBusyId("paddle");
               api<{ pledgeId?: string; undoSeconds?: number; amount: number }>(
                 `/api/events/${code}/paddle`,
-                { method: "POST", body: "{}" },
+                { method: "POST", body: JSON.stringify({ amount }) },
                 token,
               )
                 .then((res) => {
@@ -478,7 +498,7 @@ export function BidPage() {
           </div>
         )}
 
-        {category === "auction" && (counts.mine > 0 || myNeeds.length > 0 || filter !== "all") && (
+        {category === "auction" && (counts.mine > 0 || counts.watching > 0 || myNeeds.length > 0 || filter !== "all") && (
           <FilterChips value={filter} counts={counts} closed={eventStatus === "closed"} onChange={setFilter} />
         )}
 
@@ -553,10 +573,36 @@ export function BidPage() {
                 highlight={flashId === it.id}
                 notice={notice?.id === it.id ? notice.text : null}
                 leadAgo={ago}
-                finalFive={eventStatus === "open" && remaining > 0 && remaining <= 5 * 60_000}
                 remainingMs={remaining}
+                totalMs={Math.max(1, Date.parse(live.event.endsAt) - Date.parse(live.event.startsAt))}
+                watching={watched.includes(it.id)}
+                myMax={me?.maxBids?.find((m) => m.itemId === it.id)?.amount ?? null}
+                onWatch={() => {
+                  const on = watched.includes(it.id);
+                  api(`/api/events/${code}/items/${it.id}/watch`, { method: on ? "DELETE" : "PUT" }, token)
+                    .then(() => loadMe())
+                    .catch((err) => say((err as Error).message));
+                }}
+                onOpenHistory={() => {
+                  setHistoryFor(it.id);
+                  setHistory(null);
+                  api<{ bids: HistoryBid[]; soClose: { amount: number } | null }>(
+                    `/api/events/${code}/items/${it.id}/bids`,
+                    {},
+                    token,
+                  ).then(setHistory).catch((err) => say((err as Error).message));
+                }}
+                onEditMax={() => setMaxFor(it.id)}
+                onCancelMax={() => {
+                  api(`/api/events/${code}/items/${it.id}/max`, { method: "DELETE" }, token)
+                    .then(() => loadMe())
+                    .catch((err) => say((err as Error).message));
+                }}
                 onStep={onStep}
-                onBid={onBid}
+                onBid={(item, amount) => {
+                  setLiveLot(item.id);
+                  return onBid(item, amount);
+                }}
               />
             );
           })}
@@ -609,6 +655,60 @@ export function BidPage() {
       </div>
 
       {eventStatus !== "closed" && !showNudge && <InstallHint hasBid={hasBid} suppressed={outbidVisible || toast != null} />}
+      {category === "auction" && eventStatus === "open" && !historyFor && !maxFor && (() => {
+        const openItems = live.items.filter((it) => !it.closed && !it.soldViaBuyNow);
+        const lot = openItems.find((it) => it.id === liveLot) ?? openItems[0];
+        if (!lot) return null;
+        return (
+          <BidBar
+            title={lot.title}
+            min={minNextBid(lot)}
+            ccy={ccy}
+            busy={busyId === lot.id}
+            onBid={(amount) => onBid(lot, amount)}
+          />
+        );
+      })()}
+      {historyFor && history && (
+        <BidHistorySheet
+          title={live.items.find((it) => it.id === historyFor)?.title ?? ""}
+          bids={history.bids}
+          soClose={history.soClose}
+          ccy={ccy}
+          busy={busyId === historyFor}
+          onBid={(amount) => {
+            const it = live.items.find((row) => row.id === historyFor);
+            if (it) onBid(it, amount).then(() => setHistoryFor(null));
+          }}
+          onClose={() => setHistoryFor(null)}
+        />
+      )}
+      {maxFor && (() => {
+        const it = live.items.find((row) => row.id === maxFor);
+        if (!it) return null;
+        const floor = me?.leaderKey && it.leaderKey === me.leaderKey ? (it.bidCount ? it.highBid : it.startingBid) : minNextBid(it);
+        return (
+          <MaxBidSheet
+            title={it.title}
+            floor={floor}
+            current={me?.maxBids?.find((m) => m.itemId === it.id)?.amount ?? null}
+            ccy={ccy}
+            busy={busyId === it.id}
+            onClose={() => setMaxFor(null)}
+            onSave={(amount) => {
+              setBusyId(it.id);
+              api<{ outbid?: boolean }>(`/api/events/${code}/items/${it.id}/max`, { method: "PUT", body: JSON.stringify({ amount }) }, token)
+                .then((res) => {
+                  if (res.outbid) setOutbid(it.id);
+                  setMaxFor(null);
+                  return loadMe();
+                })
+                .catch((err) => say((err as Error).message))
+                .finally(() => setBusyId(null));
+            }}
+          />
+        );
+      })()}
       <Toast toast={toast} onDone={clearToast} ms={2200} />
     </section>
   );

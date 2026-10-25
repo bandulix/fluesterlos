@@ -710,8 +710,15 @@ export function registerNeedRoutes(
     if (!event) return reply.code(404).send({ error: "Event not found" });
     const guest = await guestFromRequest(req as never);
     if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const body = z.object({ amount: z.number().positive().optional() }).safeParse(req.body ?? {});
+    if (!body.success) return reply.code(400).send({ error: "That amount is not a level being called" });
     try {
-      const placed = await guestPaddlePledge({ eventId: event.id, guestId: guest.id, guestName: guest.name });
+      const placed = await guestPaddlePledge({
+        eventId: event.id,
+        guestId: guest.id,
+        guestName: guest.name,
+        amount: body.data.amount,
+      });
       const live = await buildLivePayload(event.id, event.code);
       publish(event.code, "update", live);
       publish(event.code, "pledge", {

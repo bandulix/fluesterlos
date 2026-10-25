@@ -7,6 +7,7 @@ import { BrandMark } from "../components/BrandMark";
 import { formatInZone } from "../lib/time";
 import { plural, t } from "../i18n";
 import { LangSwitch } from "../guest/LangSwitch";
+import { OtpBoxes } from "../guest/OtpBoxes";
 import "../guest/guest.css";
 
 type JoinResponse =
@@ -154,22 +155,8 @@ export function JoinPage() {
               if (otp.length === 6) verify(otp);
             }}
           >
-            <label className="g-field-label" htmlFor="g-otp">{t("code.label")}</label>
-            <input
-              id="g-otp"
-              className="g-big-input g-otp"
-              value={otp}
-              onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setOtp(v);
-                if (v.length === 6) verify(v); // no extra tap needed
-              }}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="\d{6}"
-              placeholder="••••••"
-              autoFocus
-            />
+            <p className="g-field-label" id="g-otp-label">{t("code.label")}</p>
+            <OtpBoxes value={otp} onChange={setOtp} onComplete={(v) => verify(v)} disabled={busy} />
             <button className="g-primary" disabled={busy || otp.length !== 6}>
               {busy ? t("join.starting") : t("code.continue")}
             </button>

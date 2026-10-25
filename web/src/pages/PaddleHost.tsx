@@ -10,24 +10,40 @@ type NeedOpt = { id: string; title: string; targetAmount: number };
 const DEFAULT_LEVELS = "50000, 20000, 10000, 5000, 2000";
 
 /** Host controls for the live paddle raise: start, next level, pause, end, and a paddle seen in the room. */
-export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction }) {
+export function PaddleHost(props: {
+  code: string;
+  ccy: Currency;
+  run: RunAction;
+  /** From the host page's live payload, so this panel does not open its own connection. */
+  paddle?: PaddleRaise | null;
+  needs?: NeedOpt[];
+}) {
   const { code, ccy, run } = props;
-  const [needs, setNeeds] = useState<NeedOpt[]>([]);
+  const [needs, setNeeds] = useState<NeedOpt[]>(props.needs ?? []);
   const [needId, setNeedId] = useState("");
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("100000");
   const [levels, setLevels] = useState(DEFAULT_LEVELS);
   const [who, setWho] = useState("");
-  const [paddle, setPaddle] = useState<PaddleRaise | null>(null);
+  const [paddle, setPaddle] = useState<PaddleRaise | null>(props.paddle ?? null);
 
   useEffect(() => {
+    if (props.paddle !== undefined) setPaddle(props.paddle);
+  }, [props.paddle]);
+
+  useEffect(() => {
+    if (props.needs) setNeeds(props.needs);
+  }, [props.needs]);
+
+  useEffect(() => {
+    if (props.paddle !== undefined) return;
     api<{ needs?: NeedOpt[]; paddle?: PaddleRaise | null }>(`/api/events/${code}`)
       .then((live) => {
         setNeeds(live.needs ?? []);
         setPaddle(live.paddle ?? null);
       })
       .catch(() => undefined);
-  }, [code]);
+  }, [code, props.paddle]);
 
   function parsedLevels(): number[] {
     return levels

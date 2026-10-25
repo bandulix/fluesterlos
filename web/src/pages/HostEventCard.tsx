@@ -31,6 +31,7 @@ import { HostItemImport } from "./HostItemImport";
 import { HostBulkMedia } from "./HostBulkMedia";
 import { HostNeeds } from "./HostNeeds";
 import { PaddleHost } from "./PaddleHost";
+import { HostControlRoom } from "./HostControlRoom";
 
 /** Runs a host action: busy state, error/note banner, reloads. With rethrow the caller shows the error inline. */
 export type RunAction = (
@@ -146,17 +147,61 @@ export function HostEventCard(props: {
       <p>Code: <code>{code}</code></p>
       <Countdown variant="tiles" startsAt={ev.startsAt} endsAt={ev.endsAt} status={ev.status} timezone={tz} closedEarly={ev.closedEarly} />
       <div className="host-night">
-        <div className="room-preview">
-          <p className="room-preview-label">
-            <span className={`live-dot${ev.status === "open" ? " is-on" : ""}`} aria-hidden="true" />
-            {ev.status === "open" ? "Live" : ev.status === "scheduled" ? "Not started" : "Closed"} · room display
-            <Link to={`/e/${code}/engager`}>Open big screen</Link>
-          </p>
-          <div className="room-preview-frame">
-            <iframe title={`${ev.title} big screen`} src={`/e/${code}/engager`} tabIndex={-1} />
-          </div>
-        </div>
-        <PaddleHost code={code} ccy={ccy} run={run} />
+        <HostControlRoom
+          live={live}
+          ccy={ccy}
+          busy={busy}
+          onStartPaddle={() =>
+            run(
+              async () => {
+                const res = await api<{ live: LivePayload }>(`/api/host/events/${code}/paddle`, {
+                  method: "POST",
+                  body: JSON.stringify({
+                    action: "start",
+                    title: "Paddle raise",
+                    levels: [50000, 20000, 10000, 5000, 2000],
+                    goal: 100000,
+                  }),
+                });
+                return res.live;
+              },
+              "Paddle raise started.",
+            )
+          }
+          onNextLevel={() =>
+            run(
+              async () => {
+                const res = await api<{ live: LivePayload }>(`/api/host/events/${code}/paddle`, {
+                  method: "POST",
+                  body: JSON.stringify({ action: "next" }),
+                });
+                return res.live;
+              },
+              "Next paddle level.",
+            )
+          }
+          onCloseLot={(itemId) => {
+            const title = live.items.find((it) => it.id === itemId)?.title ?? "Lot";
+            return run(
+              () => api<LivePayload>(`/api/host/events/${code}/items/${itemId}/close`, { method: "POST", body: "{}" }),
+              `Closed “${title}”.`,
+            );
+          }}
+          confirmClose={confirmClose}
+          onCancelClose={() => setConfirmClose(false)}
+          onCloseAuction={() => {
+            if (!confirmClose) {
+              setConfirmClose(true);
+              return;
+            }
+            setConfirmClose(false);
+            return run(
+              () => api<LivePayload>(`/api/host/events/${code}/close`, { method: "POST", body: "{}" }),
+              "Auction closed.",
+            );
+          }}
+        />
+        <PaddleHost code={code} ccy={ccy} run={run} paddle={live.paddle ?? null} needs={live.needs} />
       </div>
       <div className="event-times">
         <span>

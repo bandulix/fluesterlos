@@ -100,7 +100,8 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
           WHERE b.item_id = i.id ORDER BY b.amount DESC, b.created_at ASC LIMIT 1) AS high_bidder,
         (SELECT b.guest_id FROM bids b
           WHERE b.item_id = i.id ORDER BY b.amount DESC, b.created_at ASC LIMIT 1) AS high_bidder_id,
-        (SELECT COUNT(*)::int FROM bids b WHERE b.item_id = i.id) AS bid_count
+        (SELECT COUNT(*)::int FROM bids b WHERE b.item_id = i.id) AS bid_count,
+        i.closed_at
        FROM items i LEFT JOIN sponsors s ON s.id = i.sponsor_id
        WHERE i.event_id = $1 ORDER BY i.sort_order, i.created_at`,
       [eventId],
@@ -134,6 +135,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
       // Opaque per-event key of the current leader; a guest compares it with their own (GET /me).
       leaderKey: row.high_bidder_id ? leaderKey(eventId, row.high_bidder_id) : null,
       bidCount: row.bid_count,
+      closed: Boolean(row.closed_at),
       hasVoucher: Boolean(row.voucher_pdf_path),
       kind: (row.kind === "physical" ? "physical" : "voucher") as "voucher" | "physical",
       sponsor: row.sponsor_id

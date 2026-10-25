@@ -1215,11 +1215,39 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 
 .host-night {
   display: grid;
-  grid-template-columns: 512px minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
   margin: 0.35rem 0 1rem;
 }
+.host-control {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--card, #10182a);
+}
+.host-control-kicker {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin: 0; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.host-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+.host-actions label { display: grid; gap: 0.25rem; font-size: 0.85rem; font-weight: 650; margin: 0; }
+.host-actions select { min-height: 40px; font: inherit; }
+.host-room-preview {
+  display: grid; gap: 0.35rem; align-content: start;
+  min-height: 148px; padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: #070b16; color: #f4efe6;
+}
+.host-room-title { margin: 0; font-weight: 800; font-size: 1.05rem; }
+.host-room-status { margin: 0; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.78rem; color: #f6911f; }
+.host-room-lot { margin: 0; display: flex; justify-content: space-between; gap: 0.75rem; }
+.host-room-lot span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.host-room-lot strong, .host-room-paddle { font-variant-numeric: tabular-nums; }
+.host-room-paddle { margin: 0; color: #b52a2e; font-weight: 800; }
+.host-room-preview a { color: #f4efe6; font-weight: 650; }
 .paddle-hero { display: grid; gap: 0.35rem; align-content: start; }
 .paddle-hero-kicker { margin: 0; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-size: 0.95rem; }
 .paddle-hero-level {

@@ -163,6 +163,20 @@ export function registerEventControlRoutes(app: FastifyInstance, deps: Deps) {
     return publishAndReturn(ctx.event);
   });
 
+  app.post("/api/host/events/:code/items/:itemId/close", async (req, reply) => {
+    const ctx = await hostAndEvent(req, reply);
+    if (!ctx) return;
+    const itemId = (req.params as { itemId: string }).itemId;
+    if (!z.string().uuid().safeParse(itemId).success) return reply.code(404).send({ error: "Item not found" });
+    const updated = await pool.query(
+      `UPDATE items SET closed_at = COALESCE(closed_at, now())
+       WHERE id = $1 AND event_id = $2 RETURNING id`,
+      [itemId, ctx.event.id],
+    );
+    if (!updated.rows[0]) return reply.code(404).send({ error: "Item not found" });
+    return publishAndReturn(ctx.event);
+  });
+
   app.post("/api/host/events/:code/close", async (req, reply) => {
     const ctx = await hostAndEvent(req, reply);
     if (!ctx) return;

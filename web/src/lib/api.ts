@@ -47,6 +47,8 @@ export type LivePayload = {
     /** Opaque key of the current leader; compare with GET /me leaderKey. */
     leaderKey?: string | null;
     bidCount: number;
+    /** Host closed this lot while the auction is still open. */
+    closed?: boolean;
     hasVoucher?: boolean;
     kind?: ItemKind;
     sponsor?: Sponsor | null;
@@ -249,6 +251,8 @@ export type GuestMe = {
   };
   leaderKey?: string;
   bidItemIds?: string[];
+  watchedItemIds?: string[];
+  maxBids?: Array<{ itemId: string; amount: number }>;
   pledges?: GuestPledge[];
 };
 

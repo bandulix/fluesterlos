@@ -55,16 +55,18 @@ The bid card already had the centred amount, −/+, the leader, and a filled `Bi
 
 ![Closed](ux/closed-1080.png)
 
-## P2 left for later
+## P2
 
-- One box per character (15). Join is a phone number, then a 6-digit code in a single field. A box row is a different control.
-- A bid-history sheet with rank fade and “So close” (03). The card already shows the leader and the bid count.
-- A separate Max Bid sheet (01). The stepper is on the card.
-- A persistent Custom + Bid bar under the live lot (06). Each card already has the filled bid.
-- A Watch control (08). Lots are not saved for later.
-- Preset tiles for the paddle (10). The room calls one level at a time.
-- A countdown ring on every lot all night (07). The ring is there for the last five minutes.
-- The host preview is a scaled view of the room page, not a separate control-room render. It opens a second live connection.
+These follow the Mobbin notes in this review (frames 01–20). Patterns only — colours stay Thai.GER.
+
+- Join code is six boxes (15): auto-advance, backspace, paste, numeric keyboard, 48px targets.
+- Bid history (03) opens from the bid count. Older rows fade. Second place within one increment gets “So close” and a one-tap bid.
+- Max bid (01) is its own sheet. The server bids the minimum up to that ceiling. An earlier maximum wins a tie. “Your max” sits on the card with edit and cancel.
+- The live lot keeps a sticky Custom + Bid bar (06). The list pads clear of it, and the outbid banner stays in the flow above the cards.
+- Watch (08) is a star on each lot, saved per guest, with a Watching filter and an outbid or closing-soon nudge.
+- Paddle tiles (10) offer the called level and its neighbours. The host still moves the current level.
+- A countdown ring (07) sits on every lot card all night. It stays quiet until the last five minutes, then turns red. Reduced motion drops the stroke transition.
+- The host control room is its own render: status, next actions, and a small room preview on the host page’s one live connection. The room page is no longer framed in an iframe.
 
 ## Checked
 

@@ -2,6 +2,7 @@ import { memo } from "react";
 import { assetUrl, LiveItem } from "../lib/api";
 import { Currency, formatAmount } from "../lib/money";
 import { canStepDown, canStepUp, effectiveAmount, formatRemaining, isFixedPrice, ItemStatus, onlyBuyNow } from "../lib/bidLogic";
+import { ringState } from "../lib/p2";
 import { dedupeDescription } from "../lib/text";
 import { plural, t } from "../i18n";
 
@@ -19,30 +20,40 @@ export type ItemCardProps = {
   notice?: string | null;
   /** "3m ago" for the current leader, when a recent bid is known. */
   leadAgo?: string | null;
-  /** Last five minutes: a ring sits beside the bid pill. */
-  finalFive?: boolean;
+  /** Ring for the whole night. The last five minutes turn red. */
   remainingMs?: number;
+  totalMs?: number;
+  watching?: boolean;
+  myMax?: number | null;
+  onWatch?: () => void;
+  onOpenHistory?: () => void;
+  onEditMax?: () => void;
+  onCancelMax?: () => void;
 };
 
-function TimerRing({ ms }: { ms: number }) {
-  const total = 5 * 60 * 1000;
-  const p = Math.max(0, Math.min(1, ms / total));
+function TimerRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: number }) {
+  const { fraction, urgent } = ringState(remainingMs, totalMs);
   const r = 16;
   const c = 2 * Math.PI * r;
   return (
-    <span className="g-ring" aria-hidden="true">
+    <span className={`g-ring${urgent ? " is-urgent" : " is-quiet"}`} aria-hidden="true">
       <svg width="48" height="48" viewBox="0 0 40 40">
         <circle className="g-ring-track" cx="20" cy="20" r={r} />
-        <circle className="g-ring-value" cx="20" cy="20" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - p)} />
+        <circle className="g-ring-value" cx="20" cy="20" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - fraction)} />
       </svg>
-      <span>{formatRemaining(ms)}</span>
+      <span>{formatRemaining(remainingMs)}</span>
     </span>
   );
 }
 
-function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highlight, onStep, onBid, notice, leadAgo, finalFive, remainingMs }: ItemCardProps) {
-  const open = eventStatus === "open";
-  const closed = eventStatus === "closed";
+function ItemCardImpl({
+  item: it, ccy, status, eventStatus, chosen, busy, highlight, onStep, onBid, notice, leadAgo,
+  remainingMs, totalMs, watching, myMax, onWatch, onOpenHistory, onEditMax, onCancelMax,
+}: ItemCardProps) {
+  const auctionClosed = eventStatus === "closed";
+  const lotClosed = Boolean(it.closed);
+  const open = eventStatus === "open" && !lotClosed;
+  const closed = auctionClosed;
   const sold = Boolean(it.soldViaBuyNow);
   const amount = effectiveAmount(chosen, it);
   const buyNowOnly = onlyBuyNow(it);
@@ -85,6 +96,9 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
           </span>
         )}
         <span className="g-kind">{it.kind === "physical" ? t("bid.physical") : t("bid.voucher")}</span>
+        {eventStatus === "open" && remainingMs != null && totalMs != null && remainingMs > 0 && (
+          <TimerRing remainingMs={remainingMs} totalMs={totalMs} />
+        )}
       </div>
       <div className="g-item-body">
         <h2 id={titleId}>{it.title}</h2>
@@ -112,7 +126,13 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
               <strong className="g-price-value">{fmt(it.bidCount ? it.highBid : it.startingBid)}</strong>
               {it.bidCount && it.highBidder && !sold ? <span className="g-leading">{t("bid.leading", { name: it.highBidder })}</span> : null}
             </div>
-            <span className="g-price-meta">{it.bidCount ? plural("bid.oneBid", "bid.bids", it.bidCount) : t("bid.noBids")}</span>
+            {it.bidCount > 0 && onOpenHistory ? (
+              <button type="button" className="g-price-meta g-linkish" onClick={onOpenHistory}>
+                {plural("bid.oneBid", "bid.bids", it.bidCount)}
+              </button>
+            ) : (
+              <span className="g-price-meta">{it.bidCount ? plural("bid.oneBid", "bid.bids", it.bidCount) : t("bid.noBids")}</span>
+            )}
           </div>
         )}
         {!fixed && it.bidCount > 0 && it.highBidder && !sold && !closed && (
@@ -129,6 +149,8 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
           <p className={`g-done-label${status === "winning" ? " is-won" : ""}`}>
             {status === "winning" ? t("bid.yoursDone") : fixed ? t("bid.soldShort") : t("bid.soldBuyNow")}
           </p>
+        ) : lotClosed ? (
+          <p className="g-done-label">{t("lot.closed")}</p>
         ) : closed ? (
           <p className={`g-done-label${status === "winning" ? " is-won" : ""}`}>
             {status === "winning" ? t("bid.closedWon") : status === "outbid" ? t("bid.closedLost") : t("bid.closed")}
@@ -159,8 +181,14 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
                   </button>
                 </div>
                 {notice ? <p className="g-inline-error" role="alert">{notice}</p> : null}
+                {myMax != null && myMax > 0 && (
+                  <p className="g-maxline">
+                    <span>{t("max.yours", { amount: fmt(myMax) })}</span>
+                    <button type="button" onClick={onEditMax}>{t("max.edit")}</button>
+                    <button type="button" onClick={onCancelMax}>{t("max.cancel")}</button>
+                  </p>
+                )}
                 <div className="g-bid-row">
-                  {finalFive && remainingMs != null && <TimerRing ms={remainingMs} />}
                   <button
                     type="button"
                     className={`g-bid${isBuyNow ? " is-buynow" : ""}`}
@@ -192,6 +220,14 @@ function ItemCardImpl({ item: it, ccy, status, eventStatus, chosen, busy, highli
               </button>
             )}
           </div>
+        )}
+        {onWatch && !auctionClosed && (
+          <button type="button" className={`g-watch${watching ? " is-on" : ""}`} aria-pressed={watching} onClick={onWatch}>
+            {watching ? "★" : "☆"} {watching ? t("watch.watching") : t("watch.watch")}
+          </button>
+        )}
+        {open && myMax == null && onEditMax && !fixed && !sold && (
+          <button type="button" className="g-max-open" onClick={onEditMax}>{t("max.set")}</button>
         )}
       </div>
     </article>

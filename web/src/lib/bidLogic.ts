@@ -1,10 +1,10 @@
 import type { GuestMe, LiveItem } from "./api";
 
 export type ItemStatus = "winning" | "outbid" | null;
-export type FilterKey = "all" | "mine" | "winning" | "outbid";
-export const FILTERS: FilterKey[] = ["all", "mine", "winning", "outbid"];
-/** After the close "Mine" is redundant: All / Won / Not won. */
-export const CLOSED_FILTERS: FilterKey[] = ["all", "winning", "outbid"];
+export type FilterKey = "all" | "mine" | "winning" | "outbid" | "watching";
+export const FILTERS: FilterKey[] = ["all", "mine", "winning", "outbid", "watching"];
+/** After the close "Mine" is redundant: All / Won / Not won, plus lots the guest was watching. */
+export const CLOSED_FILTERS: FilterKey[] = ["all", "winning", "outbid", "watching"];
 export function filtersFor(closed: boolean): FilterKey[] {
   return closed ? CLOSED_FILTERS : FILTERS;
 }
@@ -21,8 +21,14 @@ export function itemStatus(it: Pick<LiveItem, "id" | "leaderKey">, me: GuestMe |
   return null;
 }
 
-export function filterItems<T extends Pick<LiveItem, "id" | "leaderKey">>(items: T[], filter: FilterKey, me: GuestMe | null | undefined): T[] {
+export function filterItems<T extends Pick<LiveItem, "id" | "leaderKey">>(
+  items: T[],
+  filter: FilterKey,
+  me: GuestMe | null | undefined,
+  watchedIds: readonly string[] = [],
+): T[] {
   if (filter === "all") return items;
+  if (filter === "watching") return items.filter((it) => watchedIds.includes(it.id));
   return items.filter((it) => {
     const st = itemStatus(it, me);
     if (filter === "mine") return st !== null;
@@ -30,13 +36,18 @@ export function filterItems<T extends Pick<LiveItem, "id" | "leaderKey">>(items:
   });
 }
 
-export function filterCounts(items: Array<Pick<LiveItem, "id" | "leaderKey">>, me: GuestMe | null | undefined): Record<FilterKey, number> {
-  const c: Record<FilterKey, number> = { all: items.length, mine: 0, winning: 0, outbid: 0 };
+export function filterCounts(
+  items: Array<Pick<LiveItem, "id" | "leaderKey">>,
+  me: GuestMe | null | undefined,
+  watchedIds: readonly string[] = [],
+): Record<FilterKey, number> {
+  const c: Record<FilterKey, number> = { all: items.length, mine: 0, winning: 0, outbid: 0, watching: 0 };
   for (const it of items) {
     const st = itemStatus(it, me);
     if (st) c.mine += 1;
     if (st === "winning") c.winning += 1;
     if (st === "outbid") c.outbid += 1;
+    if (watchedIds.includes(it.id)) c.watching += 1;
   }
   return c;
 }

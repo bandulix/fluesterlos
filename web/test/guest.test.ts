@@ -104,7 +104,7 @@ describe("winning / outbid / filters", () => {
     expect(filterItems(items, "mine", me).map((i) => i.id)).toEqual(["a", "b"]);
     expect(filterItems(items, "winning", me).map((i) => i.id)).toEqual(["a"]);
     expect(filterItems(items, "outbid", me).map((i) => i.id)).toEqual(["b"]);
-    expect(filterCounts(items, me)).toEqual({ all: 3, mine: 2, winning: 1, outbid: 1 });
+    expect(filterCounts(items, me)).toEqual({ all: 3, mine: 2, winning: 1, outbid: 1, watching: 0 });
     expect(wonItems(items, me).map((i) => i.id)).toEqual(["a"]);
   });
   it("detects winning → outbid transitions only", () => {
@@ -169,8 +169,8 @@ describe("i18n string table", () => {
 describe("round 3", () => {
   it("after the close the filters are All / Won / Not won", () => {
     expect(filtersFor(true)).toEqual(CLOSED_FILTERS);
-    expect(filtersFor(true)).toEqual(["all", "winning", "outbid"]);
-    expect(filtersFor(false)).toEqual(["all", "mine", "winning", "outbid"]);
+    expect(filtersFor(true)).toEqual(["all", "winning", "outbid", "watching"]);
+    expect(filtersFor(false)).toEqual(["all", "mine", "winning", "outbid", "watching"]);
     expect(en["bid.filter.closed.winning"]).toBe("Won");
     expect(en["bid.filter.closed.outbid"]).toBe("Not won");
     expect(en["bid.lost"]).toBe("Not won");

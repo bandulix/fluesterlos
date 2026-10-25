@@ -22,6 +22,7 @@ import { ensureDeviceId, rememberDevice } from "./devices.js";
 import { isAllowedOrigin, rateLimitFor } from "./security.js";
 import { cookieSecure } from "./hostAuth.js";
 import { listGuestPledges } from "./needs.js";
+import { applyProxyBids, soCloseOffer } from "./proxyBid.js";
 
 /** Seconds the guest app offers "Undo" after a bid. */
 export const BID_UNDO_SECONDS = 5;
@@ -386,10 +387,22 @@ export function registerRestRoutes(
        WHERE b.guest_id = $1 AND i.event_id = $2`,
       [guest.id, event.id],
     );
+    const watches = await pool.query(
+      `SELECT w.item_id FROM lot_watches w JOIN items i ON i.id = w.item_id
+       WHERE w.guest_id = $1 AND i.event_id = $2`,
+      [guest.id, event.id],
+    );
+    const maxes = await pool.query(
+      `SELECT m.item_id, m.max_amount FROM max_bids m JOIN items i ON i.id = m.item_id
+       WHERE m.guest_id = $1 AND m.cancelled_at IS NULL AND i.event_id = $2`,
+      [guest.id, event.id],
+    );
     return {
       guest: guestDto(guest),
       leaderKey: leaderKey(event.id, guest.id),
       bidItemIds: bidItems.rows.map((r) => r.item_id as string),
+      watchedItemIds: watches.rows.map((r) => r.item_id as string),
+      maxBids: maxes.rows.map((r) => ({ itemId: r.item_id as string, amount: money(r.max_amount) })),
       pledges: await listGuestPledges(guest.id, event.id),
     };
   });
@@ -463,7 +476,7 @@ export function registerRestRoutes(
         return reply.code(409).send({ error: "Auction is closed", tooLate: true });
       }
       const bidRes = await client.query(
-        `SELECT b.id, b.item_id, b.guest_id, b.created_at FROM bids b JOIN items i ON i.id = b.item_id
+        `SELECT b.id, b.item_id, b.guest_id, b.created_at, b.source FROM bids b JOIN items i ON i.id = b.item_id
           WHERE b.id = $1 AND i.event_id = $2`,
         [bidId, event.id],
       );
@@ -471,6 +484,10 @@ export function registerRestRoutes(
       if (!b || b.guest_id !== guest.id) {
         await client.query("ROLLBACK");
         return reply.code(404).send({ error: "Bid not found" });
+      }
+      if (b.source === "proxy") {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({ error: "This bid can no longer be undone", tooLate: true });
       }
       await client.query("SELECT id FROM items WHERE id = $1 FOR UPDATE", [b.item_id]);
       const top = await client.query(
@@ -538,6 +555,10 @@ export function registerRestRoutes(
         await client.query("ROLLBACK");
         return reply.code(404).send({ error: "Item not found" });
       }
+      if (item.closed_at) {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({ error: "This lot is closed" });
+      }
       const highRes = await client.query(
         "SELECT COALESCE(MAX(amount), $1) AS high FROM bids WHERE item_id = $2",
         [item.starting_bid, item.id],
@@ -568,26 +589,201 @@ export function registerRestRoutes(
         return reply.code(400).send({ error: "Bid too low", currentHigh, minNext, outbid: true });
       }
       const ins = await client.query(
-        "INSERT INTO bids (item_id, guest_id, amount) VALUES ($1,$2,$3) RETURNING *",
+        "INSERT INTO bids (item_id, guest_id, amount, source) VALUES ($1,$2,$3,'manual') RETURNING *",
         [item.id, guest.id, amount],
       );
+      const resolved = await applyProxyBids(client, item);
+      const highNow = await client.query("SELECT COALESCE(MAX(amount), 0) AS high FROM bids WHERE item_id = $1", [item.id]);
+      const currentHighNow = money(highNow.rows[0].high);
       await client.query("COMMIT");
       const live = await buildLivePayload(event.id, event.code);
       publish(event.code, "update", live);
       publish(event.code, "bid", {
-        amount,
+        amount: currentHighNow,
         itemId: item.id,
         itemTitle: item.title,
         guestName: guest.name,
         createdAt: new Date(ins.rows[0].created_at).toISOString(),
       });
-      return { ok: true, bidId: ins.rows[0].id as string, amount, currentHigh: amount, buyNow: isBuyNow, live, undoSeconds: isBuyNow ? BUY_NOW_UNDO_SECONDS : BID_UNDO_SECONDS };
+      return {
+        ok: true,
+        bidId: ins.rows[0].id as string,
+        amount,
+        currentHigh: currentHighNow,
+        buyNow: isBuyNow,
+        outbid: resolved.leaderGuestId !== guest.id,
+        live,
+        undoSeconds: isBuyNow ? BUY_NOW_UNDO_SECONDS : BID_UNDO_SECONDS,
+      };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
     } finally {
       client.release();
     }
+  });
+
+  const maxSchema = z.object({ amount: z.number().positive() });
+
+  /** Standing maximum. The server bids the minimum on this guest's behalf, up to the maximum. */
+  app.put("/api/events/:code/items/:itemId/max", { config: rateLimitFor("bid") }, async (req, reply) => {
+    const { code: rawCode, itemId } = req.params as { code: string; itemId: string };
+    if (!z.string().uuid().safeParse(itemId).success) return reply.code(404).send({ error: "Item not found" });
+    const event = await getEventByCode(codeOf(rawCode));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const parsed = maxSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Enter a maximum" });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const evNow = await client.query("SELECT starts_at, ends_at FROM events WHERE id = $1 FOR SHARE", [event.id]);
+      if (auctionStatus(evNow.rows[0].starts_at, evNow.rows[0].ends_at) !== "open") {
+        await client.query("ROLLBACK");
+        return reply.code(400).send({ error: "Auction is closed" });
+      }
+      const itemRes = await client.query(
+        "SELECT * FROM items WHERE id = $1 AND event_id = $2 FOR UPDATE",
+        [itemId, event.id],
+      );
+      const item = itemRes.rows[0];
+      if (!item) {
+        await client.query("ROLLBACK");
+        return reply.code(404).send({ error: "Item not found" });
+      }
+      if (item.closed_at) {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({ error: "This lot is closed" });
+      }
+      const highRes = await client.query(
+        "SELECT COALESCE(MAX(amount), $1) AS high, COUNT(*)::int AS c FROM bids WHERE item_id = $2",
+        [item.starting_bid, item.id],
+      );
+      const bidCount = highRes.rows[0].c as number;
+      const currentHigh = money(highRes.rows[0].high);
+      const minNext = bidCount === 0 ? money(item.starting_bid) : money(currentHigh + Number(item.min_increment));
+      const buyNow = item.buy_now == null ? null : money(item.buy_now);
+      if (buyNow != null && bidCount > 0 && currentHigh >= buyNow) {
+        await client.query("ROLLBACK");
+        return reply.code(409).send({ error: "Item already sold (buy now)", sold: true });
+      }
+      const leader = await client.query(
+        "SELECT guest_id FROM bids WHERE item_id = $1 ORDER BY amount DESC, created_at ASC LIMIT 1",
+        [item.id],
+      );
+      const leading = leader.rows[0]?.guest_id === guest.id;
+      let maxAmount = money(parsed.data.amount);
+      if (buyNow != null && maxAmount > buyNow) maxAmount = buyNow;
+      const floor = leading ? currentHigh : minNext;
+      if (maxAmount + 0.001 < floor) {
+        await client.query("ROLLBACK");
+        return reply.code(400).send({ error: "Maximum is below the next bid", minNext: floor, outbid: true });
+      }
+      await client.query(
+        `INSERT INTO max_bids (item_id, guest_id, max_amount)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (item_id, guest_id) DO UPDATE
+           SET max_amount = EXCLUDED.max_amount,
+               created_at = CASE WHEN max_bids.cancelled_at IS NOT NULL THEN now() ELSE max_bids.created_at END,
+               cancelled_at = NULL,
+               updated_at = now()`,
+        [item.id, guest.id, maxAmount],
+      );
+      const resolved = await applyProxyBids(client, item);
+      await client.query("COMMIT");
+      const live = await buildLivePayload(event.id, event.code);
+      publish(event.code, "update", live);
+      return {
+        ok: true,
+        amount: maxAmount,
+        outbid: resolved.leaderGuestId !== guest.id,
+        live,
+      };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
+
+  app.delete("/api/events/:code/items/:itemId/max", async (req, reply) => {
+    const { code: rawCode, itemId } = req.params as { code: string; itemId: string };
+    const event = await getEventByCode(codeOf(rawCode));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    await pool.query(
+      "UPDATE max_bids SET cancelled_at = now(), updated_at = now() WHERE item_id = $1 AND guest_id = $2 AND cancelled_at IS NULL",
+      [itemId, guest.id],
+    );
+    const live = await buildLivePayload(event.id, event.code);
+    publish(event.code, "update", live);
+    return { ok: true, live };
+  });
+
+  app.get("/api/events/:code/items/:itemId/bids", async (req, reply) => {
+    const { code: rawCode, itemId } = req.params as { code: string; itemId: string };
+    if (!z.string().uuid().safeParse(itemId).success) return reply.code(404).send({ error: "Item not found" });
+    const event = await getEventByCode(codeOf(rawCode));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const item = await pool.query(
+      "SELECT id, min_increment FROM items WHERE id = $1 AND event_id = $2",
+      [itemId, event.id],
+    );
+    if (!item.rows[0]) return reply.code(404).send({ error: "Item not found" });
+    const rows = await pool.query(
+      `SELECT b.amount, b.created_at, b.guest_id, g.name
+       FROM bids b JOIN guests g ON g.id = b.guest_id
+       WHERE b.item_id = $1
+       ORDER BY b.amount DESC, b.created_at ASC`,
+      [itemId],
+    );
+    const snaps = rows.rows.map((r) => ({
+      guestId: r.guest_id as string,
+      amount: money(r.amount),
+      at: new Date(r.created_at).getTime(),
+    }));
+    const offer = soCloseOffer({ bids: snaps, guestId: guest.id, increment: money(item.rows[0].min_increment) });
+    return {
+      bids: rows.rows.map((r, i) => ({
+        rank: i + 1,
+        amount: money(r.amount),
+        name: r.name as string,
+        mine: r.guest_id === guest.id,
+        createdAt: new Date(r.created_at).toISOString(),
+      })),
+      soClose: offer,
+    };
+  });
+
+  app.put("/api/events/:code/items/:itemId/watch", async (req, reply) => {
+    const { code: rawCode, itemId } = req.params as { code: string; itemId: string };
+    if (!z.string().uuid().safeParse(itemId).success) return reply.code(404).send({ error: "Item not found" });
+    const event = await getEventByCode(codeOf(rawCode));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    const item = await pool.query("SELECT id FROM items WHERE id = $1 AND event_id = $2", [itemId, event.id]);
+    if (!item.rows[0]) return reply.code(404).send({ error: "Item not found" });
+    await pool.query(
+      "INSERT INTO lot_watches (item_id, guest_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [itemId, guest.id],
+    );
+    return { ok: true, watching: true };
+  });
+
+  app.delete("/api/events/:code/items/:itemId/watch", async (req, reply) => {
+    const { code: rawCode, itemId } = req.params as { code: string; itemId: string };
+    const event = await getEventByCode(codeOf(rawCode));
+    if (!event) return reply.code(404).send({ error: "Event not found" });
+    const guest = await guestFromRequest(req as never);
+    if (!guest || guest.event_id !== event.id) return reply.code(401).send({ error: "Join the event first" });
+    await pool.query("DELETE FROM lot_watches WHERE item_id = $1 AND guest_id = $2", [itemId, guest.id]);
+    return { ok: true, watching: false };
   });
 
   app.get("/api/events/:code/stream", async (req, reply) => {
