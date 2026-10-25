@@ -1215,10 +1215,122 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 
 .host-night {
   display: grid;
-  grid-template-columns: 512px minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
   margin: 0.35rem 0 1rem;
+}
+.host-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 12px;
+  align-items: start;
+  font-size: 16px;
+}
+.host-studio-top {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--card, #393536);
+  border: 1px solid var(--border, #535051);
+}
+.host-studio-live {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0; min-height: 44px;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700; font-size: 22px; letter-spacing: 0.14em; text-transform: uppercase;
+}
+.host-studio-live.is-on { color: #b52a2e; }
+.host-studio-top .cd-tiles { gap: 8px; }
+.host-studio-top .cd-tile { min-width: 72px; min-height: 64px; padding: 8px 10px; }
+.host-studio-top .cd-tile strong { font-size: 32px; }
+.host-studio-top .cd-tile small { font-size: 14px; display: block; }
+.host-join { display: grid; gap: 4px; margin-left: auto; }
+.host-join-label { font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.host-join-code { display: flex; gap: 6px; }
+.host-join-code span {
+  min-width: 32px; height: 44px; padding: 0 4px;
+  display: grid; place-items: center;
+  border-radius: 8px; background: #fff; color: #231f20;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800; font-size: 22px; text-transform: uppercase;
+}
+.host-studio-actions { display: grid; gap: 12px; align-content: start; }
+.host-card {
+  display: grid; gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--card, #393536);
+  border: 1px solid var(--border, #535051);
+}
+.host-card h3 { margin: 0; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+.host-primary { min-height: 48px; width: 100%; font-size: 18px; font-weight: 800; }
+.host-secondary { display: grid; gap: 10px; }
+.host-close-lot { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.host-close-lot label { display: grid; gap: 4px; font-size: 14px; font-weight: 700; margin: 0; flex: 1 1 180px; }
+.host-close-lot select, .host-secondary .button, .host-confirm .button { min-height: 44px; font-size: 16px; }
+.host-confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.host-confirm p { margin: 0; flex: 1 1 220px; font-size: 16px; }
+.host-quiet { margin: 0; font-size: 16px; color: var(--muted, #c1c1c1); }
+.host-studio-paddle {
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--card, #393536);
+  border: 1px solid var(--border, #535051);
+}
+.host-studio-paddle h3 { margin: 0 0 8px; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+.host-studio-paddle .button, .host-studio-paddle input, .host-studio-paddle select { min-height: 44px; font-size: 16px; }
+.host-room-preview {
+  display: grid; gap: 12px; align-content: start;
+  min-height: 180px; padding: 12px;
+  border-radius: 16px;
+  background: #231f20; color: #fff;
+}
+.host-mini-band {
+  display: flex; align-items: center; gap: 0;
+  padding: 8px 10px;
+  background: #fff; color: #231f20;
+  border-radius: 10px;
+  border-bottom: 4px solid #b52a2e;
+}
+.host-mini-band .brand-mark { height: 48px; width: auto; margin: 0; }
+.host-mini-slash {
+  flex: none; width: 14px; align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+  margin-inline: 10px;
+}
+.host-mini-slash::before {
+  content: ""; width: 4px; height: 72%; background: #b52a2e; transform: skewX(-12deg);
+}
+.host-mini-lockup { min-width: 0; }
+.host-mini-title {
+  display: flex; align-items: baseline; gap: 0.2em;
+  margin: 0;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 800; font-style: italic; font-size: 22px;
+  letter-spacing: 0.01em; line-height: 0.9; text-transform: uppercase;
+  color: #231f20; white-space: nowrap;
+}
+.host-mini-title .is-last { color: #b52a2e; }
+.host-mini-status {
+  margin: 4px 0 0;
+  font-family: "Barlow Condensed", sans-serif;
+  font-weight: 700; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #231f20;
+}
+.host-mini-status.is-on { color: #b52a2e; }
+.host-room-lot { margin: 0; display: flex; justify-content: space-between; gap: 0.75rem; font-size: 15px; }
+.host-room-lot span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.host-room-lot strong { font-variant-numeric: tabular-nums; }
+.host-room-preview a { color: #fff; font-weight: 700; font-size: 15px; min-height: 44px; display: inline-flex; align-items: center; }
+@media (max-width: 900px) {
+  .host-control { grid-template-columns: 1fr; }
+  .host-room-preview { grid-column: 1; }
 }
 .paddle-hero { display: grid; gap: 0.35rem; align-content: start; }
 .paddle-hero-kicker { margin: 0; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-size: 0.95rem; }

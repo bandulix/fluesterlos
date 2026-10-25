@@ -11,6 +11,7 @@ import {
   uploadForm,
 } from "../lib/api";
 import { useHostAuth } from "../lib/hostAuth";
+import { useLive } from "../lib/useLive";
 import { Currency, CURRENCY_OPTIONS, parseCurrency } from "../lib/money";
 import {
   DEFAULT_EVENT_TZ,
@@ -87,6 +88,12 @@ export function HostPage() {
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
   const [events, setEvents] = useState<HostEventSummary[]>([]);
   const [live, setLive] = useState<LivePayload | null>(null);
+  // One live connection for the control room and the room preview. The preview is not an iframe.
+  const liveCode = live?.event.code;
+  const streamed = useLive(liveCode);
+  useEffect(() => {
+    if (streamed.live && streamed.live.event.code === liveCode) setLive(streamed.live);
+  }, [streamed.live, liveCode]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);

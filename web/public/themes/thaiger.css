@@ -171,9 +171,15 @@
 [data-theme="thaiger"] .g-header .g-back { color: var(--ink); }
 [data-theme="thaiger"] .g-header .g-title {
   font-family: "Barlow Condensed", "Oswald", sans-serif;
-  font-weight: 700;
+  font-weight: 800;
+  font-style: italic;
   letter-spacing: 0.01em;
+  line-height: 0.9;
+  text-transform: uppercase;
+  font-size: clamp(22px, 6.2vw, 28px);
+  color: #231f20;
 }
+[data-theme="thaiger"] .g-header .g-title-last { color: #b52a2e; }
 [data-theme="thaiger"] .g-header .g-lang button {
   color: var(--ink);
   border-color: color-mix(in srgb, var(--ink) 35%, transparent);
@@ -349,6 +355,8 @@
   margin-right: 16px;
   padding: 22px 20px 8px;
 }
+/* Six 48px boxes with 8px gaps need 328px. The card's 16px inset plus 20px padding leaves 316. */
+[data-theme="thaiger"] .g-join-card.is-code { padding-inline: 13px; }
 [data-theme="thaiger"] .g-join-card .brand-mark.is-lockup {
   width: min(100%, 300px);
   height: auto;

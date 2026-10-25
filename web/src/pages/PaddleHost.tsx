@@ -10,24 +10,44 @@ type NeedOpt = { id: string; title: string; targetAmount: number };
 const DEFAULT_LEVELS = "50000, 20000, 10000, 5000, 2000";
 
 /** Host controls for the live paddle raise: start, next level, pause, end, and a paddle seen in the room. */
-export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction }) {
+export function PaddleHost(props: {
+  code: string;
+  ccy: Currency;
+  run: RunAction;
+  /** From the host page's live payload, so this panel does not open its own connection. */
+  paddle?: PaddleRaise | null;
+  needs?: NeedOpt[];
+  /** The control room's primary button submits this form. */
+  startFromRoom?: boolean;
+  /** The control room owns the next-level button. */
+  nextFromRoom?: boolean;
+}) {
   const { code, ccy, run } = props;
-  const [needs, setNeeds] = useState<NeedOpt[]>([]);
+  const [needs, setNeeds] = useState<NeedOpt[]>(props.needs ?? []);
   const [needId, setNeedId] = useState("");
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("100000");
   const [levels, setLevels] = useState(DEFAULT_LEVELS);
   const [who, setWho] = useState("");
-  const [paddle, setPaddle] = useState<PaddleRaise | null>(null);
+  const [paddle, setPaddle] = useState<PaddleRaise | null>(props.paddle ?? null);
 
   useEffect(() => {
+    if (props.paddle !== undefined) setPaddle(props.paddle);
+  }, [props.paddle]);
+
+  useEffect(() => {
+    if (props.needs) setNeeds(props.needs);
+  }, [props.needs]);
+
+  useEffect(() => {
+    if (props.paddle !== undefined) return;
     api<{ needs?: NeedOpt[]; paddle?: PaddleRaise | null }>(`/api/events/${code}`)
       .then((live) => {
         setNeeds(live.needs ?? []);
         setPaddle(live.paddle ?? null);
       })
       .catch(() => undefined);
-  }, [code]);
+  }, [code, props.paddle]);
 
   function parsedLevels(): number[] {
     return levels
@@ -79,18 +99,19 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
   }
 
   const live = paddle && (paddle.status === "live" || paddle.status === "paused");
+  const endedWithMoney = paddle?.status === "ended" && paddle.raised > 0;
   return (
     <section className="stack paddle-host">
       <h3>{t("paddle.hostTitle")}</h3>
-      {paddle && !live && (
+      {!live && !endedWithMoney && <p className="host-quiet">{t("paddle.notStarted")}</p>}
+      {endedWithMoney && paddle && (
         <p className="muted">
-          {paddle.status === "ended" && <>{t("paddle.statusEnded")} · </>}
-          {t("paddle.goal", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
+          {t("paddle.lastRaise", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
           {paddle.hitGoal ? ` · ${t("paddle.hit")}` : ""}
         </p>
       )}
       {!live && (
-        <form className="stack" onSubmit={onStart}>
+        <form id="paddle-setup" className="stack" onSubmit={onStart}>
           <label>
             {t("paddle.need")}
             <select
@@ -123,7 +144,7 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
             {t("paddle.levels")}
             <input value={levels} onChange={(e) => setLevels(e.target.value)} />
           </label>
-          <button className="button" type="submit">{t("paddle.start")}</button>
+          {!props.startFromRoom && <button className="button" type="submit">{t("paddle.start")}</button>}
         </form>
       )}
       {live && paddle && (
@@ -150,7 +171,9 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
             {t(paddle.pledgeCount === 1 ? "paddle.pledge" : "paddle.pledges", { count: paddle.pledgeCount })}
           </p>
           <div className="row">
-            <button type="button" className="button" onClick={() => send({ action: "next" }, t("paddle.nextNote"))}>{t("paddle.next")}</button>
+            {!props.nextFromRoom && (
+              <button type="button" className="button" onClick={() => send({ action: "next" }, t("paddle.nextNote"))}>{t("paddle.next")}</button>
+            )}
             {paddle.status === "live" ? (
               <button type="button" className="button secondary" onClick={() => send({ action: "pause" }, t("paddle.pauseNote"))}>{t("paddle.pause")}</button>
             ) : (

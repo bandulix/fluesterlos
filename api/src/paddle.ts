@@ -48,6 +48,17 @@ type PaddleEvent = {
   paddle_started_at?: Date | string | null;
 };
 
+/** The level being called, plus the one above and the one below. */
+export function paddleTileAmounts(levels: number[], index: number): number[] {
+  if (!levels.length) return [];
+  const i = Math.max(0, Math.min(levels.length - 1, index));
+  const tiles: number[] = [];
+  if (i > 0) tiles.push(levels[i - 1]!);
+  tiles.push(levels[i]!);
+  if (i + 1 < levels.length) tiles.push(levels[i + 1]!);
+  return tiles;
+}
+
 /** Highest first, unique, at most 8. */
 export function cleanLevels(raw: unknown): { ok: true; levels: number[] } | { ok: false; error: string } {
   if (!Array.isArray(raw) || raw.length === 0) return { ok: false, error: "Add at least one paddle level" };
@@ -293,7 +304,7 @@ export async function stepPaddle(eventId: string, action: "next" | "pause" | "re
   }
 }
 
-async function assertLive(eventId: string): Promise<{ needId: string; level: number; currency: Currency; needsEndsAt: Date | null }> {
+async function assertLive(eventId: string): Promise<{ needId: string; level: number; levels: number[]; levelIndex: number; currency: Currency; needsEndsAt: Date | null }> {
   const paddle = await loadPaddle(eventId);
   if (!paddle || paddle.status === "ended" || paddle.level == null) {
     throw Object.assign(new Error("Paddle raise is not running"), { statusCode: 409 });
@@ -303,20 +314,27 @@ async function assertLive(eventId: string): Promise<{ needId: string; level: num
   return {
     needId: paddle.needId,
     level: paddle.level,
+    levels: paddle.levels,
+    levelIndex: paddle.levelIndex,
     currency: parseCurrency(rows[0]?.currency),
     needsEndsAt: rows[0]?.needs_ends_at ?? null,
   };
 }
 
-/** One tap at the level the host is calling. Recognition stays as the guest already set it. */
-export async function guestPaddlePledge(opts: { eventId: string; guestId: string; guestName: string }) {
+/** One tap at the level the host is calling, or at an adjacent tile. Recognition stays as the guest already set it. */
+export async function guestPaddlePledge(opts: { eventId: string; guestId: string; guestName: string; amount?: number }) {
   const live = await assertLive(opts.eventId);
+  const tiles = paddleTileAmounts(live.levels, live.levelIndex);
+  const amount = opts.amount == null ? live.level : money(opts.amount);
+  if (!tiles.some((n) => money(n) === amount)) {
+    throw Object.assign(new Error("That amount is not a level being called"), { statusCode: 400 });
+  }
   const placed = await placePledge({
     eventId: opts.eventId,
     needId: live.needId,
     guestId: opts.guestId,
     guestName: opts.guestName,
-    amount: live.level,
+    amount,
     currency: live.currency,
     eventNeedsEndsAt: live.needsEndsAt,
   });

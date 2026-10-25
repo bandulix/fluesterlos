@@ -370,5 +370,31 @@ export async function migrate() {
     ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_goal NUMERIC(12,2);
     ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_title TEXT;
     ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_started_at TIMESTAMPTZ;
+
+    -- A host can close one lot while the rest of the night stays open.
+    ALTER TABLE items ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
+
+    -- manual: the guest tapped Bid. proxy: the server bid their maximum up to the minimum.
+    ALTER TABLE bids ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
+    ALTER TABLE bids DROP CONSTRAINT IF EXISTS bids_source_check;
+    ALTER TABLE bids ADD CONSTRAINT bids_source_check CHECK (source IN ('manual', 'proxy'));
+
+    -- One standing maximum per guest per lot. created_at is the tie-break: an earlier max wins.
+    CREATE TABLE IF NOT EXISTS max_bids (
+      item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      max_amount NUMERIC(12,2) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      cancelled_at TIMESTAMPTZ,
+      PRIMARY KEY (item_id, guest_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS lot_watches (
+      item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (item_id, guest_id)
+    );
   `);
 }
