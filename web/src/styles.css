@@ -264,38 +264,58 @@ textarea { min-height: 70px; }
   border-radius: 0;
   color: #231f20;
   font-family: var(--font-display, inherit);
-  font-weight: 500;
-  font-size: clamp(1.05rem, 2.15vh, 1.45rem);
+  font-weight: 700;
+  font-size: clamp(1.1rem, 2.41vh, 1.65rem);
   line-height: 1.35;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 .engager.is-live .live-status { color: #b52a2e; }
 .live-status.is-closed { color: #231f20; }
 .live-status-dot {
-  width: 0.42em;
-  height: 0.42em;
+  position: relative;
+  width: 0.6em;
+  height: 0.6em;
   border-radius: 50%;
-  background: currentColor;
+  background: #231f20;
+  opacity: 1;
   flex: none;
 }
-.engager.is-live .live-status-dot { animation: live-status-pulse 1.6s ease-in-out infinite; }
-.live-status.is-closed .live-status-dot,
-.engager.reduce-motion .live-status-dot { animation: none; }
-@keyframes live-status-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+.engager.is-live .live-status-dot { background: #b52a2e; }
+/* The dot stays solid. Only the ring fades, so a mid-pulse frame is never pale pink. */
+.live-status-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 #b52a2e;
+  opacity: 0;
+  pointer-events: none;
+}
+.engager.is-live .live-status-dot::after { animation: live-status-halo 1.6s ease-out infinite; }
+.live-status.is-closed .live-status-dot::after,
+.engager.reduce-motion .live-status-dot::after { animation: none; opacity: 0; }
+@keyframes live-status-halo {
+  0% { box-shadow: 0 0 0 0 #b52a2e; opacity: 0.65; }
+  100% { box-shadow: 0 0 0 0.55em transparent; opacity: 0; }
 }
 .live-status .bi {
   flex-direction: row;
   align-items: baseline;
-  gap: 0.4em;
+  gap: 0;
 }
-.live-status .live-status-sep { font-weight: 500; line-height: 1.5; }
-.live-status .bi > small { font-weight: 500; text-transform: none; letter-spacing: 0; }
-.engager header { border-bottom: clamp(4px, 0.56vh, 6px) solid #231f20; }
+.live-status .live-status-sep {
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0;
+  color: inherit;
+}
+.live-status .bi > small { font-weight: 700; text-transform: none; letter-spacing: 0; }
+.engager header { border-bottom: clamp(4px, 0.56vh, 6px) solid #f6911f; }
 .engager.is-live header { border-bottom-color: #b52a2e; }
+.engager.is-closed header { border-bottom-color: #f6911f; }
 .engager-bar-meta {
   margin: 0 0 0 auto;
   display: flex;
@@ -902,7 +922,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 @media (prefers-reduced-motion: reduce) {
   .board-grid, .sponsor-row, .board-item.is-glow,
   .auction-clock, .donor-board li.is-rise, .donor-spot h2.is-rise,
-  .paddle-stage, .paddle-pops li, .paddle-confetti i, .live-status-dot { animation: none !important; }
+  .paddle-stage, .paddle-pops li, .paddle-confetti i, .live-status-dot, .live-status-dot::after { animation: none !important; }
 }
 /* On a TV / projector everything fits one screen: the paged item board takes the free middle. */
 @media (min-width: 900px) and (min-height: 500px) {
@@ -1208,7 +1228,7 @@ label.file-btn input[type="file"] {
   text-transform: none;
   opacity: 1;
 }
-.live-status .bi > small { font-weight: 500; }
+.live-status .bi > small { font-weight: 700; }
 .engager.lang-th,
 .engager.lang-both {
   --font: "Noto Sans Thai", "Inter", system-ui, sans-serif;
