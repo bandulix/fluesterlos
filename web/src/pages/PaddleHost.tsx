@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { api, LivePayload, PaddleRaise } from "../lib/api";
 import { t } from "../i18n";
 import { formatAmount, type Currency } from "../lib/money";
+import { paddleProgress } from "../lib/paddleLogic";
 import type { RunAction } from "./HostEventCard";
 
 type NeedOpt = { id: string; title: string; targetAmount: number };
@@ -81,10 +82,8 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
   return (
     <section className="stack paddle-host">
       <h3>{t("paddle.hostTitle")}</h3>
-      {paddle && (
+      {paddle && !live && (
         <p className="muted">
-          {paddle.status === "live" && paddle.level != null && <>{t("paddle.calling", { amount: formatAmount(paddle.level, ccy) })} · </>}
-          {paddle.status === "paused" && <>{t("paddle.pausedShort")} · </>}
           {paddle.status === "ended" && <>{t("paddle.statusEnded")} · </>}
           {t("paddle.goal", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
           {paddle.hitGoal ? ` · ${t("paddle.hit")}` : ""}
@@ -128,14 +127,37 @@ export function PaddleHost(props: { code: string; ccy: Currency; run: RunAction 
         </form>
       )}
       {live && paddle && (
-        <div className="row">
-          <button type="button" className="button" onClick={() => send({ action: "next" }, t("paddle.nextNote"))}>{t("paddle.next")}</button>
-          {paddle.status === "live" ? (
-            <button type="button" className="button secondary" onClick={() => send({ action: "pause" }, t("paddle.pauseNote"))}>{t("paddle.pause")}</button>
-          ) : (
-            <button type="button" className="button secondary" onClick={() => send({ action: "resume" }, t("paddle.resumeNote"))}>{t("paddle.resume")}</button>
-          )}
-          <button type="button" className="button secondary" onClick={() => send({ action: "end" }, t("paddle.endNote"))}>{t("paddle.end")}</button>
+        <div className="paddle-hero">
+          <p className="paddle-hero-kicker">
+            {paddle.status === "paused" ? t("paddle.pausedShort") : t("paddle.calling", { amount: formatAmount(paddle.level ?? paddle.raised, ccy) })}
+          </p>
+          <p className="paddle-hero-level">{formatAmount(paddle.level ?? paddle.raised, ccy)}</p>
+          <div
+            className="need-bar"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(paddleProgress(paddle.raised, paddle.goal))}
+            aria-label={t("paddle.goal", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
+          >
+            <span style={{ width: `${paddleProgress(paddle.raised, paddle.goal)}%` }} />
+          </div>
+          <p className="paddle-hero-meta">
+            {paddle.hitGoal
+              ? t("paddle.hit")
+              : t("paddle.toGo", { amount: formatAmount(Math.max(0, paddle.goal - paddle.raised), ccy) })}
+            {" · "}
+            {t(paddle.pledgeCount === 1 ? "paddle.pledge" : "paddle.pledges", { count: paddle.pledgeCount })}
+          </p>
+          <div className="row">
+            <button type="button" className="button" onClick={() => send({ action: "next" }, t("paddle.nextNote"))}>{t("paddle.next")}</button>
+            {paddle.status === "live" ? (
+              <button type="button" className="button secondary" onClick={() => send({ action: "pause" }, t("paddle.pauseNote"))}>{t("paddle.pause")}</button>
+            ) : (
+              <button type="button" className="button secondary" onClick={() => send({ action: "resume" }, t("paddle.resumeNote"))}>{t("paddle.resume")}</button>
+            )}
+            <button type="button" className="button secondary" onClick={() => send({ action: "end" }, t("paddle.endNote"))}>{t("paddle.end")}</button>
+          </div>
         </div>
       )}
       {paddle?.status === "live" && (

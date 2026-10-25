@@ -185,15 +185,28 @@
   color: var(--ink);
   /* Match the projector padding so the plate reaches the edges without sliding off. */
   margin: calc(-1 * clamp(0.75rem, 1.6vh, 1.5rem)) calc(-1 * clamp(0.75rem, 1.6vh, 1.5rem)) 0;
-  padding: 0.55rem clamp(1rem, 2vw, 1.5rem);
+  padding: 0.85rem clamp(1.15rem, 2vw, 1.6rem);
 }
 [data-theme="thaiger"] .engager header h1 { color: var(--brand-blue); }
 [data-theme="thaiger"] .engager header h1 .star { color: var(--brand-red); }
-[data-theme="thaiger"] .engager header .live-badge { color: var(--brand-red); }
+[data-theme="thaiger"] .engager header .live-badge,
+[data-theme="thaiger"] .engager header .live-badge.is-closed {
+  background: var(--ink);
+  color: var(--paper);
+}
+[data-theme="thaiger"] .engager.is-live header .live-badge {
+  background: var(--brand-red);
+  color: var(--paper);
+}
+[data-theme="thaiger"] .engager header .live-badge::before {
+  background: var(--paper);
+  box-shadow: none;
+}
+[data-theme="thaiger"] .engager-bar-meta { color: var(--ink); }
 [data-theme="thaiger"] .engager .brand-mark {
-  height: clamp(72px, 8.5vh, 100px);
-  max-width: min(36vw, 480px);
-  margin: 0 1.25rem 0 0;
+  height: clamp(110px, 11.4vh, 128px);
+  max-width: min(42vw, 560px);
+  margin: 0 1.15rem 0 0;
   align-self: center;
 }
 
@@ -235,6 +248,11 @@
   background: transparent;
   color: var(--accent);
   border: 1.5px solid var(--accent);
+}
+[data-theme="thaiger"] .button.danger {
+  background: var(--brand-red);
+  color: var(--paper);
+  border: 0;
 }
 [data-theme="thaiger"] .pill.status-open,
 [data-theme="thaiger"] .pill.status-unpaid,
@@ -350,8 +368,8 @@
   border-left-color: var(--brand-red);
 }
 [data-theme="thaiger"] .g-outbid-bid {
-  background: transparent;
-  color: var(--accent);
+  background: var(--button-bg);
+  color: var(--button-text);
 }
 [data-theme="thaiger"] .g-status-outbid,
 [data-theme="thaiger"] .g-chip-outbid .g-chip-count {
@@ -428,11 +446,11 @@
 
 @media (min-width: 900px) and (max-height: 820px) {
   [data-theme="thaiger"] .engager .brand-mark {
-    height: clamp(64px, 9vh, 88px);
-    max-width: min(32vw, 340px);
-    margin-right: 1rem;
+    height: clamp(78px, 11vh, 92px);
+    max-width: min(34vw, 380px);
+    margin-right: 0.85rem;
   }
-  [data-theme="thaiger"] .engager header { padding: 0.55rem 1rem; }
+  [data-theme="thaiger"] .engager header { padding: 0.55rem 0.9rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

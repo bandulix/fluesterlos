@@ -30,6 +30,7 @@ import { hostPriceLine } from "../lib/hostText";
 import { HostItemImport } from "./HostItemImport";
 import { HostBulkMedia } from "./HostBulkMedia";
 import { HostNeeds } from "./HostNeeds";
+import { PaddleHost } from "./PaddleHost";
 
 /** Runs a host action: busy state, error/note banner, reloads. With rethrow the caller shows the error inline. */
 export type RunAction = (
@@ -144,15 +145,18 @@ export function HostEventCard(props: {
       </div>
       <p>Code: <code>{code}</code></p>
       <Countdown variant="tiles" startsAt={ev.startsAt} endsAt={ev.endsAt} status={ev.status} timezone={tz} closedEarly={ev.closedEarly} />
-      <div className="room-preview">
-        <p className="room-preview-label">
-          <span className={`live-dot${ev.status === "open" ? " is-on" : ""}`} aria-hidden="true" />
-          {ev.status === "open" ? "Live" : ev.status === "scheduled" ? "Not started" : "Closed"} · room display
-          <Link to={`/e/${code}/engager`}>Open big screen</Link>
-        </p>
-        <div className="room-preview-frame">
-          <iframe title={`${ev.title} big screen`} src={`/e/${code}/engager`} tabIndex={-1} />
+      <div className="host-night">
+        <div className="room-preview">
+          <p className="room-preview-label">
+            <span className={`live-dot${ev.status === "open" ? " is-on" : ""}`} aria-hidden="true" />
+            {ev.status === "open" ? "Live" : ev.status === "scheduled" ? "Not started" : "Closed"} · room display
+            <Link to={`/e/${code}/engager`}>Open big screen</Link>
+          </p>
+          <div className="room-preview-frame">
+            <iframe title={`${ev.title} big screen`} src={`/e/${code}/engager`} tabIndex={-1} />
+          </div>
         </div>
+        <PaddleHost code={code} ccy={ccy} run={run} />
       </div>
       <div className="event-times">
         <span>
@@ -376,19 +380,23 @@ export function HostEventCard(props: {
                   </a>
                 </>
               ) : (
-                <label className="line-row">
+                <span className="line-row">
                   <span className="pill">voucher PDF missing</span>
-                  <input
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    disabled={busy}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      e.target.value = "";
-                      if (f) onAttachVoucher(it.id, f);
-                    }}
-                  />
-                </label>
+                  <label className="file-btn">
+                    <span>Attach PDF</span>
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      disabled={busy}
+                      aria-label={`Attach voucher PDF for ${it.title}`}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (f) onAttachVoucher(it.id, f);
+                      }}
+                    />
+                  </label>
+                </span>
               )}
             </div>
             <div className="row">
@@ -420,7 +428,7 @@ export function HostEventCard(props: {
                     <button type="button" className="button secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
                   </>
                 ) : (
-                  <button type="button" className="button secondary" disabled={busy} onClick={() => setConfirmDelete(it.id)}>
+                  <button type="button" className="button danger" disabled={busy} onClick={() => setConfirmDelete(it.id)}>
                     Delete
                   </button>
                 ))}

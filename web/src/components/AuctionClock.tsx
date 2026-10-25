@@ -58,14 +58,13 @@ export function AuctionClock(props: {
     >
       <p className="auction-clock-kicker">
         <Line mode={mode} k={headlineKey} />
-        {clock.closedEarly && (
-          <>
-            {" · "}
-            <Line mode={mode} k="screen.closedEarly" />
-          </>
-        )}
       </p>
-      <p className="auction-clock-digits">{closed ? <Line mode={mode} k="screen.biddingClosed" /> : clock.digits}</p>
+      {clock.closedEarly && (
+        <p className="auction-clock-note">
+          <Line mode={mode} k="screen.closedEarly" />
+        </p>
+      )}
+      {!closed && <p className="auction-clock-digits">{clock.digits}</p>}
       {donations && (
         <p className="auction-clock-note">
           {donations.kind === "closed" ? (

@@ -2,7 +2,7 @@ import { FilterKey, filtersFor } from "../lib/bidLogic";
 import { t } from "../i18n";
 
 /**
- * Compact chips that always fit a 360–390px phone (wrap instead of a hidden horizontal scroll).
+ * One horizontal row. Labels that do not fit at 390px scroll instead of wrapping.
  * After the close the set becomes All / Won / Not won.
  */
 export function FilterChips({

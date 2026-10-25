@@ -8,7 +8,6 @@ export function OutbidBanner({ title, amountLabel, actionLabel, onJump, onClose 
       <span className="g-outbid-text">{t("bid.outbidBanner", { title, amount: amountLabel })}</span>
       <button type="button" className="g-outbid-bid" onClick={onJump}>
         {actionLabel}
-        <span aria-hidden="true"> →</span>
       </button>
       <button type="button" className="g-outbid-close" aria-label={t("install.dismiss")} onClick={onClose}>
         ×

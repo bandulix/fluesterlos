@@ -378,7 +378,7 @@ export function BidPage() {
           actionLabel={t("bid.button", { amount: formatAmount(minNextBid(outbidItem), ccy) })}
           onJump={() => {
             const el = document.getElementById(`item-${outbidItem.id}`);
-            el?.scrollIntoView({ behavior: "smooth", block: "center" });
+            el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
             window.setTimeout(() => el?.querySelector<HTMLButtonElement>(".g-bid")?.focus(), 280);
           }}
           onClose={() => setOutbid(null)}

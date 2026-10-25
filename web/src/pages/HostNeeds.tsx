@@ -1,9 +1,8 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, LivePayload, Need } from "../lib/api";
-import { Currency, formatMoney } from "../lib/money";
+import { Currency, formatAmount } from "../lib/money";
 import { instantToWallTime, wallTimeToIso } from "../lib/time";
 import type { RunAction } from "./HostEventCard";
-import { PaddleHost } from "./PaddleHost";
 
 type HostPledge = {
   id: string;
@@ -101,7 +100,7 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
   const [reason, setReason] = useState<Record<string, string>>({});
   const [correctAmt, setCorrectAmt] = useState<Record<string, string>>({});
   const [routeReason, setRouteReason] = useState<Record<string, string>>({});
-  const money = (n: number) => formatMoney(n, ccy);
+  const money = (n: number) => formatAmount(n, ccy);
 
   const load = useCallback(async () => {
     const res = await api<FundPayload>(`/api/host/events/${code}/needs`);
@@ -187,7 +186,6 @@ export function HostNeeds(props: { code: string; ccy: Currency; tz: string; run:
 
   return (
     <div className="stack fund-host">
-      <PaddleHost code={code} ccy={ccy} run={run} />
       <div className="row between">
         <h3>Fund-a-Need</h3>
         <div className="row">

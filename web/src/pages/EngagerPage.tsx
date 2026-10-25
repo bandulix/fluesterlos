@@ -6,7 +6,8 @@ import { assetUrl } from "../lib/api";
 import type { Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
 import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
-import { auctionClock } from "../lib/auctionClock";
+import { auctionClock, donationEndParts } from "../lib/auctionClock";
+import { DEFAULT_EVENT_TZ, formatTimeInZone } from "../lib/time";
 import { AuctionClock } from "../components/AuctionClock";
 import { PaddleStage } from "../components/PaddleStage";
 import { roomMain } from "../lib/paddleLogic";
@@ -153,6 +154,74 @@ function shortUrl(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
+/** One headline, then the thank-you and the night's total. Closed-early is only a note. */
+function ClosedHero(props: {
+  screenLang: ScreenLang;
+  total: string;
+  closedEarly: boolean;
+  donations: ReturnType<typeof donationEndParts>;
+}) {
+  const { screenLang, total, closedEarly, donations } = props;
+  return (
+    <div className="closed-hero" role="status">
+      <p className="closed-thanks"><Line mode={screenLang} k="screen.thanks" /></p>
+      <p className="closed-total">{total}</p>
+      <p className="closed-line"><Line mode={screenLang} k="screen.biddingClosed" /></p>
+      {closedEarly && (
+        <p className="closed-note"><Line mode={screenLang} k="screen.closedEarly" /></p>
+      )}
+      {donations && (
+        <p className="closed-note">
+          {donations.kind === "closed" ? (
+            <Line mode={screenLang} k="screen.donationsClosed" />
+          ) : (
+            <Line mode={screenLang} k="screen.donationsUntil" vars={{ time: donations.time }} />
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The last minute lives once, in the centre. The side is what the room can cheer. */
+function Finale(props: {
+  screenLang: ScreenLang;
+  seconds: number;
+  reduceMotion: boolean;
+  total: string;
+  lots: Array<{ id: string; title: string; amount: string; leader: string | null }>;
+}) {
+  const { screenLang, seconds, reduceMotion, total, lots } = props;
+  return (
+    <div className="finale">
+      <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${seconds}`}>
+        <p className="auction-clock-kicker"><Line mode={screenLang} k="screen.final" /></p>
+        <p className="auction-seconds">{seconds}</p>
+      </div>
+      <section className="panel finale-cheer">
+        <p className="muted"><Line mode={screenLang} k="screen.raised" /></p>
+        <p className="huge">{total}</p>
+        {lots.length > 0 && (
+          <>
+            <p className="finale-kicker"><Line mode={screenLang} k="screen.closingNow" /></p>
+            <ul className="finale-lots">
+              {lots.map((it) => (
+                <li key={it.id}>
+                  <span>
+                    {it.title}
+                    {it.leader && <small>{it.leader}</small>}
+                  </span>
+                  <strong>{it.amount}</strong>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export function EngagerPage() {
   const { code = "" } = useParams();
   const { live, error, flashKey, lastBid, lastPledge, pledgeKey, clockOffsetMs } = useLive(code);
@@ -275,6 +344,7 @@ export function EngagerPage() {
   const joinUrl = live.event.joinUrl;
   const isLive = live.event.status === "open";
   const closed = live.event.status === "closed";
+  const tz = live.event.timezone || DEFAULT_EVENT_TZ;
   const needs = live.needs ?? [];
   const spotlightNeed = needs.find((n) => n.id === live.event.spotlightNeedId) ?? null;
   const donorsOn = live.event.donorRecognition !== false && live.event.topDonorsOnScreen !== false;
@@ -310,35 +380,60 @@ export function EngagerPage() {
             <span className="engager-title">{live.event.title}</span>
             <span className="star" aria-hidden="true">★</span>
           </h1>
-          <span className="live-badge">{closed ? <Line mode={screenLang} k="screen.closed" /> : <Line mode={screenLang} k="screen.live" />}</span>
+          <span className={`live-badge${closed ? " is-closed" : ""}`}>{closed ? <Line mode={screenLang} k="screen.closed" /> : <Line mode={screenLang} k="screen.live" />}</span>
         </div>
+        <p className="engager-bar-meta">
+          {joinUrl && <span className="engager-join">{shortUrl(joinUrl)}</span>}
+          <time dateTime={new Date(serverNow).toISOString()}>{formatTimeInZone(serverNow, tz)}</time>
+        </p>
       </header>
 
-      <AuctionClock
-        startsAt={live.event.startsAt}
-        endsAt={live.event.endsAt}
-        status={live.event.status}
-        closedEarly={live.event.closedEarly}
-        needsEndsAt={live.event.needsEndsAt}
-        timezone={live.event.timezone}
-        now={serverNow}
-        reduceMotion={reduceMotion}
-        screenLang={screenLang}
-      />
+      {closed ? (
+        <ClosedHero
+          screenLang={screenLang}
+          total={money(showSplit ? raised.total : live.stats.totalHighBids)}
+          closedEarly={Boolean(live.event.closedEarly)}
+          donations={donationEndParts({
+            needsEndsAt: live.event.needsEndsAt,
+            auctionEndsAt: live.event.endsAt,
+            timezone: tz,
+            now: serverNow,
+          })}
+        />
+      ) : roomMain({ countdownTakeover: clock.takeover, paddleStatus: live.paddle?.status }) !== "countdown" && (
+        <AuctionClock
+          startsAt={live.event.startsAt}
+          endsAt={live.event.endsAt}
+          status={live.event.status}
+          closedEarly={live.event.closedEarly}
+          needsEndsAt={live.event.needsEndsAt}
+          timezone={live.event.timezone}
+          now={serverNow}
+          reduceMotion={reduceMotion}
+          screenLang={screenLang}
+        />
+      )}
 
       {roomMain({ countdownTakeover: clock.takeover, paddleStatus: live.paddle?.status }) === "paddle" && live.paddle ? (
         <PaddleStage paddle={live.paddle} ccy={ccy} reduceMotion={reduceMotion} screenLang={screenLang} />
-      ) : clock.takeover ? (
-        <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${clock.seconds}`}>
-          <p className="auction-clock-kicker"><Line mode={screenLang} k="screen.final" /></p>
-          <p className="auction-seconds">{clock.seconds}</p>
-        </div>
+      ) : roomMain({ countdownTakeover: clock.takeover, paddleStatus: live.paddle?.status }) === "countdown" ? (
+        <Finale
+          screenLang={screenLang}
+          seconds={clock.seconds}
+          reduceMotion={reduceMotion}
+          total={money(showSplit ? raised.total : live.stats.totalHighBids)}
+          lots={[...items]
+            .filter((it) => it.bidCount > 0)
+            .sort((a, b) => b.highBid - a.highBid || a.sortOrder - b.sortOrder)
+            .slice(0, 4)
+            .map((it) => ({ id: it.id, title: it.title, amount: money(it.highBid), leader: it.highBidder }))}
+        />
       ) : (
       <div className="engager-main">
       <div className="engager-top">
-        <section className={`panel totals${flash ? " bid-flash" : ""}`}>
-          <p className="muted">{closed ? <Line mode={screenLang} k="screen.raisedClosed" /> : <Line mode={screenLang} k="screen.raised" />}</p>
-          <p className="huge">{money(showSplit ? raised.total : live.stats.totalHighBids)}</p>
+        <section className={`panel totals${flash ? " bid-flash" : ""}${closed ? " is-supporting" : ""}`}>
+          {!closed && <p className="muted"><Line mode={screenLang} k="screen.raised" /></p>}
+          {!closed && <p className="huge">{money(showSplit ? raised.total : live.stats.totalHighBids)}</p>}
           {showSplit && (
             <p className="muted">
               <Line mode={screenLang} k="screen.split" vars={{ auction: money(raised.auction), donations: money(raised.donations) }} />
