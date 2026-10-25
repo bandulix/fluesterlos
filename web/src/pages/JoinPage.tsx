@@ -141,7 +141,7 @@ export function JoinPage() {
   if (step === "code") {
     return (
       <section className="g-page g-join">
-        <div className="g-join-card">
+        <div className="g-join-card is-code">
           <LangSwitch />
           <BrandMark kind="lockup" />
           <h1 className="g-join-title">{t("code.title")}</h1>

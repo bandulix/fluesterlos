@@ -349,6 +349,8 @@
   margin-right: 16px;
   padding: 22px 20px 8px;
 }
+/* Six 48px boxes with 8px gaps need 328px. The card's 16px inset plus 20px padding leaves 316. */
+[data-theme="thaiger"] .g-join-card.is-code { padding-inline: 13px; }
 [data-theme="thaiger"] .g-join-card .brand-mark.is-lockup {
   width: min(100%, 300px);
   height: auto;

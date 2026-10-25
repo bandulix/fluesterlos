@@ -105,6 +105,7 @@
 .g-otp-row {
   display: flex; justify-content: space-between; gap: 8px;
 }
+.g-join-card.is-code { padding-inline: 13px; }
 .g-otp-box {
   flex: 0 0 48px; width: 48px; height: 48px; padding: 0;
   border-radius: 12px;
