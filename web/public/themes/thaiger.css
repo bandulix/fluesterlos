@@ -3,7 +3,7 @@
    so it sits on a #ffffff plate with clear space around the file.
    Room surfaces are the logo ink (#231f20). Filled actions are the site red
    (#b52a2e, white type). Figures and the goal are the logo gold (#f6911f).
-   Headings on the white plates use the site primary blue (#0B51C2). */
+   Titles on the white plates use the logo ink (#231f20). */
 
 @font-face {
   font-family: "Inter";
@@ -50,7 +50,6 @@
 
   /* Site custom red. White on this red is 6.30:1. */
   --brand-red: #b52a2e;
-  --brand-blue: #0b51c2;
   --danger: #b52a2e;
   --success: #f6911f;
   --button-bg: #b52a2e;
@@ -169,7 +168,12 @@
   margin-right: 8px;
 }
 [data-theme="thaiger"] .g-header .g-title,
-[data-theme="thaiger"] .g-header .g-back { color: var(--brand-blue); }
+[data-theme="thaiger"] .g-header .g-back { color: var(--ink); }
+[data-theme="thaiger"] .g-header .g-title {
+  font-family: "Barlow Condensed", "Oswald", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
 [data-theme="thaiger"] .g-header .g-lang button {
   color: var(--ink);
   border-color: color-mix(in srgb, var(--ink) 35%, transparent);
@@ -188,10 +192,33 @@
   /* The state rule replaces the same thickness of bottom padding, so the band stays put. */
   padding: 0.85rem clamp(1.15rem, 2vw, 1.6rem) calc(0.85rem - clamp(4px, 0.56vh, 6px));
 }
-[data-theme="thaiger"] .engager header h1 { color: var(--brand-blue); }
-[data-theme="thaiger"] .engager header h1 .star { color: var(--brand-red); }
+[data-theme="thaiger"] .engager header h1 {
+  font-family: "Barlow Condensed Screen", "Barlow Condensed", sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: #231f20;
+  font-size: clamp(40px, 5.9vh, 64px);
+}
+[data-theme="thaiger"] .engager header h1 .engager-title-last { color: #b52a2e; }
+[data-theme="thaiger"] .engager header h1 .engager-title-th {
+  font-family: "Kanit Screen", "Kanit", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  color: #231f20;
+}
 [data-theme="thaiger"] .engager header .live-status {
   background: none;
+  color: var(--ink);
+  font-family: "Barlow Condensed Screen", "Barlow Condensed", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+[data-theme="thaiger"] .engager-bar-meta {
+  font-family: "Barlow Condensed Screen", "Barlow Condensed", sans-serif;
+  font-weight: 700;
   color: var(--ink);
 }
 [data-theme="thaiger"] .engager.is-live header .live-status { color: var(--brand-red); }
@@ -203,6 +230,7 @@
   margin: 0 1.15rem 0 0;
   align-self: center;
 }
+[data-theme="thaiger"] .engager-brand .brand-mark { margin-right: 0; }
 
 /* —— Host chrome —— */
 [data-theme="thaiger"] .topbar .button {
@@ -442,7 +470,7 @@
   [data-theme="thaiger"] .engager .brand-mark {
     height: clamp(96px, 13.2vh, 108px);
     max-width: min(40vw, 440px);
-    margin-right: 0.85rem;
+    margin-right: 0;
   }
   [data-theme="thaiger"] .engager header { padding: 0.55rem 0.85rem calc(0.55rem - clamp(4px, 0.56vh, 6px)); }
 }

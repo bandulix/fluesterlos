@@ -332,6 +332,7 @@ export const th = {
   "screen.winningBid": "ราคาที่ชนะ",
   "screen.soldFor": "ขายได้",
   "screen.joinAt": "เข้าร่วม: {where}",
+  "screen.titleTh": "งานกาล่าการกุศล",
   "screen.leading": "นำโดย {name}",
   "screen.wonBy": "ผู้ชนะ {name}",
   "screen.boughtBy": "ผู้ซื้อ {name}",

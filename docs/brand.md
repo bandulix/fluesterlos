@@ -46,7 +46,7 @@ From the homepage `:root` custom properties (the Extendable theme presets that t
 | `--wp--preset--color--background` | `#ffffff` | Page background. Also the donate button (`background-color:#fcfcfc` is a near-white one-off on that link) |
 | `--wp--preset--color--foreground` | `#000000` | Default text token |
 | `--wp--preset--color--foreground-alt` | `#333333` | Secondary text token |
-| `--wp--preset--color--primary` | `#0B51C2` | Heading colour. Two `h3` elements use `has-primary-color` |
+| `--wp--preset--color--primary` | — | The site names a heading colour. This app does not use it. Titles on white are ink `#231f20` |
 | `--wp--preset--color--tertiary` | `#F9FAFE` | Card and section fill (`has-tertiary-background-color`, including the About band) |
 | `--wp--preset--color--custom-color-1` | `#b52a2e` | Filled brand red. Instagram, LinkedIn and Facebook marks are `color:#ffffff; background-color:#b52a2e` |
 | `--wp--preset--color--secondary` | `#c4ff47` | Defined once, not painted on the homepage. Not used |
@@ -62,8 +62,7 @@ Contrast that decided the pairing:
 | `#231f20` on `#f6911f` | 6.98:1 | Ink on gold (medals, “You”, funded) |
 | `#f6911f` on `#231f20` | 6.98:1 | Gold figures on the room |
 | `#f6911f` on `#393536` | 5.18:1 | Gold figures on a card |
-| `#0B51C2` on `#ffffff` | 7.07:1 | Titles on the white plate |
-| `#0B51C2` on `#231f20` | 2.31:1 | Blue is not used on the dark room |
+| `#231f20` on `#ffffff` | 16.30:1 | Titles on the white plate |
 | `#b52a2e` on `#231f20` | 2.59:1 | Red text is not put on the ink. The final minute sits on a `#ffffff` plate. The phone’s last minute turns the timer into a `#b52a2e` pill with `#ffffff` type |
 | `#ffffff` on `#231f20` | 16.30:1 | Body text on the room |
 | `#333333` on `#ffffff` | 12.63:1 | Secondary text on the white plates |
@@ -83,7 +82,8 @@ These are not new hues. They are the logo ink mixed with the logo white, so a ca
 
 - **Inter** is the face the homepage loads (`fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700`, the GiveWP campaign stylesheet). UI text uses the self-hosted Inter already in `web/public/brand/thaiger/`.
 - **Oswald** is a theme `@font-face` and the preset `--wp--preset--font-family--oswald`. The homepage does not put that class on body copy. Display figures use it because it is the condensed face in the theme’s own font set.
-- **Noto Sans Thai** is for Thai lines. It is not on the marketing site. It stays so the room can read Thai.
+- **Barlow Condensed** (600, 700, 800, and 800 italic) is the big-screen title, status line, and join line. **Kanit** (400, 600, 700) is the Thai beside that title and in the status line. Both are self-hosted with `@fontsource`. The projector waits for them (`font-display: block`). Phones use the same files with `font-display: swap`.
+- **Noto Sans Thai** is for the other Thai lines. It is not on the marketing site. It stays so the room can read Thai.
 
 ## How the app uses it
 
@@ -93,7 +93,7 @@ The values live in `web/public/themes/thaiger.css` under `[data-theme="thaiger"]
 - The logo sits on a `#ffffff` plate: guest header, host top bar, big-screen brand bar, the join card, and the stats brand bar. Padding on that plate is the clear space. The image is not given a filter, a mask, or a crop.
 - One filled action per screen is `#b52a2e` with `#ffffff` type (“Bid ฿12,000”, “Pay ฿5,000”). Outlined actions are `#f6911f`.
 - The hero number and the goal bar are `#f6911f`.
-- Titles on the white plates are `#0B51C2`, the site’s heading colour.
+- Titles on the white plates are ink `#231f20`. The big-screen title’s last word is `#b52a2e`. Orange text is not put on the white band.
 - The final minute is `#b52a2e` on `#ffffff`, because the red does not pass on the ink.
 
 ## Motifs that stay inside the logo

@@ -331,6 +331,7 @@ export const de = {
   "screen.winningBid": "Höchstgebot",
   "screen.soldFor": "Verkauft für",
   "screen.joinAt": "Mitmachen: {where}",
+  "screen.titleTh": "งานกาล่าการกุศล",
   "screen.leading": "Führend: {name}",
   "screen.wonBy": "Gewonnen von {name}",
   "screen.boughtBy": "Gekauft von {name}",

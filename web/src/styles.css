@@ -170,22 +170,79 @@ textarea { min-height: 70px; }
 }
 .engager header > div:first-child {
   min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  gap: 0;
+  flex-wrap: nowrap;
+}
+.engager-slash {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  /* The stroke is 6px. The box is wider so skewX(-12deg) paints inside it
+     instead of being clipped. Margin is tuned so the gap from the logo to
+     the red ink, and from the ink to the title, is 28px at 1080p. */
+  width: 34px;
+  margin-inline: 28px;
+  overflow: hidden;
+}
+.engager-slash::before {
+  content: "";
+  display: block;
+  width: 6px;
+  /* 85% of the logo row is about 72% of the full white band, padding included. */
+  height: 85%;
+  background: #b52a2e;
+  transform: skewX(-12deg);
 }
 .engager header h1 {
   margin: 0;
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  align-items: baseline;
+  gap: 0.45em;
+  width: 100%;
   min-width: 0;
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
-  color: var(--text-strong);
+  font-family: "Barlow Condensed Screen", "Barlow Condensed", sans-serif;
+  font-size: clamp(40px, 5.9vh, 64px);
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: #231f20;
+  white-space: nowrap;
 }
-.engager header h1 .star { flex: none; color: var(--accent); font-size: 0.62em; }
-.engager header h1 .engager-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.engager-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.22em;
+  min-width: 0;
+  flex: none;
+}
+.engager-title-lead,
+.engager-title-last {
+  /* Italic ink sits a few pixels outside the em box. Padding keeps it in the
+     line box without changing the 0.9 title line-height. */
+  line-height: 1;
+  padding-block: 0.08em;
+}
+.engager-title-last { color: #b52a2e; }
+.engager-title-th {
+  flex: none;
+  font-family: "Kanit Screen", "Kanit", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.55em;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-transform: none;
+  color: #231f20;
+  padding-block: 0.1em;
+}
+.engager-lockup[data-fit="1"] .engager-title-th { font-size: 0.5em; }
 .engager-grid {
   display: grid;
   grid-template-columns: 1.1fr 1.2fr 1fr;
@@ -250,8 +307,9 @@ textarea { min-height: 70px; }
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
+  flex: 1 1 auto;
   min-width: 0;
-  gap: 0.12rem;
+  gap: 6px;
 }
 /* Status belongs to the title: one line, no pill. The band's bottom rule carries it across the room. */
 .live-status {
@@ -263,11 +321,11 @@ textarea { min-height: 70px; }
   background: none;
   border-radius: 0;
   color: #231f20;
-  font-family: var(--font-display, inherit);
+  font-family: "Barlow Condensed Screen", "Barlow Condensed", sans-serif;
   font-weight: 700;
-  font-size: clamp(1.1rem, 2.41vh, 1.65rem);
-  line-height: 1.35;
-  letter-spacing: 0.06em;
+  font-size: clamp(22px, 2.59vh, 28px);
+  line-height: 1.15;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -308,13 +366,22 @@ textarea { min-height: 70px; }
 .live-status .live-status-sep {
   font-size: 1em;
   font-weight: 700;
-  line-height: 1.5;
+  line-height: 1;
   letter-spacing: 0;
   color: inherit;
-  /* A flex item trims the spaces around this glyph, so the gap is margin. */
+  /* A flex item trims the spaces around this glyph, so the gap is margin.
+     The dot's ink is taller than the em box; the padding holds it. */
   margin-inline: 0.4em;
+  padding-block: 0.12em;
 }
-.live-status .bi > small { font-weight: 700; text-transform: none; letter-spacing: 0; }
+.live-status .bi > small {
+  font-family: "Kanit Screen", "Kanit", sans-serif;
+  font-weight: 600;
+  font-size: 1em;
+  line-height: 1.2;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .engager header { border-bottom: clamp(4px, 0.56vh, 6px) solid #f6911f; }
 .engager.is-live header { border-bottom-color: #b52a2e; }
 .engager.is-closed header { border-bottom-color: #f6911f; }
@@ -326,12 +393,15 @@ textarea { min-height: 70px; }
   flex: none;
   max-width: 46%;
   color: inherit;
-  font-weight: 750;
+  font-family: "Barlow Condensed Screen", "Barlow Condensed", sans-serif;
+  font-weight: 700;
   font-size: clamp(1.5rem, 2.6vh, 2rem);
   line-height: 1.15;
   text-align: right;
 }
 .engager-bar-meta .bi { align-items: flex-end; }
+.engager-bar-meta .join-code { font-weight: 800; }
+.engager-bar-meta .bi > small { font-family: "Kanit Screen", "Kanit", sans-serif; font-weight: 400; }
 .stats-grid .stat,
 .stats-grid > div {
   background: color-mix(in srgb, var(--card) 70%, transparent);
@@ -955,7 +1025,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .engager .huge { font-size: clamp(2.4rem, 9vh, 8rem); font-variant-numeric: tabular-nums; }
   .engager .big-amount { font-size: clamp(1.8rem, 5.5vh, 3.2rem); }
   .engager .highlight h2 { font-size: clamp(1.3rem, 3.4vh, 2.2rem); }
-  .engager header h1 { font-size: clamp(1.4rem, 4vh, 2.4rem); margin: 0; white-space: nowrap; }
+  .engager header h1 { margin: 0; white-space: nowrap; }
   .engager header .cd-tile strong { font-size: clamp(1.05rem, 3vh, 1.7rem); }
   .engager .huge { font-size: clamp(2.4rem, 9vh, 8rem); }
   .engager-bottom { flex: 1; min-height: 0; }
@@ -964,8 +1034,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   /* One header row: the title gives way (ellipsis) to the countdown. */
   .engager header { flex-wrap: nowrap; }
   .engager header > div:first-child { flex-wrap: nowrap; }
-  .engager header h1 { white-space: nowrap; overflow: hidden; }
-  .engager header h1 .engager-title { text-overflow: ellipsis; }
+  .engager header h1 { white-space: nowrap; }
   .engager header .live-status { flex: none; }
   .engager header .countdown { flex: none; }
 }
@@ -977,6 +1046,8 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   .engager header .cd-tile small { display: none; }
   .engager .highlight h2 { font-size: 1.25rem; }
   .engager .highlight .sponsor-logo { height: 26px; }
+  .engager-slash { width: 24px; margin-inline: 17px; }
+  .engager-slash::before { width: 4px; }
   .engager .big-amount { font-size: 1.9rem; margin: 0.1rem 0 0; }
   .engager .highlight-text p { margin: 0.1rem 0; }
   .engager .highlight-row .highlight-photo { max-height: 22vh; }
@@ -1230,7 +1301,22 @@ label.file-btn input[type="file"] {
   text-transform: none;
   opacity: 1;
 }
-.live-status .bi > small { font-weight: 700; }
+.engager.lang-th .live-status {
+  font-family: "Kanit Screen", "Kanit", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.engager .live-status .bi > small {
+  font-family: "Kanit Screen", "Kanit", sans-serif;
+  font-weight: 600;
+  font-size: 1em;
+  line-height: 1.15;
+  letter-spacing: 0;
+  text-transform: none;
+  /* Thai vowels sit above the em box. Same size as the Latin line. */
+  padding-block: 0.14em;
+}
 .engager.lang-th,
 .engager.lang-both {
   --font: "Noto Sans Thai", "Inter", system-ui, sans-serif;

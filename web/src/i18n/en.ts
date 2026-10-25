@@ -334,6 +334,7 @@ export const en = {
   "screen.winningBid": "Winning bid",
   "screen.soldFor": "Sold for",
   "screen.joinAt": "Join: {where}",
+  "screen.titleTh": "งานกาล่าการกุศล",
   "screen.leading": "Leading: {name}",
   "screen.wonBy": "Won by {name}",
   "screen.boughtBy": "Bought by {name}",

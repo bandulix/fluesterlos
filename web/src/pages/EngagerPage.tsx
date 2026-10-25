@@ -166,6 +166,85 @@ function shortJoin(url: string): string {
   }
 }
 
+function joinLine(lang: "en" | "th" | "de", where: string) {
+  const text = translate(lang, "screen.joinAt", { where });
+  const slash = where.lastIndexOf("/");
+  const code = slash >= 0 ? where.slice(slash + 1) : "";
+  if (!code || !text.endsWith(code)) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, -code.length)}
+      <span className="join-code">{code}</span>
+    </>
+  );
+}
+
+function JoinAt({ mode, where }: { mode: ScreenLang; where: string }) {
+  if (mode === "both") {
+    return (
+      <span className="bi">
+        <span>{joinLine("en", where)}</span>
+        <small lang="th">{joinLine("th", where)}</small>
+      </span>
+    );
+  }
+  const lang = mode === "th" || mode === "de" ? mode : "en";
+  return <span>{joinLine(lang, where)}</span>;
+}
+
+/** Ink for every word but the last, which is red. CSS uppercases the stored title. */
+function TitleLockup({ title, thai }: { title: string; thai: string | null }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let lastWidth = -1;
+    const fit = () => {
+      const width = el.clientWidth;
+      if (width < 8 || width === lastWidth) return;
+      lastWidth = width;
+      el.dataset.fit = "0";
+      el.style.fontSize = "";
+      if (el.scrollWidth <= width + 1) return;
+      el.dataset.fit = "1";
+      if (el.scrollWidth <= el.clientWidth + 1) return;
+      let size = parseFloat(getComputedStyle(el).fontSize);
+      while (size > 32 && el.scrollWidth > el.clientWidth + 1) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    let cancelled = false;
+    document.fonts.ready.then(() => {
+      if (cancelled) return;
+      lastWidth = -1;
+      fit();
+    });
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+    };
+  }, [title, thai]);
+  const parts = title.trim().split(/\s+/).filter(Boolean);
+  const last = parts.pop() ?? title;
+  return (
+    <h1 ref={ref} className="engager-lockup" data-fit="0">
+      <span className="engager-title">
+        {parts.length > 0 && <span className="engager-title-lead">{parts.join(" ")}</span>}
+        <span className="engager-title-last">{last}</span>
+      </span>
+      {thai && (
+        <span className="engager-title-th" lang="th">
+          {thai}
+        </span>
+      )}
+    </h1>
+  );
+}
+
 /**
  * Render only as many list rows as fit in the list box. The list must be a flex child with
  * min-height: 0 so clientHeight is the free slot, not the content height.
@@ -478,14 +557,14 @@ export function EngagerPage() {
   return (
     <div className={`engager lang-${screenLang}${isLive ? " is-live" : ""}${closed ? " is-closed" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}${spotlightNeed ? " is-spotlight" : ""}`}>
       <header>
-        <div>
+        <div className="engager-brand">
           <BrandMark />
+          <span className="engager-slash" aria-hidden="true" />
           <div className="engager-titleblock">
-            <h1>
-              <span className="star" aria-hidden="true">★</span>
-              <span className="engager-title">{live.event.title}</span>
-              <span className="star" aria-hidden="true">★</span>
-            </h1>
+            <TitleLockup
+              title={live.event.title}
+              thai={screenLang === "both" || screenLang === "th" ? translate("th", "screen.titleTh") : null}
+            />
             <p className={`live-status${closed ? " is-closed" : ""}`}>
               <span className="live-status-dot" aria-hidden="true" />
               {screenLang === "both" ? (
@@ -502,7 +581,7 @@ export function EngagerPage() {
         </div>
         {joinUrl && (
           <p className="engager-bar-meta">
-            <Line mode={screenLang} k="screen.joinAt" vars={{ where: shortJoin(joinUrl) }} />
+            <JoinAt mode={screenLang} where={shortJoin(joinUrl)} />
           </p>
         )}
       </header>
