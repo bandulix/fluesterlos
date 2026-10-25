@@ -51,15 +51,18 @@ export function SponsorField(props: {
             autoComplete="off"
           />
         </label>
-        <label>
-          Sponsor logo {match?.logoUrl ? <span className="muted">(replaces the one on file)</span> : null}
-          <input
-            type="file"
-            accept={IMAGE_ACCEPT}
-            disabled={disabled}
-            onChange={(e) => onLogo(e.target.files?.[0] ?? null)}
-          />
-        </label>
+        <div>
+          <span>Sponsor logo {match?.logoUrl ? <span className="muted">(replaces the one on file)</span> : null}</span>
+          <label className="file-btn">
+            <span>{logo ? logo.name : "Choose logo"}</span>
+            <input
+              type="file"
+              accept={IMAGE_ACCEPT}
+              disabled={disabled}
+              onChange={(e) => onLogo(e.target.files?.[0] ?? null)}
+            />
+          </label>
+        </div>
       </div>
       <datalist id={listId}>
         {drafts.map((d) => (

@@ -245,6 +245,7 @@ export function JoinPage() {
         </form>
         {error && <p className="g-error" role="alert">{error}</p>}
         <p className="g-muted g-small g-center">🔒 {t("join.privacy")}</p>
+        <p className="g-muted g-small g-center">{t("join.payNote")}</p>
       </div>
     </section>
   );

@@ -45,8 +45,19 @@ export function PaddleStage(props: {
       <p className="paddle-total">{settled ? money(paddle.raised) : money(Math.round(shown))}</p>
       <div className="paddle-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(paddleProgress(paddle.raised, paddle.goal))} aria-label={goalLine}>
         <span style={{ width: `${width}%` }} />
+        <i className="paddle-mile" style={{ left: "25%" }} />
+        <i className="paddle-mile" style={{ left: "50%" }} />
+        <i className="paddle-mile" style={{ left: "75%" }} />
       </div>
-      <p className="paddle-goal"><Line mode={screenLang} k="paddle.goal" vars={{ raised: money(paddle.raised), goal: money(paddle.goal) }} /></p>
+      <p className="paddle-goal">
+        <Line mode={screenLang} k="paddle.goal" vars={{ raised: money(paddle.raised), goal: money(paddle.goal) }} />
+        {!hit && paddle.goal > 0 && (
+          <>
+            <span aria-hidden="true"> · </span>
+            <Line mode={screenLang} k="paddle.toGo" vars={{ amount: money(Math.max(0, paddle.goal - paddle.raised)) }} />
+          </>
+        )}
+      </p>
       <p className="paddle-count">
         <Line mode={screenLang} k={paddle.pledgeCount === 1 ? "paddle.pledge" : "paddle.pledges"} vars={{ count: paddle.pledgeCount }} />
         {paddle.level != null && (

@@ -6,25 +6,26 @@ import { assetUrl } from "../lib/api";
 import type { Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
 import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
-import { auctionClock } from "../lib/auctionClock";
+import { auctionClock, donationEndParts } from "../lib/auctionClock";
+import { DEFAULT_EVENT_TZ } from "../lib/time";
 import { AuctionClock } from "../components/AuctionClock";
 import { PaddleStage } from "../components/PaddleStage";
 import { roomMain } from "../lib/paddleLogic";
 import { BrandMark } from "../components/BrandMark";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
-import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt } from "../lib/bigScreen";
+import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt, topLot } from "../lib/bigScreen";
 import { asScreenLang, countLabel, translate, type ScreenLang } from "../i18n";
 import { Dual, Line } from "../components/ScreenLine";
 import { cardMeta, fundedPhrase, pledgeLine, spotAmount, spotLabel, spotSub } from "../lib/screenPhrases";
 
-const CARD_MIN_W = 240;
+const CARD_MIN_W = 300;
 /** Narrower cards on 1024-wide displays, so a page still holds 8+. */
-const CARD_MIN_W_SMALL = 200;
+const CARD_MIN_W_SMALL = 260;
 const CARD_H = 84;
 const SPOTLIGHT_MS = 6000;
-/** Matches the 720p CSS block (max-height: 820px): smaller cards so a page still holds 8+. */
-const CARD_H_COMPACT = 66;
+/** 720p: title, price and meta must sit inside the card, so a short board drops a row. */
+const CARD_H_COMPACT = 76;
 const GRID_GAP = 10;
 const SPONSOR_PAGE_MS = 6000;
 
@@ -153,6 +154,248 @@ function shortUrl(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
+/** Host plus event code, short enough to read from the room. */
+function shortJoin(url: string): string {
+  try {
+    const u = new URL(url);
+    const code = u.pathname.split("/").filter(Boolean).pop() ?? "";
+    const host = u.host.replace(/^www\./, "");
+    return code ? `${host}/${code}` : host;
+  } catch {
+    return shortUrl(url).replace(/\/e\//, "/");
+  }
+}
+
+function joinLine(lang: "en" | "th" | "de", where: string) {
+  const text = translate(lang, "screen.joinAt", { where });
+  const slash = where.lastIndexOf("/");
+  const code = slash >= 0 ? where.slice(slash + 1) : "";
+  if (!code || !text.endsWith(code)) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, -code.length)}
+      <span className="join-code">{code}</span>
+    </>
+  );
+}
+
+function JoinAt({ mode, where }: { mode: ScreenLang; where: string }) {
+  if (mode === "both") {
+    return (
+      <span className="bi">
+        <span>{joinLine("en", where)}</span>
+        <small lang="th">{joinLine("th", where)}</small>
+      </span>
+    );
+  }
+  const lang = mode === "th" || mode === "de" ? mode : "en";
+  return <span>{joinLine(lang, where)}</span>;
+}
+
+/** Ink for every word but the last, which is red. CSS uppercases the stored title. */
+function TitleLockup({ title, thai }: { title: string; thai: string | null }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let lastWidth = -1;
+    const fit = () => {
+      const width = el.clientWidth;
+      if (width < 8 || width === lastWidth) return;
+      lastWidth = width;
+      el.dataset.fit = "0";
+      el.style.fontSize = "";
+      if (el.scrollWidth <= width + 1) return;
+      el.dataset.fit = "1";
+      if (el.scrollWidth <= el.clientWidth + 1) return;
+      let size = parseFloat(getComputedStyle(el).fontSize);
+      while (size > 32 && el.scrollWidth > el.clientWidth + 1) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    let cancelled = false;
+    document.fonts.ready.then(() => {
+      if (cancelled) return;
+      lastWidth = -1;
+      fit();
+    });
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+    };
+  }, [title, thai]);
+  const parts = title.trim().split(/\s+/).filter(Boolean);
+  const last = parts.pop() ?? title;
+  return (
+    <h1 ref={ref} className="engager-lockup" data-fit="0">
+      <span className="engager-title">
+        {parts.length > 0 && <span className="engager-title-lead">{parts.join(" ")}</span>}
+        <span className="engager-title-last">{last}</span>
+      </span>
+      {thai && (
+        <span className="engager-title-th" lang="th">
+          {thai}
+        </span>
+      )}
+    </h1>
+  );
+}
+
+/**
+ * Render only as many list rows as fit in the list box. The list must be a flex child with
+ * min-height: 0 so clientHeight is the free slot, not the content height.
+ */
+function useFitCount(itemCount: number, dep: unknown) {
+  const ref = useRef<HTMLUListElement | null>(null);
+  const rowH = useRef(0);
+  const [count, setCount] = useState(itemCount);
+  const itemRef = useRef(itemCount);
+  if (itemRef.current !== itemCount) {
+    itemRef.current = itemCount;
+    setCount(itemCount);
+  }
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let frame = 0;
+    const fit = () => {
+      const available = el.clientHeight;
+      const kids = [...el.children] as HTMLElement[];
+      if (kids[0] && kids[0].offsetHeight > 0) rowH.current = kids[0].offsetHeight;
+      // A slot shorter than one measured row shows nothing, and stays there.
+      if (available < 8 || (rowH.current > 0 && available + 1 < rowH.current)) {
+        if (count !== 0) setCount(0);
+        return;
+      }
+      if (kids.length === 0) {
+        if (itemCount > 0 && count === 0) setCount(Math.min(itemCount, 1));
+        return;
+      }
+      const gap = kids.length >= 2 ? Math.max(0, kids[1].offsetTop - kids[0].offsetTop - kids[0].offsetHeight) : 0;
+      let used = 0;
+      let n = 0;
+      for (const kid of kids) {
+        const h = kid.offsetHeight;
+        if (h < 1) continue;
+        const next = used + (n > 0 ? gap : 0) + h;
+        if (next > available + 1) break;
+        used = next;
+        n += 1;
+      }
+      if (n === kids.length && kids.length < itemCount) {
+        const nextH = kids[kids.length - 1].offsetHeight;
+        if (used + gap + nextH <= available + 1) {
+          setCount(kids.length + 1);
+          return;
+        }
+      }
+      if (n !== count) setCount(n);
+    };
+    fit();
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
+    });
+    ro.observe(el);
+    void document.fonts?.ready.then(() => requestAnimationFrame(fit));
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+  }, [count, itemCount, dep]);
+  return [ref, Math.min(count, itemCount)] as const;
+}
+
+/** One headline, then the thank-you, the night's total, and the bid tally. Closed-early is only a note. */
+function ClosedHero(props: {
+  screenLang: ScreenLang;
+  total: string;
+  bids: number;
+  lots: number;
+  donors: number;
+  closedEarly: boolean;
+  donations: ReturnType<typeof donationEndParts>;
+}) {
+  const { screenLang, total, bids, lots, donors, closedEarly, donations } = props;
+  return (
+    <div className="closed-hero" role="status">
+      <p className="closed-thanks"><Line mode={screenLang} k="screen.thanks" /></p>
+      <p className="closed-total">{total}</p>
+      <p className="closed-tally">
+        <Dual
+          mode={screenLang}
+          text={(lang) => {
+            const parts = [
+              countLabel(lang, "bid.oneBid", "bid.bids", bids),
+              countLabel(lang, "bid.oneLot", "bid.lots", lots),
+            ];
+            if (donors > 0) parts.push(countLabel(lang, "screen.oneDonor", "screen.donors", donors));
+            return parts.join(" · ");
+          }}
+        />
+      </p>
+      <p className="closed-line"><Line mode={screenLang} k="screen.biddingClosed" /></p>
+      {closedEarly && (
+        <p className="closed-note"><Line mode={screenLang} k="screen.closedEarly" /></p>
+      )}
+      {donations && (
+        <p className="closed-note">
+          {donations.kind === "closed" ? (
+            <Line mode={screenLang} k="screen.donationsClosed" />
+          ) : (
+            <Line mode={screenLang} k="screen.donationsUntil" vars={{ time: donations.time }} />
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The last minute lives once, in the centre. The side is what the room can cheer. */
+function Finale(props: {
+  screenLang: ScreenLang;
+  seconds: number;
+  reduceMotion: boolean;
+  total: string;
+  lots: Array<{ id: string; title: string; amount: string; leader: string | null }>;
+}) {
+  const { screenLang, seconds, reduceMotion, total, lots } = props;
+  const [lotsRef, lotCount] = useFitCount(lots.length, `${lots.map((l) => l.id).join()}-${screenLang}`);
+  const shownLots = lots.slice(0, lotCount);
+  return (
+    <div className="finale">
+      <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${seconds}`}>
+        <p className="auction-clock-kicker"><Line mode={screenLang} k="screen.final" /></p>
+        <p className="auction-seconds">{seconds}</p>
+      </div>
+      <section className="panel finale-cheer">
+        <p className="muted"><Line mode={screenLang} k="screen.raised" /></p>
+        <p className="huge">{total}</p>
+        {lots.length > 0 && (
+          <>
+            <p className="finale-kicker"><Line mode={screenLang} k="screen.closingNow" /></p>
+            <ul className="finale-lots" ref={lotsRef}>
+              {shownLots.map((it) => (
+                <li key={it.id}>
+                  <span>
+                    <b className="lot-title">{it.title}</b>
+                    {it.leader && <small>{it.leader}</small>}
+                  </span>
+                  <strong>{it.amount}</strong>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export function EngagerPage() {
   const { code = "" } = useParams();
   const { live, error, flashKey, lastBid, lastPledge, pledgeKey, clockOffsetMs } = useLive(code);
@@ -269,12 +512,16 @@ export function EngagerPage() {
     };
   }, [screenLang]);
 
+  const bidCount = live?.recentBids?.length ?? 0;
+  const [feedRef, feedCount] = useFitCount(Math.min(bidCount, 7), `${screenLang}-${live?.event.status ?? ""}`);
+
   if (!live) return <div className="engager"><p><Line mode={screenLang} k="screen.loading" /> {error}</p></div>;
   const ccy = parseCurrency(live.event.currency);
   const money = (n: number) => formatAmount(n, ccy);
   const joinUrl = live.event.joinUrl;
   const isLive = live.event.status === "open";
   const closed = live.event.status === "closed";
+  const tz = live.event.timezone || DEFAULT_EVENT_TZ;
   const needs = live.needs ?? [];
   const spotlightNeed = needs.find((n) => n.id === live.event.spotlightNeedId) ?? null;
   const donorsOn = live.event.donorRecognition !== false && live.event.topDonorsOnScreen !== false;
@@ -294,72 +541,116 @@ export function EngagerPage() {
   const showSplit = needs.length > 0 || raised.donations > 0;
   const celebrate = needs.find((n) => n.id === celebrateId) ?? null;
   const ticker = live.recentPledges ?? [];
-  const highlight = (pinned && items.find((it) => it.id === pinned)) || spotlightAt(step, items, live.recentBids);
+  const highlight = closed
+    ? topLot(items)
+    : ((pinned && items.find((it) => it.id === pinned)) || spotlightAt(step, items, live.recentBids));
   const sponsors = [...new Map(items.filter((i) => i.sponsor).map((i) => [i.sponsor!.id, i.sponsor!])).values()];
   const curPage = page % pages;
-  const shown = boardSize.w ? pageSlice(items, curPage, fit.perPage) : [];
+  const pageItems = boardSize.w ? pageSlice(items, curPage, fit.perPage) : [];
+  // A card shorter than its text would hide the price. Show whole rows, or none.
+  const rowBudget = cardH >= minCardH
+    ? Math.floor((Math.max(0, boardSize.h) + GRID_GAP) / (cardH + GRID_GAP))
+    : 0;
+  const shown = pageItems.slice(0, Math.max(0, rowBudget) * fit.cols);
   const pageLabel = (lang: "en" | "th" | "de") => translate(lang, "screen.page", { n: curPage + 1, m: pages });
 
   return (
-    <div className={`engager lang-${screenLang}${isLive ? " is-live" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}${spotlightNeed ? " is-spotlight" : ""}`}>
+    <div className={`engager lang-${screenLang}${isLive ? " is-live" : ""}${closed ? " is-closed" : ""}${flash ? " bid-flash" : ""}${reduceMotion ? " reduce-motion" : ""}${spotlightNeed ? " is-spotlight" : ""}`}>
       <header>
-        <div>
+        <div className="engager-brand">
           <BrandMark />
-          <h1>
-            <span className="star" aria-hidden="true">★</span>
-            <span className="engager-title">{live.event.title}</span>
-            <span className="star" aria-hidden="true">★</span>
-          </h1>
-          <span className="live-badge">{closed ? <Line mode={screenLang} k="screen.closed" /> : <Line mode={screenLang} k="screen.live" />}</span>
+          <span className="engager-slash" aria-hidden="true" />
+          <div className="engager-titleblock">
+            <TitleLockup
+              title={live.event.title}
+              thai={screenLang === "both" || screenLang === "th" ? translate("th", "screen.titleTh") : null}
+            />
+            <p className={`live-status${closed ? " is-closed" : ""}`}>
+              <span className="live-status-dot" aria-hidden="true" />
+              {screenLang === "both" ? (
+                <span className="bi">
+                  <span>{translate("en", closed ? "screen.closed" : "screen.live")}</span>
+                  <span className="live-status-sep" aria-hidden="true">·</span>
+                  <small lang="th">{translate("th", closed ? "screen.closed" : "screen.live")}</small>
+                </span>
+              ) : (
+                <Line mode={screenLang} k={closed ? "screen.closed" : "screen.live"} />
+              )}
+            </p>
+          </div>
         </div>
+        {joinUrl && (
+          <p className="engager-bar-meta">
+            <JoinAt mode={screenLang} where={shortJoin(joinUrl)} />
+          </p>
+        )}
       </header>
-
-      <AuctionClock
-        startsAt={live.event.startsAt}
-        endsAt={live.event.endsAt}
-        status={live.event.status}
-        closedEarly={live.event.closedEarly}
-        needsEndsAt={live.event.needsEndsAt}
-        timezone={live.event.timezone}
-        now={serverNow}
-        reduceMotion={reduceMotion}
-        screenLang={screenLang}
-      />
+      <div className="engager-stage">
+      {closed ? (
+        <ClosedHero
+          screenLang={screenLang}
+          total={money(showSplit ? raised.total : live.stats.totalHighBids)}
+          bids={live.stats.totalBids}
+          lots={live.stats.itemCount}
+          donors={live.stats.donorCount ?? 0}
+          closedEarly={Boolean(live.event.closedEarly)}
+          donations={donationEndParts({
+            needsEndsAt: live.event.needsEndsAt,
+            auctionEndsAt: live.event.endsAt,
+            timezone: tz,
+            now: serverNow,
+          })}
+        />
+      ) : roomMain({ countdownTakeover: clock.takeover, paddleStatus: live.paddle?.status }) !== "countdown" && (
+        <AuctionClock
+          startsAt={live.event.startsAt}
+          endsAt={live.event.endsAt}
+          status={live.event.status}
+          closedEarly={live.event.closedEarly}
+          needsEndsAt={live.event.needsEndsAt}
+          timezone={live.event.timezone}
+          now={serverNow}
+          reduceMotion={reduceMotion}
+          screenLang={screenLang}
+        />
+      )}
 
       {roomMain({ countdownTakeover: clock.takeover, paddleStatus: live.paddle?.status }) === "paddle" && live.paddle ? (
         <PaddleStage paddle={live.paddle} ccy={ccy} reduceMotion={reduceMotion} screenLang={screenLang} />
-      ) : clock.takeover ? (
-        <div className={`auction-takeover${reduceMotion ? " is-still" : ""}`} role="timer" aria-label={`${clock.seconds}`}>
-          <p className="auction-clock-kicker"><Line mode={screenLang} k="screen.final" /></p>
-          <p className="auction-seconds">{clock.seconds}</p>
-        </div>
+      ) : roomMain({ countdownTakeover: clock.takeover, paddleStatus: live.paddle?.status }) === "countdown" ? (
+        <Finale
+          screenLang={screenLang}
+          seconds={clock.seconds}
+          reduceMotion={reduceMotion}
+          total={money(showSplit ? raised.total : live.stats.totalHighBids)}
+          lots={[...items]
+            .filter((it) => it.bidCount > 0)
+            .sort((a, b) => b.highBid - a.highBid || a.sortOrder - b.sortOrder)
+            .slice(0, 4)
+            .map((it) => ({ id: it.id, title: it.title, amount: money(it.highBid), leader: it.highBidder }))}
+        />
       ) : (
       <div className="engager-main">
       <div className="engager-top">
+        {!closed && (
         <section className={`panel totals${flash ? " bid-flash" : ""}`}>
-          <p className="muted">{closed ? <Line mode={screenLang} k="screen.raisedClosed" /> : <Line mode={screenLang} k="screen.raised" />}</p>
+          <p className="muted"><Line mode={screenLang} k="screen.raised" /></p>
           <p className="huge">{money(showSplit ? raised.total : live.stats.totalHighBids)}</p>
-          {showSplit && (
-            <p className="muted">
-              <Line mode={screenLang} k="screen.split" vars={{ auction: money(raised.auction), donations: money(raised.donations) }} />
-            </p>
-          )}
           <p className="muted">
             <Dual
               mode={screenLang}
-              text={(lang) => translate(lang, "screen.from", {
-                bids: countLabel(lang, "bid.oneBid", "bid.bids", live.stats.totalBids),
-                lots: countLabel(lang, "bid.oneLot", "bid.lots", live.stats.itemCount),
-              })}
+              text={(lang) => {
+                const parts = [
+                  countLabel(lang, "bid.oneBid", "bid.bids", live.stats.totalBids),
+                  countLabel(lang, "bid.oneLot", "bid.lots", live.stats.itemCount),
+                ];
+                if ((live.stats.donorCount ?? 0) > 0) parts.push(countLabel(lang, "screen.oneDonor", "screen.donors", live.stats.donorCount ?? 0));
+                return parts.join(" · ");
+              }}
             />
-            {raised.donations > 0 && (
-              <>
-                {" · "}
-                <Dual mode={screenLang} text={(lang) => countLabel(lang, "screen.oneDonor", "screen.donors", live.stats.donorCount ?? 0)} />
-              </>
-            )}
           </p>
         </section>
+        )}
 
         <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}${frame === "donors" ? " is-donors" : ""}`}>
           {frame === "donors" ? (
@@ -377,16 +668,40 @@ export function EngagerPage() {
             </div>
           ) : frame === "needs" && featuredNeed ? (
             <NeedSpotlight need={featuredNeed} money={money} spotlight={Boolean(spotlightNeed)} screenLang={screenLang} />
+          ) : closed ? (
+            <div className="highlight-row is-result">
+              <div className="highlight-text">
+                <p className="muted"><Line mode={screenLang} k="screen.topLot" /></p>
+                {highlight ? (
+                  <h2 className="lot-title">{highlight.title}</h2>
+                ) : (
+                  <p className="muted"><Line mode={screenLang} k="screen.noBidsClosed" /></p>
+                )}
+              </div>
+              {highlight && (
+                <div className="highlight-sale">
+                  <p className="spot-sale">
+                    <span className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, true)} /></span>
+                    <span className="big-amount">{money(spotAmount(highlight))}</span>
+                  </p>
+                  {(highlight.bidCount > 0 || highlight.soldViaBuyNow) && (
+                    <p className="muted spot-sub">
+                      <Dual mode={screenLang} text={(lang) => translate(lang, "screen.wonBy", { name: highlight.highBidder ?? "—" })} />
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           ) : highlight ? (
             <div className="highlight-row">
               {highlight.photoUrl && <img className="highlight-photo" src={assetUrl(highlight.photoUrl)} alt="" />}
               <div className="highlight-text">
                 <p className="muted">{hot.includes(highlight.id) ? <>🔥 <Line mode={screenLang} k="screen.hot" /></> : <Line mode={screenLang} k="screen.featuring" />}</p>
-                <h2>{highlight.title}</h2>
+                <h2 className="lot-title">{highlight.title}</h2>
                 <SponsorBadge sponsor={highlight.sponsor} size="lg" mode={screenLang} />
-                <p className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, closed)} /></p>
+                <p className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, false)} /></p>
                 <p className="big-amount">{money(spotAmount(highlight))}</p>
-                <p className="muted spot-sub"><Dual mode={screenLang} text={(lang) => spotSub(lang, highlight, closed)} /></p>
+                <p className="muted spot-sub"><Dual mode={screenLang} text={(lang) => spotSub(lang, highlight, false)} /></p>
               </div>
             </div>
           ) : (
@@ -400,7 +715,6 @@ export function EngagerPage() {
             <div className="join-qr-code">
               <QRCodeSVG value={joinUrl} size={220} marginSize={2} level="M" title={`${translate(screenLang === "de" ? "de" : "en", "screen.scan")}: ${joinUrl}`} />
             </div>
-            <p className="join-qr-url">{shortUrl(joinUrl)}</p>
           </section>
         )}
       </div>
@@ -488,8 +802,8 @@ export function EngagerPage() {
             style={{ gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`, gridAutoRows: `${cardH}px`, ["--card-h" as string]: `${cardH}px` }}
           >
             {shown.map((it) => {
-              const isHot = hot.includes(it.id);
-              const rank = rankOf.get(it.id);
+              const isHot = !closed && hot.includes(it.id);
+              const rank = closed ? undefined : rankOf.get(it.id);
               return (
                 <li
                   key={it.id}
@@ -503,7 +817,7 @@ export function EngagerPage() {
                       {it.title}
                     </p>
                     <p className="board-amount">{money(it.bidCount ? it.highBid : isFixedPrice(it) ? it.buyNow! : it.startingBid)}</p>
-                    <p className="board-meta"><Dual mode={screenLang} text={(lang) => cardMeta(lang, it)} /></p>
+                    <p className="board-meta"><Dual mode={screenLang} text={(lang) => cardMeta(lang, it, closed)} /></p>
                   </div>
                 </li>
               );
@@ -513,17 +827,18 @@ export function EngagerPage() {
           </div>
         </section>
 
+        {!closed && (
         <section className="panel feed">
           <h3><Line mode={screenLang} k="screen.latest" /></h3>
           {live.recentBids.length === 0 ? (
             <p className="muted"><Line mode={screenLang} k="screen.firstBid" /></p>
           ) : (
-            <ul>
-              {live.recentBids.slice(0, 7).map((b, i) => (
+            <ul ref={feedRef}>
+              {live.recentBids.slice(0, feedCount).map((b, i) => (
                 <li key={`${b.createdAt}-${i}`} className={i === 0 ? "is-latest" : undefined}>
                   <strong>{money(b.amount)}</strong>
                   <span>
-                    {b.itemTitle}
+                    <b className="lot-title">{b.itemTitle}</b>
                     <small>{b.guestName}</small>
                   </span>
                 </li>
@@ -531,9 +846,11 @@ export function EngagerPage() {
             </ul>
           )}
         </section>
+        )}
       </div>
       </div>
       )}
+      </div>
 
       {sponsors.length > 0 && <SponsorStrip sponsors={sponsors} reduceMotion={reduceMotion} screenLang={screenLang} />}
     </div>

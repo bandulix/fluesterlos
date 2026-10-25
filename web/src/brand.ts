@@ -23,8 +23,8 @@ export const brand = {
   /** Same file for the mark and the wide lockup. Empty string hides it. */
   markSrc: "/brand/thaiger/logo.png",
   lockupSrc: "/brand/thaiger/logo.png",
-  themeColor: "#0c1222",
-  backgroundColor: "#0c1222",
+  themeColor: "#231f20",
+  backgroundColor: "#231f20",
   icon192: "/brand/thaiger/logo.png",
   icon512: "/brand/thaiger/logo.png",
 } as const;

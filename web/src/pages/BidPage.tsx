@@ -375,9 +375,11 @@ export function BidPage() {
         <OutbidBanner
           title={outbidItem.title}
           amountLabel={formatAmount(outbidItem.bidCount ? outbidItem.highBid : outbidItem.startingBid, ccy)}
-          onBid={() => {
-            document.getElementById(`item-${outbidItem.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-            onBid(outbidItem, minNextBid(outbidItem));
+          actionLabel={t("bid.button", { amount: formatAmount(minNextBid(outbidItem), ccy) })}
+          onJump={() => {
+            const el = document.getElementById(`item-${outbidItem.id}`);
+            el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            window.setTimeout(() => el?.querySelector<HTMLButtonElement>(".g-bid")?.focus(), 280);
           }}
           onClose={() => setOutbid(null)}
         />
@@ -497,7 +499,7 @@ export function BidPage() {
         </p>
 
         {category === "donors" && recognitionOn && (
-          <TopDonorsList donors={live.topDonors ?? []} ccy={ccy} rising={rising} />
+          <TopDonorsList donors={live.topDonors ?? []} ccy={ccy} rising={rising} youName={rec?.publicName || guestName} />
         )}
 
         {category === "donate" && (

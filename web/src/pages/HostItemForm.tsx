@@ -93,15 +93,21 @@ export function HostItemForm(props: {
         <p className="muted">Switching to physical removes the attached voucher PDF.</p>
       )}
       {!item && kind === "voucher" && (
-        <label>
-          Voucher PDF <span className="muted">(optional now — can be attached later)</span>
-          <input type="file" accept="application/pdf,.pdf" onChange={(e) => setVoucher(e.target.files?.[0] ?? null)} />
-        </label>
+        <div>
+          <span>Voucher PDF <span className="muted">(optional now — can be attached later)</span></span>
+          <label className="file-btn">
+            <span>{voucher ? voucher.name : "Attach PDF"}</span>
+            <input type="file" accept="application/pdf,.pdf" onChange={(e) => setVoucher(e.target.files?.[0] ?? null)} />
+          </label>
+        </div>
       )}
-      <label>
-        {item?.photoUrl ? "Replace photo" : "Photo"}
-        <input type="file" accept={PHOTO_ACCEPT} onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
-      </label>
+      <div>
+        <span>{item?.photoUrl ? "Replace photo" : "Photo"}</span>
+        <label className="file-btn">
+          <span>{photo ? photo.name : item?.photoUrl ? "Replace photo" : "Choose photo"}</span>
+          <input type="file" accept={PHOTO_ACCEPT} onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+        </label>
+      </div>
       <FilePreview file={photo} />
       <SponsorField
         sponsors={sponsors}

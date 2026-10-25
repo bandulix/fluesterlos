@@ -31,9 +31,14 @@ export function gridFit(
     else if (rows > 1) rows--;
     else break;
   }
+  // A short board used to force cardH up to minCardH and paint a row past the panel.
+  // Drop rows until one minimum card fits; if even one row is too tall, shrink it.
+  const used = (r: number) => gap * Math.max(0, r - 1);
+  while (rows > 1 && height - used(rows) < minCardH * rows) rows--;
   const perPage = Math.max(1, Math.min(cols * rows, max));
-  const fill = Math.floor((height - gap * (rows - 1)) / rows);
-  const cardH = Math.max(minCardH, Math.min(maxCardH, Number.isFinite(fill) ? fill : minCardH));
+  const raw = Math.floor((height - used(rows)) / Math.max(1, rows));
+  const fill = Number.isFinite(raw) ? raw : minCardH;
+  const cardH = fill >= minCardH ? Math.min(maxCardH, fill) : Math.max(1, fill);
   return { cols, rows, perPage, cardH };
 }
 
@@ -75,6 +80,21 @@ export function chunk<T>(list: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < list.length; i += n) out.push(list.slice(i, i + n));
   return out;
+}
+
+export type TopLotItem = { highBid: number; bidCount: number; soldViaBuyNow?: boolean; sortOrder: number };
+
+/**
+ * Highest winning bid among sold lots. A lot counts once it has a bid or sold via buy-now.
+ * Equal prices keep the earlier lot (lower catalogue order).
+ */
+export function topLot<T extends TopLotItem>(items: T[]): T | undefined {
+  let best: T | undefined;
+  for (const it of items) {
+    if (!(it.bidCount > 0 || it.soldViaBuyNow)) continue;
+    if (!best || it.highBid > best.highBid || (it.highBid === best.highBid && it.sortOrder < best.sortOrder)) best = it;
+  }
+  return best;
 }
 
 export type SpotItem = { id: string; bidCount: number; soldViaBuyNow?: boolean };

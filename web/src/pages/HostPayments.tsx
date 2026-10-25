@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { API_BASE, api, uploadForm } from "../lib/api";
 import { DEFAULT_EVENT_TZ, formatInZone } from "../lib/time";
-import { formatMoney, parseCurrency } from "../lib/money";
+import { formatAmount, parseCurrency } from "../lib/money";
 
 export type HostSettings = {
   promptpayId: string;
@@ -318,7 +318,7 @@ function InvoiceRow(props: {
   return (
     <div className="card nested desk-invoice">
       <div className="desk-hero">
-        <strong className="desk-amount">{formatMoney(inv.total, ccy)}</strong>
+        <strong className="desk-amount">{formatAmount(inv.total, ccy)}</strong>
         <span className={`pill status-${inv.status}`}>
           {paid ? `paid${inv.paymentMethod ? ` · ${METHOD_LABEL[inv.paymentMethod]}` : ""}` : inv.status.replace("_", " ")}
         </span>
@@ -359,7 +359,7 @@ function InvoiceRow(props: {
                 Handed over
               </label>
               <span>
-                {l.title} — {formatMoney(l.amount, ccy)}
+                {l.title} — {formatAmount(l.amount, ccy)}
                 {l.sponsorName ? ` · ${l.sponsorName}` : ""}
               </span>
               <span className={`pill kind-${l.kind}`}>{l.kind === "physical" ? "physical" : "voucher"}</span>
@@ -376,7 +376,7 @@ function InvoiceRow(props: {
         {(inv.donations ?? []).map((d) => (
           <li key={d.needId} className="line-row">
             <span>
-              {d.title} — {formatMoney(d.amount, ccy)}
+              {d.title} — {formatAmount(d.amount, ccy)}
               {d.beneficiary ? ` · ${d.beneficiary}` : ""}
             </span>
             <span className="pill">donation</span>
@@ -386,9 +386,9 @@ function InvoiceRow(props: {
       </ul>
       {(inv.donations?.length ?? 0) > 0 && (
         <p className="muted">
-          Lots {formatMoney(inv.lotsTotal ?? inv.lines.reduce((s, l) => s + l.amount, 0), ccy)}
+          Lots {formatAmount(inv.lotsTotal ?? inv.lines.reduce((s, l) => s + l.amount, 0), ccy)}
           {" · "}
-          Donations {formatMoney(inv.donationsTotal ?? inv.donations!.reduce((s, d) => s + d.amount, 0), ccy)}
+          Donations {formatAmount(inv.donationsTotal ?? inv.donations!.reduce((s, d) => s + d.amount, 0), ccy)}
           {inv.donationChannelLabel ? ` · ${inv.donationChannelLabel}` : ""}
           {inv.donationChannelSource === "override" ? " (override)" : ""}
           {inv.receiptName ? ` · receipt name: ${inv.receiptName}` : ""}
@@ -526,7 +526,7 @@ export function EventStatusSummary(props: { code: string; summary: InvoiceSummar
       {s ? (
         <div className="status-summary">
           <span><strong>{s.paid}/{s.invoices}</strong> invoices paid</span>
-          <span><strong>{formatMoney(s.paidAmount, ccy)}</strong> of {formatMoney(s.totalAmount, ccy)} collected</span>
+          <span><strong>{formatAmount(s.paidAmount, ccy)}</strong> of {formatAmount(s.totalAmount, ccy)} collected</span>
           <span><strong>{s.handedOver}/{s.items}</strong> items handed over</span>
         </div>
       ) : (

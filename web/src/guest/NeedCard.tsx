@@ -105,12 +105,16 @@ export function NeedCard(props: {
           aria-label={fundedText(n)}
         >
           <span style={{ width: `${n.barPercent}%` }} />
+          <i style={{ left: "25%" }} />
+          <i style={{ left: "50%" }} />
+          <i style={{ left: "75%" }} />
         </div>
         <div className="g-fund-meta">
           <strong>{fmt(n.raised)}</strong>
           <span>
             {fundedText(n)} · {fmt(n.targetAmount)} · {plural("donate.oneDonor", "donate.donors", n.donorCount)}
           </span>
+          {!n.fullyFunded && remaining > 0 && <span className="g-to-go">{t("donate.toGo", { amount: fmt(remaining) })}</span>}
         </div>
         {n.fullyFunded && (
           <p className={`g-funded${justFunded ? " is-new" : ""}`} role="status">
