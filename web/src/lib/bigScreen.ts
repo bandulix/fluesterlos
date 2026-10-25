@@ -82,6 +82,21 @@ export function chunk<T>(list: T[], size: number): T[][] {
   return out;
 }
 
+export type TopLotItem = { highBid: number; bidCount: number; soldViaBuyNow?: boolean; sortOrder: number };
+
+/**
+ * Highest winning bid among sold lots. A lot counts once it has a bid or sold via buy-now.
+ * Equal prices keep the earlier lot (lower catalogue order).
+ */
+export function topLot<T extends TopLotItem>(items: T[]): T | undefined {
+  let best: T | undefined;
+  for (const it of items) {
+    if (!(it.bidCount > 0 || it.soldViaBuyNow)) continue;
+    if (!best || it.highBid > best.highBid || (it.highBid === best.highBid && it.sortOrder < best.sortOrder)) best = it;
+  }
+  return best;
+}
+
 export type SpotItem = { id: string; bidCount: number; soldViaBuyNow?: boolean };
 
 /**

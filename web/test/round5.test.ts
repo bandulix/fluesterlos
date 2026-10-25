@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gridFit, spotlightAt, spotlightText } from "../src/lib/bigScreen";
+import { gridFit, spotlightAt, spotlightText, topLot } from "../src/lib/bigScreen";
 import { dedupeDescription, tidyDescription } from "../src/lib/text";
 
 describe("big screen: cards fill the board height", () => {
@@ -48,6 +48,30 @@ describe("big screen spotlight", () => {
     expect(spotlightText({ ...base, startingBid: 3000, buyNow: 3000, highBid: 3000, bidCount: 1, soldViaBuyNow: true, highBidder: "Guest 2" }, false)).toEqual({
       label: "Sold at fixed price", amount: 3000, sub: "Bought by Guest 2",
     });
+  });
+});
+
+describe("closed top lot", () => {
+  const lot = (id: string, highBid: number, bidCount: number, sortOrder: number, soldViaBuyNow = false) =>
+    ({ id, highBid, bidCount, sortOrder, soldViaBuyNow });
+
+  it("is the highest winning bid among sold lots, earliest on a tie", () => {
+    const items = [
+      lot("riverside", 2500, 2, 0),
+      lot("chiang-mai", 9000, 2, 1),
+      lot("football", 1700, 2, 2),
+      lot("cooking", 3500, 2, 3),
+      lot("spa", 3000, 2, 4),
+      lot("wine", 4500, 2, 5),
+      lot("print", 1000, 0, 6),
+      lot("cruise", 6000, 0, 7),
+    ];
+    expect(topLot(items)?.id).toBe("chiang-mai");
+    expect(topLot([lot("unsold", 20000, 0, 0), lot("sold", 100, 1, 1)])?.id).toBe("sold");
+    expect(topLot([lot("later", 5000, 1, 4), lot("earlier", 5000, 1, 1)])?.id).toBe("earlier");
+    expect(topLot([lot("bid", 4000, 2, 0), lot("buynow", 7000, 0, 2, true)])?.id).toBe("buynow");
+    expect(topLot([lot("waiting", 9000, 0, 0)])).toBeUndefined();
+    expect(topLot([])).toBeUndefined();
   });
 });
 

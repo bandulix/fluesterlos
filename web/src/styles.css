@@ -500,6 +500,13 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   font-weight: 700;
   line-height: 1;
 }
+.closed-tally {
+  margin: 0.05rem 0 0.15rem;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: clamp(1.15rem, 2.2vh, 1.55rem);
+  line-height: 1.45;
+}
 .finale {
   flex: 1;
   min-height: 0;
@@ -514,9 +521,12 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   overflow: visible;
 }
+.finale-cheer > .muted,
+.finale-cheer > .huge,
+.finale-cheer > .finale-kicker { flex: none; }
 .finale-kicker {
   margin: 0.35rem 0 0.2rem;
   font-weight: 800;
@@ -531,7 +541,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   padding: 0;
   display: grid;
   gap: 0.35rem;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
   align-content: start;
 }
@@ -791,6 +801,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .auction-clock.is-still { animation: none !important; }
 .engager .panel { min-height: 0; }
 .engager-top { display: grid; grid-template-columns: 1fr 1.6fr auto; gap: 1rem; }
+.engager.is-closed .engager-top { grid-template-columns: minmax(0, 1fr); }
 .engager-bottom { display: grid; grid-template-columns: 2.2fr 1fr; gap: 1rem; flex: 1; }
 .engager .totals { display: flex; flex-direction: column; justify-content: center; }
 .engager .totals .muted:first-child { font-size: 1.25rem; margin: 0; }
@@ -1233,11 +1244,13 @@ label.file-btn input[type="file"] {
 .engager.lang-both .sponsor-strip h3,
 .engager.lang-both .closed-note,
 .engager.lang-both .closed-line,
+.engager.lang-both .closed-tally,
 .engager.lang-both .engager-bar-meta,
 .engager.lang-both .auction-clock-note {
   font-size: clamp(1.5rem, 2.9vh, 2.15rem);
   line-height: 1.2;
 }
+.engager.lang-both .closed-tally { line-height: 1.45; }
 .engager.lang-both .auction-clock-kicker,
 .engager.lang-both .live-badge,
 .engager.lang-both .paddle-kicker,

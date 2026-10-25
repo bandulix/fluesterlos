@@ -341,7 +341,7 @@ export const th = {
   "screen.buyNowHint": "ซื้อเลย สแกนเพื่อประมูล",
   "screen.noBids": "ยังไม่มีการเสนอราคา",
   "screen.beFirst": "ยังไม่มีการเสนอราคา เป็นคนแรกได้เลย",
-  "screen.noBidsClosed": "ไม่มีการเสนอราคา",
+  "screen.noBidsClosed": "ไม่มีผู้ประมูล",
   "screen.page": "หน้า {n} จาก {m}",
   "screen.sponsorThanks": "ขอบคุณผู้สนับสนุนของเรา",
   "screen.hotBadge": "มาแรง",

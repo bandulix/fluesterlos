@@ -38,13 +38,13 @@ export function spotSub(lang: Lang, it: LiveItem, closed: boolean): string {
   return translate(lang, closed ? "screen.noBidsClosed" : "screen.beFirst");
 }
 
-export function cardMeta(lang: Lang, it: LiveItem): string {
+export function cardMeta(lang: Lang, it: LiveItem, closed = false): string {
   if (it.soldViaBuyNow) {
     return it.highBidder ? `${translate(lang, "screen.sold")} · ${it.highBidder}` : translate(lang, "screen.sold");
   }
-  if (isFixedPrice(it)) return translate(lang, "screen.fixed");
+  if (!closed && isFixedPrice(it)) return translate(lang, "screen.fixed");
   if (it.bidCount) return `${it.highBidder ?? "—"} · ${countLabel(lang, "bid.oneBid", "bid.bids", it.bidCount)}`;
-  return translate(lang, "screen.starting");
+  return translate(lang, closed ? "screen.noBidsClosed" : "screen.starting");
 }
 
 export function pledgeLine(lang: Lang, p: RecentPledge, money: (n: number) => string): string {

@@ -14,7 +14,7 @@ import { roomMain } from "../lib/paddleLogic";
 import { BrandMark } from "../components/BrandMark";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
-import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt } from "../lib/bigScreen";
+import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt, topLot } from "../lib/bigScreen";
 import { asScreenLang, countLabel, translate, type ScreenLang } from "../i18n";
 import { Dual, Line } from "../components/ScreenLine";
 import { cardMeta, fundedPhrase, pledgeLine, spotAmount, spotLabel, spotSub } from "../lib/screenPhrases";
@@ -231,18 +231,34 @@ function useFitCount(itemCount: number, dep: unknown) {
   return [ref, Math.min(count, itemCount)] as const;
 }
 
-/** One headline, then the thank-you and the night's total. Closed-early is only a note. */
+/** One headline, then the thank-you, the night's total, and the bid tally. Closed-early is only a note. */
 function ClosedHero(props: {
   screenLang: ScreenLang;
   total: string;
+  bids: number;
+  lots: number;
+  donors: number;
   closedEarly: boolean;
   donations: ReturnType<typeof donationEndParts>;
 }) {
-  const { screenLang, total, closedEarly, donations } = props;
+  const { screenLang, total, bids, lots, donors, closedEarly, donations } = props;
   return (
     <div className="closed-hero" role="status">
       <p className="closed-thanks"><Line mode={screenLang} k="screen.thanks" /></p>
       <p className="closed-total">{total}</p>
+      <p className="closed-tally">
+        <Dual
+          mode={screenLang}
+          text={(lang) => {
+            const parts = [
+              countLabel(lang, "bid.oneBid", "bid.bids", bids),
+              countLabel(lang, "bid.oneLot", "bid.lots", lots),
+            ];
+            if (donors > 0) parts.push(countLabel(lang, "screen.oneDonor", "screen.donors", donors));
+            return parts.join(" · ");
+          }}
+        />
+      </p>
       <p className="closed-line"><Line mode={screenLang} k="screen.biddingClosed" /></p>
       {closedEarly && (
         <p className="closed-note"><Line mode={screenLang} k="screen.closedEarly" /></p>
@@ -446,7 +462,9 @@ export function EngagerPage() {
   const showSplit = needs.length > 0 || raised.donations > 0;
   const celebrate = needs.find((n) => n.id === celebrateId) ?? null;
   const ticker = live.recentPledges ?? [];
-  const highlight = (pinned && items.find((it) => it.id === pinned)) || spotlightAt(step, items, live.recentBids);
+  const highlight = closed
+    ? topLot(items)
+    : ((pinned && items.find((it) => it.id === pinned)) || spotlightAt(step, items, live.recentBids));
   const sponsors = [...new Map(items.filter((i) => i.sponsor).map((i) => [i.sponsor!.id, i.sponsor!])).values()];
   const curPage = page % pages;
   const pageItems = boardSize.w ? pageSlice(items, curPage, fit.perPage) : [];
@@ -480,6 +498,9 @@ export function EngagerPage() {
         <ClosedHero
           screenLang={screenLang}
           total={money(showSplit ? raised.total : live.stats.totalHighBids)}
+          bids={live.stats.totalBids}
+          lots={live.stats.itemCount}
+          donors={live.stats.donorCount ?? 0}
           closedEarly={Boolean(live.event.closedEarly)}
           donations={donationEndParts({
             needsEndsAt: live.event.needsEndsAt,
@@ -519,9 +540,10 @@ export function EngagerPage() {
       ) : (
       <div className="engager-main">
       <div className="engager-top">
-        <section className={`panel totals${flash ? " bid-flash" : ""}${closed ? " is-supporting" : ""}`}>
-          {!closed && <p className="muted"><Line mode={screenLang} k="screen.raised" /></p>}
-          {!closed && <p className="huge">{money(showSplit ? raised.total : live.stats.totalHighBids)}</p>}
+        {!closed && (
+        <section className={`panel totals${flash ? " bid-flash" : ""}`}>
+          <p className="muted"><Line mode={screenLang} k="screen.raised" /></p>
+          <p className="huge">{money(showSplit ? raised.total : live.stats.totalHighBids)}</p>
           <p className="muted">
             <Dual
               mode={screenLang}
@@ -536,6 +558,7 @@ export function EngagerPage() {
             />
           </p>
         </section>
+        )}
 
         <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}${frame === "donors" ? " is-donors" : ""}`}>
           {frame === "donors" ? (
@@ -553,19 +576,25 @@ export function EngagerPage() {
             </div>
           ) : frame === "needs" && featuredNeed ? (
             <NeedSpotlight need={featuredNeed} money={money} spotlight={Boolean(spotlightNeed)} screenLang={screenLang} />
-          ) : highlight && closed ? (
+          ) : closed ? (
             <div className="highlight-row is-result">
               <div className="highlight-text">
                 <p className="muted"><Line mode={screenLang} k="screen.topLot" /></p>
-                <h2 className="lot-title">{highlight.title}</h2>
-                <p className="spot-sale">
-                  <span className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, true)} /></span>
-                  <span className="big-amount">{money(spotAmount(highlight))}</span>
-                </p>
-                {highlight.bidCount > 0 && (
-                  <p className="muted spot-sub">
-                    <Dual mode={screenLang} text={(lang) => translate(lang, "screen.wonBy", { name: highlight.highBidder ?? "—" })} />
-                  </p>
+                {highlight ? (
+                  <>
+                    <h2 className="lot-title">{highlight.title}</h2>
+                    <p className="spot-sale">
+                      <span className="spot-label"><Dual mode={screenLang} text={(lang) => spotLabel(lang, highlight, true)} /></span>
+                      <span className="big-amount">{money(spotAmount(highlight))}</span>
+                    </p>
+                    {(highlight.bidCount > 0 || highlight.soldViaBuyNow) && (
+                      <p className="muted spot-sub">
+                        <Dual mode={screenLang} text={(lang) => translate(lang, "screen.wonBy", { name: highlight.highBidder ?? "—" })} />
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="muted"><Line mode={screenLang} k="screen.noBidsClosed" /></p>
                 )}
               </div>
             </div>
@@ -679,8 +708,8 @@ export function EngagerPage() {
             style={{ gridTemplateColumns: `repeat(${fit.cols}, minmax(0, 1fr))`, gridAutoRows: `${cardH}px`, ["--card-h" as string]: `${cardH}px` }}
           >
             {shown.map((it) => {
-              const isHot = hot.includes(it.id);
-              const rank = rankOf.get(it.id);
+              const isHot = !closed && hot.includes(it.id);
+              const rank = closed ? undefined : rankOf.get(it.id);
               return (
                 <li
                   key={it.id}
@@ -694,7 +723,7 @@ export function EngagerPage() {
                       {it.title}
                     </p>
                     <p className="board-amount">{money(it.bidCount ? it.highBid : isFixedPrice(it) ? it.buyNow! : it.startingBid)}</p>
-                    <p className="board-meta"><Dual mode={screenLang} text={(lang) => cardMeta(lang, it)} /></p>
+                    <p className="board-meta"><Dual mode={screenLang} text={(lang) => cardMeta(lang, it, closed)} /></p>
                   </div>
                 </li>
               );
