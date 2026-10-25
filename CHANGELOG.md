@@ -10,6 +10,11 @@ and this project versions toward [SemVer](https://semver.org/).
 ### Added — guest languages
 
 - Thai and German for every guest screen and the big screen. English stays the default. Phones remember EN / ไทย / DE and also follow the browser language. The host sets the big-screen language, including an English-and-Thai pair. Noto Sans Thai is bundled. A test checks that every string key exists in all three languages.
+- Paddle-raise copy on the guest phone, the host desk and the big screen is in Thai and German too. Thai stays polite and drops ค่ะ/ครับ. German uses Sie. The room follows the big-screen language, so English-and-Thai shows a Thai line under each paddle phrase.
+
+### Added — CI
+
+- GitHub Actions runs typecheck, the API tests against Postgres, the web tests and the web build on every pull request and on pushes to `main` (`.github/workflows/ci.yml`).
 
 ### Added — Fund-a-Need
 
@@ -21,6 +26,7 @@ and this project versions toward [SemVer](https://semver.org/).
 - Tests: `api/test/pledges.test.ts` (units, caps, the 10-second undo, concurrent pledges, totals across guest, host, big screen and invoice) and `web/test/pledges.test.ts`.
 - Donation payment routing. A guest’s donation total of ฿10,000 or more is paid via Mercy Centre; below that, via Wolfgang’s QR. The threshold and both channels are host settings and start empty (placeholders are example text, not saved accounts). Auction lots keep the existing payment flow. The host can override the channel per guest, with an audit trail, and exports include the channel. Tests: `api/test/donationRoute.test.ts`.
 - Opt-in donor recognition. **Name me publicly** is off by default, with an editable public name and a separate “show my amount” choice. Needs list **Supported by**, and **Top donors** ranks public gifts only (not auction bids) for guests and the big screen. The host can turn recognition and the big-screen frame on or off, set how many names to show, spotlight Top Donors, and edit or hide a display name with an audit trail. Exports add **Named publicly** and **Public name**. Tests: `api/test/recognition.test.ts`.
+- Live paddle raise. The host picks a need or a general appeal, sets levels, and steps through them. Guests pledge the current level in one tap, and the host can record a paddle from the room. The big screen keeps the countdown bar and shows the ask, a running total against the goal, and each gift (“A generous guest” unless the donor opted in). Pledges use the same donation total and payment routing. Tests: `api/test/paddle.test.ts`.
 - Big-screen auction countdown. A pinned HH:MM:SS clock stays the same size on every frame, including Fund-a-Need, spotlight, Top Donors and the ticker. Under 15 minutes it pulses gold, under 5 minutes it grows, under 60 seconds the main area shows the seconds, then **Bidding closed**. It follows the server end (extend and close-early included). A different Fund-a-Need end is a smaller “Donations open until …” line. Tests: `web/test/auctionClock.test.ts`.
 
 ### Fixed — click test round 5
@@ -162,7 +168,7 @@ and this project versions toward [SemVer](https://semver.org/).
 - Equal top bids (only possible in old data) go to the earliest bidder, the same on the board and on invoices.
 
 ### Added
-- API test suite (Vitest + `fastify.inject` against real Postgres), CI workflow running typecheck, tests and the web build on every PR (`ci/github-ci.yml`; move to `.github/workflows/` to enable).
+- API test suite (Vitest + `fastify.inject` against real Postgres) and a CI workflow for typecheck, tests and the web build. It now runs from `.github/workflows/ci.yml`.
 - `package-lock.json` committed; Docker images now install with `npm ci` from the lockfile. Added `.dockerignore`.
 
 ### Changed

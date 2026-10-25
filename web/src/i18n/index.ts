@@ -99,6 +99,8 @@ export function countLabel(code: string, one: StringKey, many: StringKey, n: num
 
 /** The server's unnamed label. Replaced on screen so it follows the language. */
 export const SERVER_GUEST = "A guest";
+/** Unnamed paddle on the big screen. The API always sends this English string. */
+export const SERVER_GENEROUS = "A generous guest";
 
 export function guestLabel(name: string | null | undefined, code: string, anonymous = false): string {
   if (anonymous || !name || name === SERVER_GUEST) return translate(code, "screen.guest");

@@ -361,5 +361,14 @@ export async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS recognition_audit_event_idx ON recognition_audit(event_id, created_at DESC);
+
+    -- Live paddle raise during the gala speech. One session per event.
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_status TEXT NOT NULL DEFAULT 'off';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_need_id UUID;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_levels JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_level_index INT NOT NULL DEFAULT 0;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_goal NUMERIC(12,2);
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_title TEXT;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS paddle_started_at TIMESTAMPTZ;
   `);
 }

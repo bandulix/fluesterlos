@@ -276,7 +276,7 @@ export function InvoicePage() {
   );
 
   return (
-    <section className="g-page g-invoice">
+    <section className={`g-page g-invoice${toast ? " has-toast" : ""}`}>
       <header className="g-header">
         <div className="g-header-main">
           <Link to={`/e/${code}/bid`} className="g-back" aria-label={t("inv.back")}>

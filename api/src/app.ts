@@ -13,6 +13,7 @@ import { registerItemImportRoutes } from "./itemImportRoutes.js";
 import { registerNeedRoutes } from "./needRoutes.js";
 import { fundTotals, listNeedRows, recentPledges, toPublicNeed } from "./needs.js";
 import { publicRecognition } from "./recognition.js";
+import { loadPaddle } from "./paddle.js";
 import { registerSponsorRoutes, sponsorLogoUrl, upsertSponsor } from "./sponsors.js";
 import { defaultEventTimeZone, isValidTimeZone, parseInstant } from "./eventTime.js";
 import { registerEventControlRoutes, rescheduleEvent } from "./eventControls.js";
@@ -180,6 +181,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
             ? event.screen_language
             : "en",
       },
+      paddle: await loadPaddle(eventId),
       items,
       needs,
       topDonors: recognition.topDonors,
