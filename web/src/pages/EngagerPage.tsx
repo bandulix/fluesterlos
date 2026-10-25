@@ -384,6 +384,7 @@ export function EngagerPage() {
         </div>
         <p className="engager-bar-meta">
           {joinUrl && <span className="engager-join">{shortUrl(joinUrl)}</span>}
+          <span className="engager-bar-dot" aria-hidden="true">·</span>
           <time dateTime={new Date(serverNow).toISOString()}>{formatTimeInZone(serverNow, tz)}</time>
         </p>
       </header>

@@ -450,7 +450,7 @@
     max-width: min(34vw, 380px);
     margin-right: 0.85rem;
   }
-  [data-theme="thaiger"] .engager header { padding: 0.55rem 0.9rem; }
+  [data-theme="thaiger"] .engager header { padding: 0.7rem 0.9rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

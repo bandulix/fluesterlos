@@ -305,6 +305,7 @@ textarea { min-height: 70px; }
   white-space: nowrap;
 }
 .engager-bar-meta time { font-weight: 600; opacity: 0.72; }
+.engager-bar-dot { opacity: 0.45; }
 .stats-grid .stat,
 .stats-grid > div {
   background: color-mix(in srgb, var(--card) 70%, transparent);

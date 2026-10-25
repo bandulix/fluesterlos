@@ -68,4 +68,4 @@ The bid card already had the centred amount, −/+, the leader, and a filled `Bi
 
 ## Checked
 
-No console errors on the seeded pass. Web typecheck, web tests, API tests and the web build were run on this branch. Thai at 1080p is 33.3px. The logo aspect on the guest header is 64px tall by 114px wide, which is 1280×719.
+No console errors on the seeded pass. Web typecheck, web tests, API tests and the web build were run on this branch. Thai at 1080p is 33.3px. The logo aspect on the guest header is 64px tall by 114px wide, which is 1280×719. On the projector the same file is 123px tall at 1080p (79px at 720p), on the white band with clear space. Live is a red pill; closed is solid ink. The last minute is one centre timer, and the closed screen leads with thank-you and the total.
