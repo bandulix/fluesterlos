@@ -263,8 +263,8 @@ textarea { min-height: 70px; }
   background: none;
   border-radius: 0;
   color: #231f20;
-  font-family: inherit;
-  font-weight: 700;
+  font-family: var(--font-display, inherit);
+  font-weight: 500;
   font-size: clamp(1.05rem, 2.15vh, 1.45rem);
   line-height: 1.35;
   letter-spacing: 0.04em;
@@ -292,8 +292,8 @@ textarea { min-height: 70px; }
   align-items: baseline;
   gap: 0.4em;
 }
-.live-status .live-status-sep { font-weight: 700; line-height: 1; }
-.live-status small { text-transform: none; letter-spacing: 0; }
+.live-status .live-status-sep { font-weight: 500; line-height: 1.5; }
+.live-status .bi > small { font-weight: 500; text-transform: none; letter-spacing: 0; }
 .engager header { border-bottom: clamp(4px, 0.56vh, 6px) solid #231f20; }
 .engager.is-live header { border-bottom-color: #b52a2e; }
 .engager-bar-meta {
@@ -1208,6 +1208,7 @@ label.file-btn input[type="file"] {
   text-transform: none;
   opacity: 1;
 }
+.live-status .bi > small { font-weight: 500; }
 .engager.lang-th,
 .engager.lang-both {
   --font: "Noto Sans Thai", "Inter", system-ui, sans-serif;
