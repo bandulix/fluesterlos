@@ -52,7 +52,7 @@ export function pageSlice<T>(list: T[], page: number, perPage: number): T[] {
   return list.slice(p * perPage, p * perPage + perPage);
 }
 
-export type HotInput = { id: string; bidCount: number; soldViaBuyNow?: boolean };
+export type HotInput = { id: string; bidCount: number; soldViaBuyNow?: boolean; closed?: boolean };
 export type RecentBid = { itemId?: string; createdAt: string };
 
 /**
@@ -68,7 +68,7 @@ export function hotItemIds(items: HotInput[], recent: RecentBid[], now: number, 
     if (Number.isFinite(t) && now - t <= HOT_WINDOW_MS) recentCount.set(b.itemId, (recentCount.get(b.itemId) ?? 0) + 1);
   }
   return items
-    .filter((it) => it.bidCount > 0 && !it.soldViaBuyNow)
+    .filter((it) => it.bidCount > 0 && !it.soldViaBuyNow && !it.closed)
     .map((it, i) => ({ id: it.id, i, score: (recentCount.get(it.id) ?? 0) * 3 + it.bidCount }))
     .sort((a, b) => b.score - a.score || a.i - b.i)
     .slice(0, limit)
@@ -97,7 +97,7 @@ export function topLot<T extends TopLotItem>(items: T[]): T | undefined {
   return best;
 }
 
-export type SpotItem = { id: string; bidCount: number; soldViaBuyNow?: boolean };
+export type SpotItem = { id: string; bidCount: number; soldViaBuyNow?: boolean; closed?: boolean };
 
 /**
  * Which item the spotlight shows at rotation step `step`: mostly items that are being bid on
@@ -107,6 +107,9 @@ export type SpotItem = { id: string; bidCount: number; soldViaBuyNow?: boolean }
  */
 export function spotlightAt<T extends SpotItem>(step: number, items: T[], recent: RecentBid[]): T | undefined {
   if (!items.length) return undefined;
+  // A lot the host already closed is not something the room can still bid on.
+  const bidding = items.filter((it) => !it.closed && !it.soldViaBuyNow);
+  items = bidding.length ? bidding : items;
   const byId = new Map(items.map((it) => [it.id, it]));
   const active: T[] = [];
   const seen = new Set<string>();
@@ -134,17 +137,18 @@ export type SpotlightText = { label: string; amount: number; sub: string };
 
 /** The spotlight's label / amount / sub-line, from that item's own state. */
 export function spotlightText(
-  it: { bidCount: number; highBid: number; startingBid: number; buyNow: number | null; soldViaBuyNow?: boolean; highBidder?: string | null },
+  it: { bidCount: number; highBid: number; startingBid: number; buyNow: number | null; soldViaBuyNow?: boolean; highBidder?: string | null; closed?: boolean },
   closed: boolean,
 ): SpotlightText {
+  const settled = closed || Boolean(it.closed);
   const fixed = it.buyNow != null && it.buyNow === it.startingBid;
   if (it.soldViaBuyNow) return { label: fixed ? "Sold at fixed price" : "Sold (buy now)", amount: it.highBid, sub: it.highBidder ? `Bought by ${it.highBidder}` : "Sold" };
   if (it.bidCount > 0) {
     const bids = `${it.bidCount} ${it.bidCount === 1 ? "bid" : "bids"}`;
-    return closed
+    return settled
       ? { label: "Winning bid", amount: it.highBid, sub: `Won by ${it.highBidder ?? "—"} · ${bids}` }
       : { label: "Current bid", amount: it.highBid, sub: `Leading: ${it.highBidder ?? "—"} · ${bids}` };
   }
-  if (fixed) return { label: "Fixed price", amount: it.buyNow!, sub: closed ? "Not sold" : "Buy it now — scan to bid" };
-  return { label: "Starting bid", amount: it.startingBid, sub: closed ? "No bids" : "No bids yet — be the first!" };
+  if (fixed) return { label: "Fixed price", amount: it.buyNow!, sub: settled ? "Not sold" : "Buy it now — scan to bid" };
+  return { label: "Starting bid", amount: it.startingBid, sub: settled ? "No bids" : "No bids yet — be the first!" };
 }

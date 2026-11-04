@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { gridFit, spotlightAt, spotlightText, topLot } from "../src/lib/bigScreen";
+import { cardMeta, spotLabel, spotSub } from "../src/lib/screenPhrases";
+import type { LiveItem } from "../src/lib/api";
 import { dedupeDescription, tidyDescription } from "../src/lib/text";
 
 describe("big screen: cards fill the board height", () => {
@@ -39,6 +41,19 @@ describe("big screen spotlight", () => {
     expect([0, 1, 2].map((i) => spotlightAt(i, none, [])!.id)).toEqual(["a", "b", "c"]);
     expect(spotlightAt(0, [], [])).toBeUndefined();
   });
+  it("keeps a lot the host closed off the live spotlight", () => {
+    const items = [
+      { id: "wine", bidCount: 1, closed: true },
+      { id: "jersey", bidCount: 4 },
+      { id: "ball", bidCount: 0 },
+    ];
+    expect(spotlightAt(0, items, [{ itemId: "wine", createdAt: "" }])!.id).toBe("jersey");
+    expect(spotlightText({ highBid: 2500, startingBid: 2500, buyNow: null, highBidder: "Anna", bidCount: 1, closed: true }, false)).toEqual({
+      label: "Winning bid",
+      amount: 2500,
+      sub: "Won by Anna · 1 bid",
+    });
+  });
   it("sub-line reflects that item's own state", () => {
     const base = { highBid: 1000, startingBid: 1000, buyNow: null, highBidder: null };
     expect(spotlightText({ ...base, bidCount: 0 }, false)).toEqual({ label: "Starting bid", amount: 1000, sub: "No bids yet — be the first!" });
@@ -48,6 +63,16 @@ describe("big screen spotlight", () => {
     expect(spotlightText({ ...base, startingBid: 3000, buyNow: 3000, highBid: 3000, bidCount: 1, soldViaBuyNow: true, highBidder: "Guest 2" }, false)).toEqual({
       label: "Sold at fixed price", amount: 3000, sub: "Bought by Guest 2",
     });
+  });
+});
+
+describe("a closed lot on the big screen", () => {
+  const wine = { closed: true, bidCount: 1, highBid: 2500, highBidder: "Anna Müller", startingBid: 2500, buyNow: null, soldViaBuyNow: false } as LiveItem;
+  it("reads as awarded, not still open", () => {
+    expect(spotLabel("en", wine, false)).toBe("Sold for");
+    expect(spotLabel("de", wine, false)).toBe("Zuschlag für");
+    expect(spotSub("de", wine, false)).toContain("Zuschlag an Anna Müller");
+    expect(cardMeta("en", wine, false)).toBe("Won by Anna Müller");
   });
 });
 

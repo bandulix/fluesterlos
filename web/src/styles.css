@@ -1580,6 +1580,23 @@ label.file-btn input[type="file"] {
   .engager.lang-th .big-amount { font-size: 1.7rem; }
   .engager.lang-th .huge { font-size: 2.4rem; }
 }
+/* 1080p with a second language: the top tiles and the clock were eating the list row,
+   so the item board and latest bids measured as zero and drew nothing. */
+@media (min-width: 900px) and (min-height: 900px) {
+  .engager.lang-both .auction-clock-digits,
+  .engager.lang-th .auction-clock-digits { font-size: clamp(2.7rem, 4.8vh, 3.5rem); }
+  .engager.lang-both .huge,
+  .engager.lang-th .huge { font-size: clamp(2rem, 4.2vh, 3.1rem); line-height: 1.08; }
+  .engager.lang-both .big-amount,
+  .engager.lang-th .big-amount { font-size: clamp(1.55rem, 3vh, 2.2rem); line-height: 1.08; }
+  .engager.lang-both .highlight-row .highlight-photo,
+  .engager.lang-th .highlight-row .highlight-photo { max-height: 12vh; }
+  .engager.lang-both .pledge-ticker,
+  .engager.lang-th .pledge-ticker { font-size: 1.2rem; }
+  .engager.lang-both .engager-bottom,
+  .engager.lang-th .engager-bottom { flex: 1 0 220px; min-height: 220px; }
+}
+
 /* Leave a band under the tiles for whole list rows. Closed keeps that band for results. */
 @media (min-width: 900px) and (min-height: 500px) {
   .engager.is-closed .pledge-ticker-wrap { display: none; }

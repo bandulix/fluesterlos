@@ -266,13 +266,14 @@ function useFitCount(itemCount: number, dep: unknown) {
       const available = el.clientHeight;
       const kids = [...el.children] as HTMLElement[];
       if (kids[0] && kids[0].offsetHeight > 0) rowH.current = kids[0].offsetHeight;
-      // A slot shorter than one measured row shows nothing, and stays there.
-      if (available < 8 || (rowH.current > 0 && available + 1 < rowH.current)) {
-        if (count !== 0) setCount(0);
+      // An empty list cannot be measured. If the slot has room, draw one row and fit again.
+      if (kids.length === 0) {
+        if (itemCount > 0 && count === 0 && available >= 8) setCount(1);
         return;
       }
-      if (kids.length === 0) {
-        if (itemCount > 0 && count === 0) setCount(Math.min(itemCount, 1));
+      // Shorter than one row: show nothing rather than a clipped price.
+      if (available < 8 || (rowH.current > 0 && available + 1 < rowH.current)) {
+        if (count !== 0) setCount(0);
         return;
       }
       const gap = kids.length >= 2 ? Math.max(0, kids[1].offsetTop - kids[0].offsetTop - kids[0].offsetHeight) : 0;

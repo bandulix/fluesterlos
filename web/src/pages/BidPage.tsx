@@ -513,7 +513,7 @@ export function BidPage() {
         )}
 
         <p className="g-section">
-          <span aria-hidden="true">★</span> {category === "donors" ? t("donate.topTitle") : category === "donate" ? t("donate.section") : t("bid.sectionLots")} <span aria-hidden="true">★</span>
+          <span aria-hidden="true">★</span> {category === "donors" ? t("donate.topTitle") : category === "donate" ? t("donate.section") : eventStatus === "closed" ? t("screen.results") : t("bid.sectionLots")} <span aria-hidden="true">★</span>
         </p>
 
         {category === "donors" && recognitionOn && (

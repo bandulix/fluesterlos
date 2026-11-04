@@ -1,5 +1,6 @@
 import { TopDonor } from "../lib/api";
 import { Currency, formatAmount } from "../lib/money";
+import { orderDonors } from "../lib/pledgeLogic";
 import { t } from "../i18n";
 
 function initials(name: string): string {
@@ -12,11 +13,7 @@ export function TopDonorsList(props: { donors: TopDonor[]; ccy: Currency; rising
   const { donors, ccy, rising, youName } = props;
   if (donors.length === 0) return <p className="g-empty">{t("donate.topEmpty")}</p>;
   const you = youName?.trim().toLowerCase() ?? "";
-  const ordered = [...donors].sort((a, b) => {
-    const ay = you && a.name.trim().toLowerCase() === you ? 1 : 0;
-    const by = you && b.name.trim().toLowerCase() === you ? 1 : 0;
-    return by - ay;
-  });
+  const ordered = orderDonors(donors);
   return (
     <ol className="g-top-donors">
       {ordered.map((d) => {

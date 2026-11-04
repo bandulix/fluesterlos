@@ -11,6 +11,7 @@ import {
   filtersFor,
   formatRemaining,
   itemStatus,
+  lotFace,
   minNextBid,
   newlyOutbid,
   onlyBuyNow,
@@ -222,5 +223,40 @@ describe("round 3", () => {
       mem.set("fl_pending_join_abc", "{not json");
       expect(loadPendingJoin("abc", 6_000)).toBeNull();
     });
+  });
+});
+
+describe("a closed lot is settled before the night ends", () => {
+  const base = { auctionClosed: false, lotClosed: false, sold: false, bidCount: 2, status: "winning" as const };
+
+  it("keeps a live lot on the current bid, with the ring", () => {
+    expect(lotFace(base)).toMatchObject({
+      badge: "bid.winning",
+      price: "bid.current",
+      leader: "bid.leading",
+      ring: true,
+      showTopBid: true,
+    });
+  });
+
+  it("gives the leader the hammer when the host closes that lot", () => {
+    expect(lotFace({ ...base, lotClosed: true })).toMatchObject({
+      tone: "winning",
+      badge: "bid.won",
+      price: "bid.winningBid",
+      leader: "bid.wonBy",
+      ring: false,
+      showTopBid: false,
+    });
+    expect(lotFace({ ...base, lotClosed: true, status: "outbid" })).toMatchObject({
+      tone: "lost",
+      badge: "bid.lost",
+      icon: "",
+    });
+  });
+
+  it("does not call a buy-now buyer the high bidder", () => {
+    expect(lotFace({ ...base, sold: true })).toMatchObject({ badge: "bid.yours", ring: false, leader: null });
+    expect(lotFace({ ...base, sold: true, status: null })).toMatchObject({ tone: "sold", badge: "bid.soldShort" });
   });
 });
