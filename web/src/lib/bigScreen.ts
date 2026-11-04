@@ -152,3 +152,18 @@ export function spotlightText(
   if (fixed) return { label: "Fixed price", amount: it.buyNow!, sub: settled ? "Not sold" : "Buy it now — scan to bid" };
   return { label: "Starting bid", amount: it.startingBid, sub: settled ? "No bids" : "No bids yet — be the first!" };
 }
+
+/**
+ * Projector join line. `url` is the event joinUrl, which the API builds from PUBLIC_URL,
+ * so production shows the public host rather than whatever machine is projecting.
+ */
+export function shortJoin(url: string): string {
+  try {
+    const u = new URL(url);
+    const code = u.pathname.split("/").filter(Boolean).pop() ?? "";
+    const host = u.host.replace(/^www\./, "");
+    return code ? `${host}/${code}` : host;
+  } catch {
+    return url.replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/\/e\//, "/");
+  }
+}

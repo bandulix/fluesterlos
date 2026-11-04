@@ -8,6 +8,7 @@ import {
   CLOSED_FILTERS,
   filterCounts,
   filterItems,
+  chipScrollEdges,
   filtersFor,
   formatRemaining,
   itemStatus,
@@ -223,6 +224,15 @@ describe("round 3", () => {
       mem.set("fl_pending_join_abc", "{not json");
       expect(loadPendingJoin("abc", 6_000)).toBeNull();
     });
+  });
+});
+
+describe("filter chips hint when a label is still off-screen", () => {
+  it("fades the edge that still has chips", () => {
+    expect(chipScrollEdges(0, 400, 360)).toEqual({ left: false, right: true });
+    expect(chipScrollEdges(20, 400, 360)).toEqual({ left: true, right: true });
+    expect(chipScrollEdges(40, 400, 360)).toEqual({ left: true, right: false });
+    expect(chipScrollEdges(0, 360, 360)).toEqual({ left: false, right: false });
   });
 });
 

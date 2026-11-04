@@ -14,7 +14,7 @@ import { roomMain } from "../lib/paddleLogic";
 import { BrandMark } from "../components/BrandMark";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
-import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt, topLot } from "../lib/bigScreen";
+import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, shortJoin, spotlightAt, topLot } from "../lib/bigScreen";
 import { asScreenLang, countLabel, translate, type ScreenLang } from "../i18n";
 import { Dual, Line } from "../components/ScreenLine";
 import { cardMeta, fundedPhrase, pledgeLine, spotAmount, spotLabel, spotSub } from "../lib/screenPhrases";
@@ -148,22 +148,6 @@ function NeedSpotlight({ need, money, spotlight, screenLang }: { need: Need; mon
       </div>
     </div>
   );
-}
-
-function shortUrl(url: string): string {
-  return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
-}
-
-/** Host plus event code, short enough to read from the room. */
-function shortJoin(url: string): string {
-  try {
-    const u = new URL(url);
-    const code = u.pathname.split("/").filter(Boolean).pop() ?? "";
-    const host = u.host.replace(/^www\./, "");
-    return code ? `${host}/${code}` : host;
-  } catch {
-    return shortUrl(url).replace(/\/e\//, "/");
-  }
 }
 
 function joinLine(lang: "en" | "th" | "de", where: string) {

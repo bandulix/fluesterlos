@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gridFit, spotlightAt, spotlightText, topLot } from "../src/lib/bigScreen";
+import { gridFit, shortJoin, spotlightAt, spotlightText, topLot } from "../src/lib/bigScreen";
 import { cardMeta, spotLabel, spotSub } from "../src/lib/screenPhrases";
 import type { LiveItem } from "../src/lib/api";
 import { dedupeDescription, tidyDescription } from "../src/lib/text";
@@ -63,6 +63,14 @@ describe("big screen spotlight", () => {
     expect(spotlightText({ ...base, startingBid: 3000, buyNow: 3000, highBid: 3000, bidCount: 1, soldViaBuyNow: true, highBidder: "Guest 2" }, false)).toEqual({
       label: "Sold at fixed price", amount: 3000, sub: "Bought by Guest 2",
     });
+  });
+});
+
+describe("projector join line", () => {
+  it("uses the host from the event URL, which comes from PUBLIC_URL", () => {
+    expect(shortJoin("https://gala.thaigersupporters.info/e/ab12cd34")).toBe("gala.thaigersupporters.info/ab12cd34");
+    expect(shortJoin("https://www.gala.example.org/e/ab12cd34")).toBe("gala.example.org/ab12cd34");
+    expect(shortJoin("http://127.0.0.1:5173/e/8vvpoxh2")).toBe("127.0.0.1:5173/8vvpoxh2");
   });
 });
 

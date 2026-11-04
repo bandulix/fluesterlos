@@ -262,6 +262,33 @@
 .g-install-icon { font-size: 1.5rem; }
 
 /* —— Filter chips —— */
+.g-chips-wrap { position: relative; min-width: 0; }
+.g-chips-wrap::before,
+.g-chips-wrap::after {
+  content: "";
+  position: absolute; top: 0; bottom: 0; width: 28px;
+  pointer-events: none; opacity: 0; z-index: 1;
+}
+.g-chips-wrap.is-left::before {
+  left: 0; opacity: 1;
+  background: linear-gradient(to right, var(--bg, #231f20), transparent);
+}
+.g-chips-wrap.is-right::after {
+  right: 0; opacity: 1;
+  background: linear-gradient(to left, var(--bg, #231f20) 10%, transparent);
+}
+.g-chips-wrap.is-right .g-chips {
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 36px), transparent);
+}
+.g-chips-wrap.is-left .g-chips {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 36px);
+  mask-image: linear-gradient(to right, transparent, #000 36px);
+}
+.g-chips-wrap.is-left.is-right .g-chips {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+}
 .g-chips {
   display: flex; gap: 8px; overflow-x: auto; padding: 2px 0;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;

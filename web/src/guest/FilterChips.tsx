@@ -1,4 +1,5 @@
-import { FilterKey, filtersFor } from "../lib/bidLogic";
+import { useEffect, useRef, useState } from "react";
+import { chipScrollEdges, FilterKey, filtersFor } from "../lib/bidLogic";
 import { t } from "../i18n";
 
 /**
@@ -16,8 +17,25 @@ export function FilterChips({
   closed?: boolean;
   onChange: (f: FilterKey) => void;
 }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const measure = () => setEdges(chipScrollEdges(el.scrollLeft, el.scrollWidth, el.clientWidth));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    el.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", measure);
+    };
+  }, [value, counts, closed]);
+  const fade = `${edges.left ? " is-left" : ""}${edges.right ? " is-right" : ""}`;
   return (
-    <div className="g-chips" role="tablist" aria-label={t("bid.filter.label")}>
+    <div className={`g-chips-wrap${fade}`}>
+    <div className="g-chips" role="tablist" aria-label={t("bid.filter.label")} ref={scroller}>
       {filtersFor(closed).map((f) => (
         <button
           key={f}
@@ -31,6 +49,7 @@ export function FilterChips({
           {f !== "all" && counts[f] > 0 && <span className="g-chip-count">{counts[f]}</span>}
         </button>
       ))}
+    </div>
     </div>
   );
 }

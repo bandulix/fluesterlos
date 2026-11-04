@@ -9,6 +9,13 @@ export function filtersFor(closed: boolean): FilterKey[] {
   return closed ? CLOSED_FILTERS : FILTERS;
 }
 
+/** Which edges of a horizontal chip row still have chips out of view. */
+export function chipScrollEdges(scrollLeft: number, scrollWidth: number, clientWidth: number): { left: boolean; right: boolean } {
+  const hidden = scrollWidth - clientWidth;
+  if (hidden <= 2) return { left: false, right: false };
+  return { left: scrollLeft > 2, right: scrollLeft < hidden - 2 };
+}
+
 /** The next valid bid: starting bid when nobody bid yet, else high + increment. */
 export function minNextBid(it: Pick<LiveItem, "bidCount" | "startingBid" | "highBid" | "minIncrement">): number {
   return it.bidCount === 0 ? it.startingBid : it.highBid + it.minIncrement;
