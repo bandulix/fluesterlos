@@ -870,6 +870,18 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .paddle-host { padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
 .paddle-host label { display: grid; gap: 0.25rem; font-weight: 650; }
 .paddle-host input, .paddle-host select { font: inherit; padding: 0.45rem 0.6rem; border-radius: 10px; border: 1px solid var(--border); background: var(--card, var(--card-nested)); color: inherit; }
+.project-board {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px;
+}
+.project-board li {
+  display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  gap: 0.25rem 0.6rem; align-items: center; min-width: 0;
+}
+.project-board .need-bar { margin: 0; }
+.project-board small { display: none; }
+.project-spot h2 { margin: 0.1rem 0; }
+.project-spot .big-amount { margin: 0; }
 .donor-board { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .donor-board li {
   display: grid; grid-template-columns: auto 1fr auto; gap: 0.8rem; align-items: center;

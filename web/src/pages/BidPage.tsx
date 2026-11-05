@@ -371,6 +371,7 @@ export function BidPage() {
           me?.guest ? (
             <GuestMenu
               who={who}
+              projectsHref={(live.projects?.length ?? 0) > 0 ? `/e/${code}/projects` : undefined}
               payHref={eventStatus === "closed" && owes ? `/e/${code}/invoice` : undefined}
               onChangeName={eventStatus !== "closed" ? () => setEditName(true) : undefined}
               onSwitch={switchUser}
@@ -465,6 +466,14 @@ export function BidPage() {
                 .finally(() => setBusyId(null));
             }}
           />
+        )}
+
+        {(live.projects?.length ?? 0) > 0 && (
+          <Link className="g-project-link" to={`/e/${code}/projects`}>
+            <span className="g-kicker">{t("project.kicker")}</span>
+            <strong>{live.projects![0].title}</strong>
+            <span>{t("screen.projectProgress", { percent: live.projects![0].percent })}</span>
+          </Link>
         )}
 
         <div className="g-switch" role="tablist" aria-label={t("cat.label")}>

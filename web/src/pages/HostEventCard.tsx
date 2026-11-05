@@ -29,6 +29,7 @@ import { hostPriceLine } from "../lib/hostText";
 import { HostItemImport } from "./HostItemImport";
 import { HostBulkMedia } from "./HostBulkMedia";
 import { HostNeeds } from "./HostNeeds";
+import { HostProjects } from "./HostProjects";
 import { PaddleHost } from "./PaddleHost";
 import { HostControlRoom } from "./HostControlRoom";
 
@@ -500,6 +501,7 @@ export function HostEventCard(props: {
       </ul>
 
       <HostNeeds code={code} ccy={ccy} tz={tz} run={run} />
+      <HostProjects code={code} ccy={ccy} />
     </div>
   );
 }

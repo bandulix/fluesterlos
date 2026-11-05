@@ -7,11 +7,13 @@ import { SwitchConfirm } from "./SwitchConfirm";
 export function GuestMenu({
   who,
   payHref,
+  projectsHref,
   onChangeName,
   onSwitch,
 }: {
   who: string;
   payHref?: string;
+  projectsHref?: string;
   onChangeName?: () => void;
   onSwitch: () => void;
 }) {
@@ -54,6 +56,11 @@ export function GuestMenu({
             <span>{t("menu.biddingAs")}</span>
             <strong>{who}</strong>
           </p>
+          {projectsHref && (
+            <Link role="menuitem" className="g-menu-item" to={projectsHref} onClick={() => setOpen(false)}>
+              {t("menu.projects")}
+            </Link>
+          )}
           {payHref && (
             <Link role="menuitem" className="g-menu-item" to={payHref} onClick={() => setOpen(false)}>
               {t("menu.pay")}

@@ -3,6 +3,7 @@ import { BrandMark } from "./components/BrandMark";
 import { brand } from "./brand";
 import { HostAuthProvider, useHostAuth } from "./lib/hostAuth";
 import { HostPage } from "./pages/HostPage";
+import { HostInvite } from "./pages/HostInvite";
 
 /** Host / landing area — lazy-loaded, so guests never download host code. */
 export default function HostShell() {
@@ -13,6 +14,7 @@ export default function HostShell() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/host" element={<HostPage />} />
+          <Route path="/host/invite/:token" element={<HostInvite />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

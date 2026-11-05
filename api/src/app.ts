@@ -14,6 +14,8 @@ import { registerNeedRoutes } from "./needRoutes.js";
 import { fundTotals, listNeedRows, recentPledges, toPublicNeed } from "./needs.js";
 import { publicRecognition } from "./recognition.js";
 import { loadPaddle } from "./paddle.js";
+import { listPublicProjects } from "./projects.js";
+import { registerProjectRoutes } from "./projectRoutes.js";
 import { registerSponsorRoutes, sponsorLogoUrl, upsertSponsor } from "./sponsors.js";
 import { defaultEventTimeZone, isValidTimeZone, parseInstant } from "./eventTime.js";
 import { registerEventControlRoutes, rescheduleEvent } from "./eventControls.js";
@@ -24,7 +26,10 @@ import {
   countHostUsers,
   createSession,
   hostFromRequest,
+  acceptAdminInvite,
   addHostUser,
+  createAdminInvite,
+  listAdminInvites,
   loginHost,
   listHostUsers,
   registerOwner,
@@ -186,6 +191,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
       paddle: await loadPaddle(eventId),
       items,
       needs,
+      projects: await listPublicProjects(eventId, code),
       topDonors: recognition.topDonors,
       recentPledges: pledges,
       stats: {
@@ -316,6 +322,50 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
     try {
       const user = await addHostUser(parsed.data.email, parsed.data.password);
       return { user };
+    } catch (e) {
+      const status = (e as Error & { statusCode?: number }).statusCode ?? 500;
+      return reply.code(status).send({ error: (e as Error).message });
+    }
+  });
+
+  app.get("/api/host/invites", async (req, reply) => {
+    try {
+      await requireOwner(req);
+    } catch (e) {
+      const status = (e as Error & { statusCode?: number }).statusCode ?? 401;
+      return reply.code(status).send({ error: (e as Error).message });
+    }
+    return { invites: await listAdminInvites() };
+  });
+
+  app.post("/api/host/invites", async (req, reply) => {
+    let owner;
+    try {
+      owner = await requireOwner(req);
+    } catch (e) {
+      const status = (e as Error & { statusCode?: number }).statusCode ?? 401;
+      return reply.code(status).send({ error: (e as Error).message });
+    }
+    const parsed = z.object({ email: z.string().email().max(200) }).safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Enter an email address" });
+    try {
+      const invite = await createAdminInvite(parsed.data.email, owner.id, PUBLIC_URL);
+      return { invite };
+    } catch (e) {
+      const status = (e as Error & { statusCode?: number }).statusCode ?? 500;
+      return reply.code(status).send({ error: (e as Error).message });
+    }
+  });
+
+  app.post("/api/host/auth/accept-invite", async (req, reply) => {
+    const parsed = z
+      .object({ token: z.string().min(10).max(200), password: z.string().min(8).max(200) })
+      .safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "Choose a password of at least 8 characters" });
+    try {
+      const user = await acceptAdminInvite(parsed.data.token, parsed.data.password);
+      await createSession(user.id, reply, PUBLIC_URL);
+      return { user: { id: user.id, email: user.email, role: user.role } };
     } catch (e) {
       const status = (e as Error & { statusCode?: number }).statusCode ?? 500;
       return reply.code(status).send({ error: (e as Error).message });
@@ -525,6 +575,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
   registerEventControlRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
   registerItemImportRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
   registerNeedRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
+  registerProjectRoutes(app, { codeOf, getEventByCode, buildLivePayload, requireHost });
 
   app.setErrorHandler((err, _req, reply) => {
     const e = err as Error & { statusCode?: number };

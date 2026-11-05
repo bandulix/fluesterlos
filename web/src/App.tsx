@@ -9,6 +9,7 @@ const HostShell = lazy(() => import("./HostShell"));
 const InvoicePage = lazy(() => import("./pages/InvoicePage").then((m) => ({ default: m.InvoicePage })));
 const StatsPage = lazy(() => import("./pages/StatsPage").then((m) => ({ default: m.StatsPage })));
 const EngagerPage = lazy(() => import("./pages/EngagerPage").then((m) => ({ default: m.EngagerPage })));
+const ProjectsPage = lazy(() => import("./pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage })));
 
 const Guest = ({ children }: { children: ReactNode }) => <main className="g-main">{children}</main>;
 
@@ -22,6 +23,7 @@ export default function App() {
         <Routes>
           <Route path="/e/:code" element={<Guest><JoinPage /></Guest>} />
           <Route path="/e/:code/bid" element={<Guest><BidPage /></Guest>} />
+          <Route path="/e/:code/projects" element={<Guest><ProjectsPage /></Guest>} />
           <Route path="/e/:code/invoice" element={<Guest><InvoicePage /></Guest>} />
           <Route path="/e/:code/stats" element={<main><StatsPage /></main>} />
           <Route path="/e/:code/engager" element={<main><EngagerPage /></main>} />
