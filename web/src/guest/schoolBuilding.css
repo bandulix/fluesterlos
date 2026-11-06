@@ -1,0 +1,52 @@
+.school-building { margin: 0; }
+.house-card {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #1c191a;
+}
+.house-iso { width: 100%; height: auto; display: block; }
+.house-iso .is-full polygon[fill]:not([fill="none"]) { filter: drop-shadow(0 0 5px rgba(246, 145, 31, 0.75)); }
+@media (prefers-reduced-motion: reduce) {
+  .house-iso .is-full polygon { filter: none; }
+}
+.school-building.is-room .house-iso { max-height: 150px; width: min(740px, 100%); margin: 0 auto; }
+
+.bldg-legend {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.school-building.is-room .bldg-legend { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
+.bldg-legend button {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid #535051;
+  background: #302c2d;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+}
+.bldg-legend button i {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px #f6911f;
+}
+.bldg-legend .is-sketch i { background: linear-gradient(180deg, transparent 55%, #f6911f 55%); }
+.bldg-legend .is-material i { background: linear-gradient(180deg, transparent 25%, #f6911f 25%); }
+.bldg-legend .is-real i { background: linear-gradient(160deg, #f6911f, #b52a2e); box-shadow: none; }
+.bldg-legend button span { flex: 1; min-width: 0; }
+.bldg-legend button strong { color: #f6911f; font-variant-numeric: tabular-nums; }
+.school-building.is-room .bldg-legend button { min-height: 32px; padding: 2px 6px; font-size: 0.85rem; }

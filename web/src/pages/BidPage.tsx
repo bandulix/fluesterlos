@@ -20,6 +20,7 @@ import {
 } from "../lib/bidLogic";
 import { formatTimeInZone } from "../lib/time";
 import { plural, t } from "../i18n";
+import { seedText } from "../lib/projectCopy";
 import { Toast, ToastMessage } from "../components/Toast";
 import { GuestHeader } from "../guest/GuestHeader";
 import { ItemCard } from "../guest/ItemCard";
@@ -371,6 +372,7 @@ export function BidPage() {
           me?.guest ? (
             <GuestMenu
               who={who}
+              projectsHref={(live.projects?.length ?? 0) > 0 ? `/e/${code}/projects` : undefined}
               payHref={eventStatus === "closed" && owes ? `/e/${code}/invoice` : undefined}
               onChangeName={eventStatus !== "closed" ? () => setEditName(true) : undefined}
               onSwitch={switchUser}
@@ -465,6 +467,14 @@ export function BidPage() {
                 .finally(() => setBusyId(null));
             }}
           />
+        )}
+
+        {(live.projects?.length ?? 0) > 0 && (
+          <Link className="g-project-link" to={`/e/${code}/projects`}>
+            <span className="g-kicker">{t("project.fundCta")}</span>
+            <strong>{seedText(live.projects![0].copyKey, "title", live.projects![0].title)}</strong>
+            <span>{t("project.remaining", { amount: formatAmount(live.projects![0].remaining, ccy) })}</span>
+          </Link>
         )}
 
         <div className="g-switch" role="tablist" aria-label={t("cat.label")}>

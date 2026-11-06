@@ -396,5 +396,62 @@ export async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (item_id, guest_id)
     );
+
+    -- Project crowdfunding. Amounts may be demo placeholders. Pledges are recorded in-app;
+    -- payment_provider / payment_ref stay empty until a gateway is plugged in.
+    CREATE TABLE IF NOT EXISTS projects (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      photo_url TEXT,
+      sort_order INT NOT NULL DEFAULT 0,
+      placeholder BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS copy_key TEXT;
+    -- When set, awarded auction lots (closed lots and buy-now sales) roll into this building.
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS counts_auction BOOLEAN NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS gewerke (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      photo_url TEXT,
+      target_amount NUMERIC(12,2) NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      placeholder BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    ALTER TABLE gewerke ADD COLUMN IF NOT EXISTS copy_key TEXT;
+
+    CREATE TABLE IF NOT EXISTS project_pledges (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      gewerk_id UUID NOT NULL REFERENCES gewerke(id) ON DELETE CASCADE,
+      guest_id UUID NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+      amount NUMERIC(12,2) NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('partial', 'full')),
+      payment_status TEXT NOT NULL DEFAULT 'recorded'
+        CHECK (payment_status IN ('recorded', 'pending', 'paid', 'void')),
+      payment_provider TEXT,
+      payment_ref TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    -- Opt-in, same idea as Fund-a-Need: a pledge stays unnamed until the guest asks to be shown.
+    ALTER TABLE project_pledges ADD COLUMN IF NOT EXISTS anonymous BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE project_pledges ADD COLUMN IF NOT EXISTS public_name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE project_pledges ADD COLUMN IF NOT EXISTS show_amount BOOLEAN NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS admin_invites (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'admin' CHECK (role = 'admin'),
+      token_hash TEXT NOT NULL UNIQUE,
+      invited_by UUID REFERENCES host_users(id) ON DELETE SET NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      accepted_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
 }

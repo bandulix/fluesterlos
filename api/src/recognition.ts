@@ -254,6 +254,56 @@ async function loadRows(eventId: string, includeHiddenNeeds: boolean): Promise<{
   };
 }
 
+export type DonorBucket = { name: string; total: number; showAmount: boolean };
+
+/** Named totals from needs and from public project pledges, ranked together. */
+export function mergeDonorBuckets(need: DonorBucket[], extra: DonorBucket[], limit: number): PublicTopDonor[] {
+  const map = new Map<string, DonorBucket>();
+  for (const row of [...need, ...extra]) {
+    const cur = map.get(row.name);
+    if (!cur) map.set(row.name, { ...row });
+    else {
+      map.set(row.name, {
+        name: row.name,
+        total: money(cur.total + row.total),
+        showAmount: cur.showAmount && row.showAmount,
+      });
+    }
+  }
+  const cap = Math.min(50, Math.max(1, Math.floor(limit) || DEFAULT_TOP_DONORS));
+  return [...map.values()]
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+    .slice(0, cap)
+    .map((row, i) => ({
+      rank: i + 1,
+      tier: donorTier(i + 1),
+      name: row.name,
+      amount: row.showAmount ? row.total : null,
+    }));
+}
+
+async function projectDonorBuckets(eventId: string): Promise<DonorBucket[]> {
+  const { rows } = await pool.query(
+    `SELECT pl.amount, pl.anonymous, pl.public_name, pl.show_amount, g.recognition_hidden
+     FROM project_pledges pl
+     JOIN gewerke w ON w.id = pl.gewerk_id
+     JOIN projects p ON p.id = w.project_id
+     JOIN guests g ON g.id = pl.guest_id
+     WHERE p.event_id = $1 AND pl.payment_status <> 'void'`,
+    [eventId],
+  );
+  const map = new Map<string, DonorBucket & { hide: boolean }>();
+  for (const row of rows) {
+    const name = String(row.public_name ?? "").trim();
+    if (row.anonymous || row.recognition_hidden || !name) continue;
+    const cur = map.get(name) ?? { name, total: 0, showAmount: true, hide: false };
+    cur.total = money(cur.total + money(row.amount));
+    if (!row.show_amount) cur.hide = true;
+    map.set(name, cur);
+  }
+  return [...map.values()].map((row) => ({ name: row.name, total: row.total, showAmount: !row.hide }));
+}
+
 export async function publicRecognition(eventId: string, opts: { enabled: boolean; limit: number }) {
   const { gifts, profiles } = await loadRows(eventId, false);
   const byNeed = new Map<string, { donors: PublicSupporter[]; anonymousGifts: number }>();
@@ -265,8 +315,12 @@ export async function publicRecognition(eventId: string, opts: { enabled: boolea
       anonymousGifts: opts.enabled ? listed.anonymousGifts : 0,
     });
   }
-  const top = rankDonors(gifts, profiles, opts.limit, opts.enabled).map(toPublicTop);
-  return { byNeed, topDonors: top };
+  const needBuckets: DonorBucket[] = opts.enabled
+    ? rankDonors(gifts, profiles, 50, true).map((d) => ({ name: d.name, total: d.total, showAmount: d.showAmount }))
+    : [];
+  const extra = opts.enabled ? await projectDonorBuckets(eventId) : [];
+  const topDonors = mergeDonorBuckets(needBuckets, extra, opts.limit);
+  return { byNeed, topDonors };
 }
 
 export type HostDonor = {

@@ -110,6 +110,9 @@ export function HostPage() {
   const [guestName, setGuestName] = useState("");
   const [hostEmail, setHostEmail] = useState("");
   const [hostPassword, setHostPassword] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [invites, setInvites] = useState<Array<{ id: string; email: string; role: string; acceptedAt: string | null; expiresAt: string }>>([]);
   const [note, setNote] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [settingsSaved, setSettingsSaved] = useState<string | null>(null);
@@ -193,6 +196,10 @@ export function HostPage() {
       try {
         await loadSettings();
         await loadHosts().catch(() => setHosts([]));
+        if (auth?.role === "owner") {
+          const pending = await api<{ invites: Array<{ id: string; email: string; role: string; acceptedAt: string | null; expiresAt: string }> }>("/api/host/invites");
+          if (!cancelled) setInvites(pending.invites);
+        }
         await loadSponsors().catch(() => setSponsors([]));
         const list = await loadEvents();
         if (cancelled) return;
@@ -699,6 +706,46 @@ export function HostPage() {
               <label>Password <input type="password" value={hostPassword} onChange={(e) => setHostPassword(e.target.value)} required minLength={8} autoComplete="new-password" /></label>
             </div>
             <button className="button secondary" disabled={busy}>Add host</button>
+          </form>
+        )}
+        {auth.role === "owner" && (
+          <form
+            className="stack"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy(true);
+              setError(null);
+              try {
+                const res = await api<{ invite: { acceptUrl: string; email: string } }>("/api/host/invites", {
+                  method: "POST",
+                  body: JSON.stringify({ email: inviteEmail }),
+                });
+                setInviteUrl(res.invite.acceptUrl);
+                setInviteEmail("");
+                const pending = await api<{ invites: typeof invites }>("/api/host/invites");
+                setInvites(pending.invites);
+                setNote(`Invite ready for ${res.invite.email}. Share the link — there is no separate login system.`);
+              } catch (err) {
+                setError((err as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <h3>Invite an admin</h3>
+            <p className="muted">Admins use the same host desk for the auction and project funding. They set their own password from the link.</p>
+            <label>Email <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} required autoComplete="off" /></label>
+            <button className="button secondary" disabled={busy}>Send invite</button>
+            {inviteUrl && <p className="saved-note">Invite link: <a href={inviteUrl}>{inviteUrl}</a></p>}
+            {invites.filter((i) => !i.acceptedAt).length > 0 && (
+              <ul className="auction-list">
+                {invites.filter((i) => !i.acceptedAt).map((i) => (
+                  <li key={i.id} className="auction-row">
+                    <span className="auction-meta"><strong>{i.email}</strong><span className="muted">admin invite · expires {i.expiresAt.slice(0, 10)}</span></span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </form>
         )}
       </div>

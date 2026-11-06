@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { assetUrl } from "../lib/api";
+import { seedText } from "../lib/projectCopy";
+import { SchoolBuilding } from "../guest/SchoolBuilding";
 import type { Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
 import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
@@ -511,7 +513,8 @@ export function EngagerPage() {
   const spotlightNeed = needs.find((n) => n.id === live.event.spotlightNeedId) ?? null;
   const donorsOn = live.event.donorRecognition !== false && live.event.topDonorsOnScreen !== false;
   const spotlightDonors = Boolean(live.event.spotlightTopDonors) && live.event.donorRecognition !== false;
-  const frame = bigScreenFrame(step, needs.length, Boolean(spotlightNeed), pinNeeds, donorsOn, spotlightDonors);
+  const projects = live.projects ?? [];
+  const frame = bigScreenFrame(step, needs.length, Boolean(spotlightNeed), pinNeeds, donorsOn, spotlightDonors, projects.length);
   const topDonors = live.topDonors ?? [];
   const serverNow = Date.now() + clockOffsetMs + clockTick * 0;
   const clock = auctionClock({
@@ -637,8 +640,36 @@ export function EngagerPage() {
         </section>
         )}
 
-        <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}${frame === "donors" ? " is-donors" : ""}`}>
-          {frame === "donors" ? (
+        <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}${frame === "donors" ? " is-donors" : ""}${frame === "projects" ? " is-project" : ""}`}>
+          {frame === "projects" && projects[0] ? (
+            <div className="project-spot">
+              {projects[0].photoUrl ? (
+                <img className="project-photo" src={assetUrl(projects[0].photoUrl)} alt="" />
+              ) : (
+                <div className="project-photo-pending" role="img">
+                  <Line mode={screenLang} k="project.photoPending" />
+                </div>
+              )}
+              <div>
+                <p className="muted"><Line mode={screenLang} k="screen.project" />{projects[0].placeholder ? " · " : ""}{projects[0].placeholder && <Line mode={screenLang} k="project.placeholder" />}</p>
+                <h2><Dual mode={screenLang} text={(lang) => seedText(projects[0].copyKey, "title", projects[0].title, lang)} /></h2>
+                <p className="big-amount">{projects[0].percent}%</p>
+                <p className="spot-label"><Line mode={screenLang} k="project.roomGive" /></p>
+                <p className="muted spot-sub">
+                  <Line mode={screenLang} k="screen.projectProgress" vars={{ percent: projects[0].percent }} />
+                  {" · "}
+                  {money(projects[0].raised)} / {money(projects[0].target)}
+                </p>
+                {projects[0].countsAuction && (projects[0].auctionRaised ?? 0) > 0 && (
+                  <p className="muted spot-sub">
+                    <Line mode={screenLang} k="project.auction" />
+                    {" · "}
+                    {money(projects[0].auctionRaised ?? 0)}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : frame === "donors" ? (
             <div className="donor-spot">
               <p className="muted">{spotlightDonors ? <Line mode={screenLang} k="screen.donorsSpot" /> : <Line mode={screenLang} k="screen.topDonors" />}</p>
               {topDonors[0] ? (
@@ -728,8 +759,8 @@ export function EngagerPage() {
         <section className="panel items-board">
           <div className="board-head">
             <h3>
-              {frame === "donors" ? <Line mode={screenLang} k="screen.topDonors" /> : frame === "needs" ? <Line mode={screenLang} k="screen.fundBoard" /> : closed ? <Line mode={screenLang} k="screen.results" /> : <Line mode={screenLang} k="screen.allItems" />}{" "}
-              <span className="muted">({frame === "donors" ? topDonors.length : frame === "needs" ? needs.length : items.length})</span>
+              {frame === "projects" ? <Line mode={screenLang} k="screen.gewerke" /> : frame === "donors" ? <Line mode={screenLang} k="screen.topDonors" /> : frame === "needs" ? <Line mode={screenLang} k="screen.fundBoard" /> : closed ? <Line mode={screenLang} k="screen.results" /> : <Line mode={screenLang} k="screen.allItems" />}{" "}
+              <span className="muted">({frame === "projects" ? (projects[0]?.gewerke.length ?? 0) : frame === "donors" ? topDonors.length : frame === "needs" ? needs.length : items.length})</span>
             </h3>
             {frame === "auction" && pages > 1 && (
               <div className="board-pager" aria-label={pageLabel(screenLang === "de" ? "de" : "en")}>
@@ -745,7 +776,31 @@ export function EngagerPage() {
             )}
           </div>
           <div className="board-body" ref={boardRef}>
-          {frame === "donors" ? (
+          {frame === "projects" && projects[0] ? (
+            <div className="project-scene">
+              <SchoolBuilding
+                variant="room"
+                trades={projects[0].gewerke}
+                nameOf={(g) => <Dual mode={screenLang} text={(lang) => seedText(g.copyKey, "title", g.title, lang)} />}
+              />
+              {(projects[0].publicDonors?.length ?? 0) > 0 && (
+                <p className="project-public">
+                  <Line mode={screenLang} k="donate.supported" />
+                  {" · "}
+                  {projects[0].publicDonors!.map((d) => (d.amount != null ? `${d.name} ${money(d.amount)}` : d.name)).join(" · ")}
+                </p>
+              )}
+              {(projects[0].anonymousGifts ?? 0) > 0 && (
+                <p className="muted project-public">
+                  <Line
+                    mode={screenLang}
+                    k={(projects[0].anonymousGifts ?? 0) === 1 ? "donate.anonGift" : "donate.anonGifts"}
+                    vars={{ n: projects[0].anonymousGifts ?? 0 }}
+                  />
+                </p>
+              )}
+            </div>
+          ) : frame === "donors" ? (
             <ol className="donor-board">
               {topDonors.map((d) => (
                 <li key={`${d.rank}-${d.name}`} className={`tier-${d.tier}${rising.includes(d.name) ? " is-rise" : ""}`}>

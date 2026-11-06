@@ -1,0 +1,520 @@
+import { pool } from "./db.js";
+import { money } from "./auction.js";
+import { cleanPublicName } from "./recognition.js";
+
+export type GewerkInput = {
+  title: string;
+  description?: string;
+  targetAmount: number;
+  sortOrder?: number;
+  placeholder?: boolean;
+  /** Stable key for guest EN/DE/TH copy. Host-typed names leave this empty. */
+  copyKey?: string | null;
+};
+
+export type ProjectInput = {
+  title: string;
+  description?: string;
+  sortOrder?: number;
+  placeholder?: boolean;
+  copyKey?: string | null;
+  /** Awarded auction lots count toward this building, not toward a trade. */
+  countsAuction?: boolean;
+};
+
+/**
+ * Demo school. Stored titles are the German names the host sees.
+ * Guests translate them through copyKey (project.seed.*). Every figure is a placeholder.
+ * Photos stay empty until a host uploads them.
+ */
+export const SCHOOL_PROJECT = {
+  title: "Schulgebäude",
+  copyKey: "school",
+  description:
+    "A school building funded trade by trade. Every amount on this project is a demo placeholder, not a real target.",
+  gewerke: [
+    { title: "Dach", copyKey: "roof", description: "Roof structure and covering.", targetAmount: 450_000 },
+    { title: "Rohbau", copyKey: "shell", description: "The structural shell of the school.", targetAmount: 800_000 },
+    { title: "Fenster", copyKey: "windows", description: "Windows and frames for the classrooms.", targetAmount: 220_000 },
+    { title: "Möbel", copyKey: "furniture", description: "Desks, chairs, and shelves.", targetAmount: 180_000 },
+    { title: "Sanitär", copyKey: "washrooms", description: "Washrooms and plumbing.", targetAmount: 150_000 },
+    { title: "Elektro", copyKey: "electrics", description: "Lighting and power for the classrooms.", targetAmount: 160_000 },
+  ],
+};
+
+/**
+ * Final sale prices only: a closed lot, a buy-now sale, or any bid once the auction has ended.
+ * Leading bids on a lot that is still open are not a Zuschlag and do not count.
+ */
+export async function awardedAuctionTotal(eventId: string): Promise<{ amount: number; lotCount: number }> {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(SUM(high), 0) AS amount, COUNT(*)::int AS lots
+     FROM (
+       SELECT MAX(b.amount) AS high
+       FROM items i
+       JOIN events e ON e.id = i.event_id
+       JOIN bids b ON b.item_id = i.id
+       WHERE i.event_id = $1
+         AND (
+           i.closed_at IS NOT NULL
+           OR e.closed_early_at IS NOT NULL
+           OR e.ends_at <= now()
+           OR (
+             i.buy_now IS NOT NULL
+             AND EXISTS (SELECT 1 FROM bids bx WHERE bx.item_id = i.id AND bx.amount >= i.buy_now)
+           )
+         )
+       GROUP BY i.id
+     ) awarded`,
+    [eventId],
+  );
+  return { amount: money(rows[0]?.amount ?? 0), lotCount: Number(rows[0]?.lots ?? 0) };
+}
+
+export function photoUrl(code: string, kind: "projects" | "gewerke", id: string, stored: string | null): string | null {
+  if (!stored) return null;
+  if (/^https?:\/\//i.test(stored)) return stored;
+  return `/api/events/${code}/${kind}/${id}/photo?v=${encodeURIComponent(stored.split("/").pop() ?? "")}`;
+}
+
+export function progress(target: number, raised: number) {
+  const goal = money(target);
+  const got = money(raised);
+  const remaining = money(Math.max(0, goal - got));
+  const percent = goal > 0 ? Math.min(100, Math.round((got / goal) * 1000) / 10) : 0;
+  return { target: goal, raised: got, remaining, percent, funded: goal > 0 && remaining <= 0 };
+}
+
+type GiftRow = {
+  gewerk_id: string;
+  guest_id: string;
+  amount: string;
+  guest_name: string;
+  anonymous: boolean;
+  public_name: string;
+  show_amount: boolean;
+  recognition_hidden: boolean;
+};
+
+export type PublicDonor = { name: string; amount: number | null };
+
+function isHidden(gift: GiftRow, recognitionOn: boolean) {
+  return !recognitionOn || gift.anonymous || gift.recognition_hidden || !(gift.public_name || "").trim();
+}
+
+/** Names the room may print. A private pledge, or a name the host has hidden, becomes an anonymous gift. */
+export function presentGifts(
+  gifts: GiftRow[],
+  recognitionOn: boolean,
+): { donors: PublicDonor[]; anonymousGifts: number } {
+  const donors: PublicDonor[] = [];
+  let anonymousGifts = 0;
+  for (const gift of gifts) {
+    if (isHidden(gift, recognitionOn)) {
+      anonymousGifts += 1;
+      continue;
+    }
+    donors.push({
+      name: gift.public_name.trim(),
+      amount: gift.show_amount ? money(gift.amount) : null,
+    });
+  }
+  return { donors, anonymousGifts };
+}
+
+/** Public building donors, largest gift total first. A hidden amount stays off the list. */
+export function rankGifts(gifts: GiftRow[], recognitionOn: boolean): PublicDonor[] {
+  const map = new Map<string, { total: number; hide: boolean }>();
+  for (const gift of gifts) {
+    if (isHidden(gift, recognitionOn)) continue;
+    const name = gift.public_name.trim();
+    const cur = map.get(name) ?? { total: 0, hide: false };
+    cur.total = money(cur.total + money(gift.amount));
+    if (!gift.show_amount) cur.hide = true;
+    map.set(name, cur);
+  }
+  return [...map.entries()]
+    .sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0]))
+    .map(([name, row]) => ({ name, amount: row.hide ? null : row.total }));
+}
+
+export async function listPublicProjects(eventId: string, code: string) {
+  const projects = await pool.query(
+    `SELECT id, title, description, photo_url, sort_order, placeholder, copy_key, counts_auction
+     FROM projects WHERE event_id = $1 ORDER BY sort_order, created_at`,
+    [eventId],
+  );
+  if (!projects.rows.length) return [];
+  const auction = await awardedAuctionTotal(eventId);
+  const flagged = projects.rows.find((p) => p.counts_auction);
+  const auctionProjectId = (flagged?.id ?? (projects.rows.length === 1 ? projects.rows[0].id : null)) as string | null;
+  const ids = projects.rows.map((p) => p.id as string);
+  const gewerke = await pool.query(
+    `SELECT id, project_id, title, description, photo_url, target_amount, sort_order, placeholder, copy_key
+     FROM gewerke WHERE project_id = ANY($1::uuid[]) ORDER BY sort_order, created_at`,
+    [ids],
+  );
+  const recognition = await pool.query("SELECT donor_recognition FROM events WHERE id = $1", [eventId]);
+  const recognitionOn = recognition.rows[0]?.donor_recognition !== false;
+  const gifts = await pool.query(
+    `SELECT pl.gewerk_id, pl.guest_id, pl.amount, pl.anonymous, pl.public_name, pl.show_amount,
+            g.name AS guest_name, g.recognition_hidden
+     FROM project_pledges pl
+     JOIN guests g ON g.id = pl.guest_id
+     JOIN gewerke w ON w.id = pl.gewerk_id
+     WHERE w.project_id = ANY($1::uuid[]) AND pl.payment_status <> 'void'
+     ORDER BY pl.created_at`,
+    [ids],
+  );
+  const byGewerk = new Map<string, GiftRow[]>();
+  for (const row of gifts.rows as GiftRow[]) {
+    const list = byGewerk.get(row.gewerk_id) ?? [];
+    list.push(row);
+    byGewerk.set(row.gewerk_id, list);
+  }
+  return projects.rows.map((p) => {
+    const trades = gewerke.rows.filter((g) => g.project_id === p.id).map((g) => {
+      const mine = byGewerk.get(g.id as string) ?? [];
+      const raised = mine.reduce((sum, gift) => sum + money(gift.amount), 0);
+      const bar = progress(money(g.target_amount), raised);
+      const shown = presentGifts(mine, recognitionOn);
+      return {
+        id: g.id as string,
+        title: g.title as string,
+        description: g.description as string,
+        copyKey: (g.copy_key as string | null) ?? null,
+        photoUrl: photoUrl(code, "gewerke", g.id as string, g.photo_url as string | null),
+        sortOrder: g.sort_order as number,
+        placeholder: Boolean(g.placeholder),
+        ...bar,
+        donorCount: new Set(mine.map((gift) => gift.guest_id)).size,
+        donors: shown.donors,
+        anonymousGifts: shown.anonymousGifts,
+      };
+    });
+    const pledged = trades.reduce((sum, t) => sum + t.raised, 0);
+    const target = trades.reduce((sum, t) => sum + t.target, 0);
+    const includeAuction = p.id === auctionProjectId;
+    const auctionRaised = includeAuction ? auction.amount : 0;
+    const donors = new Set(trades.flatMap((t) => t.donors.map((d) => d.name)));
+    const projectGifts = gewerke.rows
+      .filter((g) => g.project_id === p.id)
+      .flatMap((g) => byGewerk.get(g.id as string) ?? []);
+    const shown = presentGifts(projectGifts, recognitionOn);
+    const publicDonors = rankGifts(projectGifts, recognitionOn);
+    return {
+      id: p.id as string,
+      title: p.title as string,
+      description: p.description as string,
+      copyKey: (p.copy_key as string | null) ?? null,
+      countsAuction: includeAuction,
+      photoUrl: photoUrl(code, "projects", p.id as string, p.photo_url as string | null),
+      sortOrder: p.sort_order as number,
+      placeholder: Boolean(p.placeholder),
+      pledged: money(pledged),
+      auctionRaised,
+      auctionLots: includeAuction ? auction.lotCount : 0,
+      ...progress(target, pledged + auctionRaised),
+      donorCount: donors.size,
+      publicDonors,
+      anonymousGifts: shown.anonymousGifts,
+      gewerke: trades,
+    };
+  });
+}
+
+export async function hostProjectBundle(eventId: string, code = "") {
+  const projects = await pool.query(
+    `SELECT id, title, description, photo_url, sort_order, placeholder, copy_key, counts_auction
+     FROM projects WHERE event_id = $1 ORDER BY sort_order, created_at`,
+    [eventId],
+  );
+  const auction = await awardedAuctionTotal(eventId);
+  const flagged = projects.rows.find((p) => p.counts_auction);
+  const auctionProjectId = (flagged?.id ?? (projects.rows.length === 1 ? projects.rows[0]?.id : null)) as string | null;
+  const ids = projects.rows.map((p) => p.id as string);
+  const gewerke = ids.length
+    ? await pool.query(
+        `SELECT id, project_id, title, description, photo_url, target_amount, sort_order, placeholder, copy_key
+         FROM gewerke WHERE project_id = ANY($1::uuid[]) ORDER BY sort_order, created_at`,
+        [ids],
+      )
+    : { rows: [] };
+  const gifts = ids.length
+    ? await pool.query(
+        `SELECT pl.id, pl.gewerk_id, pl.amount, pl.kind, pl.payment_status, pl.payment_provider, pl.payment_ref,
+                pl.anonymous, pl.public_name, pl.show_amount,
+                pl.created_at, g.id AS guest_id, g.name AS guest_name, g.phone AS guest_phone
+         FROM project_pledges pl
+         JOIN guests g ON g.id = pl.guest_id
+         JOIN gewerke w ON w.id = pl.gewerk_id
+         WHERE w.project_id = ANY($1::uuid[])
+         ORDER BY pl.created_at`,
+        [ids],
+      )
+    : { rows: [] };
+  return {
+    projects: projects.rows.map((p) => ({
+      id: p.id as string,
+      title: p.title as string,
+      description: p.description as string,
+      copyKey: (p.copy_key as string | null) ?? null,
+      countsAuction: p.id === auctionProjectId,
+      sortOrder: p.sort_order as number,
+      placeholder: Boolean(p.placeholder),
+      hasPhoto: Boolean(p.photo_url),
+      photoUrl: code ? photoUrl(code, "projects", p.id as string, p.photo_url as string | null) : null,
+      auctionRaised: p.id === auctionProjectId ? auction.amount : 0,
+      auctionLots: p.id === auctionProjectId ? auction.lotCount : 0,
+      gewerke: gewerke.rows
+        .filter((g) => g.project_id === p.id)
+        .map((g) => {
+          const rows = gifts.rows.filter((gift) => gift.gewerk_id === g.id && gift.payment_status !== "void");
+          const raised = rows.reduce((sum, gift) => sum + money(gift.amount), 0);
+          return {
+            id: g.id as string,
+            title: g.title as string,
+            description: g.description as string,
+            copyKey: (g.copy_key as string | null) ?? null,
+            targetAmount: money(g.target_amount),
+            sortOrder: g.sort_order as number,
+            placeholder: Boolean(g.placeholder),
+            hasPhoto: Boolean(g.photo_url),
+            photoUrl: code ? photoUrl(code, "gewerke", g.id as string, g.photo_url as string | null) : null,
+            ...progress(money(g.target_amount), raised),
+            pledges: gifts.rows
+              .filter((gift) => gift.gewerk_id === g.id)
+              .map((gift) => ({
+                id: gift.id as string,
+                guestId: gift.guest_id as string,
+                guestName: gift.guest_name as string,
+                guestPhone: (gift.guest_phone as string | null) ?? null,
+                amount: money(gift.amount),
+                kind: gift.kind as "partial" | "full",
+                anonymous: gift.anonymous !== false,
+                publicName: (gift.public_name as string) ?? "",
+                showAmount: Boolean(gift.show_amount),
+                paymentStatus: gift.payment_status as string,
+                paymentProvider: (gift.payment_provider as string | null) ?? null,
+                paymentRef: (gift.payment_ref as string | null) ?? null,
+                createdAt: new Date(gift.created_at as Date).toISOString(),
+              })),
+          };
+        }),
+    })),
+  };
+}
+
+function httpError(status: number, message: string) {
+  return Object.assign(new Error(message), { statusCode: status });
+}
+
+export async function createProject(eventId: string, input: ProjectInput) {
+  const sort = await pool.query("SELECT COALESCE(MAX(sort_order), -1)::int AS n FROM projects WHERE event_id = $1", [eventId]);
+  const { rows } = await pool.query(
+    `INSERT INTO projects (event_id, title, description, sort_order, placeholder, copy_key, counts_auction)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [
+      eventId,
+      input.title.trim(),
+      input.description?.trim() ?? "",
+      input.sortOrder ?? (sort.rows[0].n as number) + 1,
+      input.placeholder !== false,
+      input.copyKey ?? null,
+      input.countsAuction === true,
+    ],
+  );
+  return rows[0].id as string;
+}
+
+export async function updateProject(eventId: string, projectId: string, input: Partial<ProjectInput>) {
+  const { rowCount } = await pool.query(
+    `UPDATE projects SET
+       title = COALESCE($3, title),
+       description = COALESCE($4, description),
+       sort_order = COALESCE($5, sort_order),
+       placeholder = COALESCE($6, placeholder)
+     WHERE id = $1 AND event_id = $2`,
+    [
+      projectId,
+      eventId,
+      input.title?.trim() || null,
+      input.description === undefined ? null : input.description.trim(),
+      input.sortOrder ?? null,
+      input.placeholder ?? null,
+    ],
+  );
+  if (!rowCount) throw httpError(404, "Project not found");
+}
+
+export async function deleteProject(eventId: string, projectId: string) {
+  const { rowCount } = await pool.query("DELETE FROM projects WHERE id = $1 AND event_id = $2", [projectId, eventId]);
+  if (!rowCount) throw httpError(404, "Project not found");
+}
+
+export async function createGewerk(eventId: string, projectId: string, input: GewerkInput) {
+  const project = await pool.query("SELECT id FROM projects WHERE id = $1 AND event_id = $2", [projectId, eventId]);
+  if (!project.rows[0]) throw httpError(404, "Project not found");
+  if (!(input.targetAmount > 0)) throw httpError(400, "Target amount must be above zero");
+  const sort = await pool.query("SELECT COALESCE(MAX(sort_order), -1)::int AS n FROM gewerke WHERE project_id = $1", [projectId]);
+  const { rows } = await pool.query(
+    `INSERT INTO gewerke (project_id, title, description, target_amount, sort_order, placeholder, copy_key)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [
+      projectId,
+      input.title.trim(),
+      input.description?.trim() ?? "",
+      money(input.targetAmount),
+      input.sortOrder ?? (sort.rows[0].n as number) + 1,
+      input.placeholder !== false,
+      input.copyKey ?? null,
+    ],
+  );
+  return rows[0].id as string;
+}
+
+export async function updateGewerk(eventId: string, gewerkId: string, input: Partial<GewerkInput>) {
+  if (input.targetAmount !== undefined && !(input.targetAmount > 0)) throw httpError(400, "Target amount must be above zero");
+  const { rowCount } = await pool.query(
+    `UPDATE gewerke g SET
+       title = COALESCE($3, g.title),
+       description = COALESCE($4, g.description),
+       target_amount = COALESCE($5, g.target_amount),
+       sort_order = COALESCE($6, g.sort_order),
+       placeholder = COALESCE($7, g.placeholder)
+     FROM projects p
+     WHERE g.id = $1 AND g.project_id = p.id AND p.event_id = $2`,
+    [
+      gewerkId,
+      eventId,
+      input.title?.trim() || null,
+      input.description === undefined ? null : input.description.trim(),
+      input.targetAmount === undefined ? null : money(input.targetAmount),
+      input.sortOrder ?? null,
+      input.placeholder ?? null,
+    ],
+  );
+  if (!rowCount) throw httpError(404, "Gewerk not found");
+}
+
+export async function deleteGewerk(eventId: string, gewerkId: string) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM gewerke g USING projects p
+     WHERE g.id = $1 AND g.project_id = p.id AND p.event_id = $2`,
+    [gewerkId, eventId],
+  );
+  if (!rowCount) throw httpError(404, "Gewerk not found");
+}
+
+export async function seedSchoolProject(eventId: string) {
+  const existing = await pool.query(
+    `SELECT id FROM projects WHERE event_id = $1 AND (copy_key = 'school' OR title = $2)
+     ORDER BY created_at LIMIT 1`,
+    [eventId, SCHOOL_PROJECT.title],
+  );
+  if (existing.rows[0]) {
+    const id = existing.rows[0].id as string;
+    await pool.query(
+      `UPDATE projects SET copy_key = 'school', counts_auction = true WHERE id = $1 AND event_id = $2`,
+      [id, eventId],
+    );
+    for (const g of SCHOOL_PROJECT.gewerke) {
+      await pool.query(
+        `UPDATE gewerke SET copy_key = $3 WHERE project_id = $1 AND title = $2 AND copy_key IS NULL`,
+        [id, g.title, g.copyKey],
+      );
+    }
+    return { id, created: false };
+  }
+  const id = await createProject(eventId, {
+    title: SCHOOL_PROJECT.title,
+    description: SCHOOL_PROJECT.description,
+    placeholder: true,
+    copyKey: SCHOOL_PROJECT.copyKey,
+    countsAuction: true,
+  });
+  for (let i = 0; i < SCHOOL_PROJECT.gewerke.length; i++) {
+    const g = SCHOOL_PROJECT.gewerke[i];
+    await createGewerk(eventId, id, { ...g, sortOrder: i, placeholder: true });
+  }
+  return { id, created: true };
+}
+
+export async function placeGewerkPledge(opts: {
+  eventId: string;
+  gewerkId: string;
+  guestId: string;
+  guestName: string;
+  mode: "full" | "partial";
+  amount?: number;
+  namedPublicly?: boolean;
+  publicName?: string;
+  showAmount?: boolean;
+}) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const gewerk = await client.query(
+      `SELECT g.id, g.target_amount
+       FROM gewerke g JOIN projects p ON p.id = g.project_id
+       WHERE g.id = $1 AND p.event_id = $2
+       FOR UPDATE`,
+      [opts.gewerkId, opts.eventId],
+    );
+    if (!gewerk.rows[0]) throw httpError(404, "Gewerk not found");
+    const raisedRes = await client.query(
+      `SELECT COALESCE(SUM(amount), 0) AS raised FROM project_pledges
+       WHERE gewerk_id = $1 AND payment_status <> 'void'`,
+      [opts.gewerkId],
+    );
+    const bar = progress(money(gewerk.rows[0].target_amount), money(raisedRes.rows[0].raised));
+    if (bar.funded) throw httpError(409, "This trade is already funded");
+    let amount = opts.mode === "full" ? bar.remaining : money(opts.amount ?? 0);
+    if (!(amount > 0)) throw httpError(400, "Enter an amount above zero");
+    if (amount > bar.remaining + 0.001) throw httpError(400, "That is more than the amount still open");
+    amount = money(Math.min(amount, bar.remaining));
+    const kind = amount + 0.001 >= bar.remaining ? "full" : "partial";
+    const named = opts.namedPublicly === true;
+    const cleaned = cleanPublicName(opts.publicName ?? "");
+    if (!cleaned.ok) throw httpError(400, cleaned.error);
+    const publicName = named ? cleaned.name || opts.guestName.trim().slice(0, 80) : "";
+    const showAmount = named && opts.showAmount === true;
+    const inserted = await client.query(
+      `INSERT INTO project_pledges (gewerk_id, guest_id, amount, kind, payment_status, anonymous, public_name, show_amount)
+       VALUES ($1, $2, $3, $4, 'recorded', $5, $6, $7)
+       RETURNING id, amount, kind, payment_status, payment_provider, payment_ref, anonymous, public_name, show_amount`,
+      [opts.gewerkId, opts.guestId, amount, kind, !named, publicName, showAmount],
+    );
+    await client.query("COMMIT");
+    const row = inserted.rows[0];
+    return {
+      id: row.id as string,
+      amount: money(row.amount),
+      kind: row.kind as "partial" | "full",
+      paymentStatus: row.payment_status as string,
+      paymentProvider: (row.payment_provider as string | null) ?? null,
+      paymentRef: (row.payment_ref as string | null) ?? null,
+      anonymous: row.anonymous !== false,
+      publicName: (row.public_name as string) ?? "",
+      showAmount: Boolean(row.show_amount),
+    };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function myProjectPledges(eventId: string, guestId: string) {
+  const { rows } = await pool.query(
+    `SELECT pl.gewerk_id, COALESCE(SUM(pl.amount), 0) AS amount
+     FROM project_pledges pl
+     JOIN gewerke g ON g.id = pl.gewerk_id
+     JOIN projects p ON p.id = g.project_id
+     WHERE p.event_id = $1 AND pl.guest_id = $2 AND pl.payment_status <> 'void'
+     GROUP BY pl.gewerk_id`,
+    [eventId, guestId],
+  );
+  return rows.map((r) => ({ gewerkId: r.gewerk_id as string, amount: money(r.amount) }));
+}

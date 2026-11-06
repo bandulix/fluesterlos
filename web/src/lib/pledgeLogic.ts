@@ -36,7 +36,7 @@ export function unitsCost(units: number, unitAmount: number): number {
   return money(units * unitAmount);
 }
 
-export type ScreenFrame = "auction" | "needs" | "donors";
+export type ScreenFrame = "auction" | "needs" | "donors" | "projects";
 
 /**
  * Big-screen frame. A need spotlight, or a pledge that just landed, holds Fund-a-Need.
@@ -49,13 +49,15 @@ export function bigScreenFrame(
   pinnedNeed: boolean,
   donors = false,
   spotlightDonors = false,
+  projectCount = 0,
 ): ScreenFrame {
   if (spotlightDonors) return "donors";
-  if (needCount <= 0 && !donors) return "auction";
+  if (needCount <= 0 && !donors && projectCount <= 0) return "auction";
   if ((spotlight || pinnedNeed) && needCount > 0) return "needs";
   const frames: ScreenFrame[] = ["auction"];
   if (needCount > 0) frames.push("needs");
   if (donors) frames.push("donors");
+  if (projectCount > 0) frames.push("projects");
   return frames[step % frames.length];
 }
 

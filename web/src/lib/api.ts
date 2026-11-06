@@ -54,6 +54,7 @@ export type LivePayload = {
     sponsor?: Sponsor | null;
   }>;
   needs?: Need[];
+  projects?: Project[];
   topDonors?: TopDonor[];
   recentPledges?: RecentPledge[];
   /** Live paddle raise. Null when the host has not started one. */
@@ -154,6 +155,49 @@ export function setGuestToken(code: string, token: string) {
 export function clearGuestToken(code: string) {
   localStorage.removeItem(guestTokenKey(code));
 }
+
+export type GewerkDonor = { name: string; amount: number | null };
+export type Gewerk = {
+  id: string;
+  title: string;
+  description: string;
+  copyKey?: string | null;
+  photoUrl: string | null;
+  sortOrder: number;
+  placeholder: boolean;
+  target: number;
+  raised: number;
+  remaining: number;
+  percent: number;
+  funded: boolean;
+  donorCount: number;
+  donors: GewerkDonor[];
+  anonymousGifts?: number;
+};
+export type Project = {
+  id: string;
+  title: string;
+  description: string;
+  copyKey?: string | null;
+  countsAuction?: boolean;
+  photoUrl: string | null;
+  sortOrder: number;
+  placeholder: boolean;
+  /** Pledges on trades, before awarded auction lots. */
+  pledged?: number;
+  /** Final sale prices of awarded lots. Not a pledge. */
+  auctionRaised?: number;
+  auctionLots?: number;
+  target: number;
+  raised: number;
+  remaining: number;
+  percent: number;
+  funded: boolean;
+  donorCount: number;
+  publicDonors?: GewerkDonor[];
+  anonymousGifts?: number;
+  gewerke: Gewerk[];
+};
 
 export type Need = {
   id: string;

@@ -189,6 +189,89 @@ export async function addHostUser(email: string, password: string): Promise<Host
   }
 }
 
+const INVITE_DAYS = 7;
+
+export async function createAdminInvite(email: string, invitedBy: string, publicUrl: string) {
+  const normalised = email.trim().toLowerCase();
+  const existing = await pool.query("SELECT id FROM host_users WHERE lower(email) = $1", [normalised]);
+  if (existing.rows[0]) {
+    const err = new Error("That email already has a login");
+    (err as Error & { statusCode?: number }).statusCode = 409;
+    throw err;
+  }
+  const raw = randomBytes(24).toString("base64url");
+  const expiresAt = new Date(Date.now() + INVITE_DAYS * 24 * 60 * 60 * 1000);
+  await pool.query("DELETE FROM admin_invites WHERE lower(email) = $1 AND accepted_at IS NULL", [normalised]);
+  const { rows } = await pool.query(
+    `INSERT INTO admin_invites (email, role, token_hash, invited_by, expires_at)
+     VALUES ($1, 'admin', $2, $3, $4)
+     RETURNING id, email, role, expires_at`,
+    [normalised, hashToken(raw), invitedBy, expiresAt.toISOString()],
+  );
+  const row = rows[0];
+  return {
+    id: row.id as string,
+    email: row.email as string,
+    role: row.role as string,
+    expiresAt: new Date(row.expires_at as Date).toISOString(),
+    acceptUrl: `${publicUrl.replace(/\/$/, "")}/host/invite/${raw}`,
+  };
+}
+
+export async function listAdminInvites() {
+  const { rows } = await pool.query(
+    `SELECT id, email, role, expires_at, accepted_at, created_at
+     FROM admin_invites ORDER BY created_at DESC`,
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    email: r.email as string,
+    role: r.role as string,
+    expiresAt: new Date(r.expires_at as Date).toISOString(),
+    acceptedAt: r.accepted_at ? new Date(r.accepted_at as Date).toISOString() : null,
+    createdAt: new Date(r.created_at as Date).toISOString(),
+  }));
+}
+
+export async function acceptAdminInvite(token: string, password: string): Promise<HostUser> {
+  const { rows } = await pool.query(
+    `SELECT id, email, role FROM admin_invites
+     WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now()`,
+    [hashToken(token)],
+  );
+  const invite = rows[0] as { id: string; email: string; role: string } | undefined;
+  if (!invite) {
+    const err = new Error("This invite is invalid or has expired");
+    (err as Error & { statusCode?: number }).statusCode = 400;
+    throw err;
+  }
+  const passwordHash = await hashPassword(password);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const inserted = await client.query(
+      `INSERT INTO host_users (email, password_hash, role)
+       VALUES ($1, $2, 'admin')
+       RETURNING id, email, role`,
+      [invite.email, passwordHash],
+    );
+    await client.query("UPDATE admin_invites SET accepted_at = now() WHERE id = $1", [invite.id]);
+    await client.query("COMMIT");
+    return inserted.rows[0] as HostUser;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    const err = e as { code?: string };
+    if (err.code === "23505") {
+      const conflict = new Error("That email already has a login");
+      (conflict as Error & { statusCode?: number }).statusCode = 409;
+      throw conflict;
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 export async function removeHostUser(id: string, actorId: string): Promise<void> {
   if (id === actorId) {
     const err = new Error("You cannot remove your own login");
