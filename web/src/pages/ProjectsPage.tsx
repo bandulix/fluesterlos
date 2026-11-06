@@ -6,6 +6,7 @@ import { formatAmount, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
 import { plural, t } from "../i18n";
 import { seedText } from "../lib/projectCopy";
+import { nextOpenTrade, pledgePresets } from "../lib/projectLogic";
 import { GuestHeader } from "../guest/GuestHeader";
 import { useNow } from "../guest/useNow";
 import "../guest/guest.css";
@@ -59,6 +60,8 @@ export function ProjectsPage() {
   const project = live.projects?.[0];
   const ccy = parseCurrency(live.event.currency);
   const gewerk = project?.gewerke.find((g) => g.id === openId) ?? null;
+  const next = project ? nextOpenTrade(project.gewerke) : null;
+  const presets = gewerk ? pledgePresets(gewerk.remaining) : [];
 
   async function pledge(mode: "full" | "partial", raw?: number) {
     if (!gewerk) return;
@@ -102,7 +105,7 @@ export function ProjectsPage() {
   }
 
   return (
-    <section className="g-page g-board">
+    <section className={`g-page g-board${next && !gewerk ? " has-dock" : ""}`}>
       <GuestHeader
         title={live.event.title}
         status={live.event.status}
@@ -175,6 +178,10 @@ export function ProjectsPage() {
               <p className="g-funded">{t("project.fundedAlready")}</p>
             ) : (
               <>
+                <label className="g-partial">
+                  {t("project.partialLabel")}
+                  <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={t("project.partial")} />
+                </label>
                 <NamingChoice
                   named={named}
                   publicName={publicName}
@@ -186,21 +193,44 @@ export function ProjectsPage() {
                   onPublicName={setPublicName}
                   onShowAmount={setShowAmount}
                 />
-                <button type="button" className="g-primary" disabled={busy} onClick={() => void pledge("full")}>
-                  {t("project.takeoverCta", { amount: formatAmount(gewerk.remaining, ccy) })}
-                </button>
-                <label className="g-partial">
-                  {t("project.partialLabel")}
-                  <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={t("project.partial")} />
-                </label>
-                <button type="submit" className="g-secondary" disabled={busy}>
-                  {t("project.partialSave", { amount: amount.trim() ? formatAmount(Number(amount.replace(/,/g, "")) || 0, ccy) : "" })}
-                </button>
+                <div className="g-sheet-actions">
+                  {presets.length > 0 && (
+                    <div className="g-presets" role="group" aria-label={t("project.presets")}>
+                      {presets.map((n) => (
+                        <button key={n} type="button" className={amount === String(n) ? "is-on" : ""} onClick={() => setAmount(String(n))}>
+                          {formatAmount(n, ccy)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button type="button" className="g-primary" disabled={busy} onClick={() => void pledge("full")}>
+                    {t("project.takeoverCta", { amount: formatAmount(gewerk.remaining, ccy) })}
+                  </button>
+                  <button type="submit" className="g-secondary" disabled={busy || !amount.trim()}>
+                    {t("project.partialSave", { amount: amount.trim() ? formatAmount(Number(amount.replace(/,/g, "")) || 0, ccy) : "" })}
+                  </button>
+                </div>
               </>
             )}
             {formError && <p className="g-error" role="alert">{formError}</p>}
             {note && <p className="g-ok" role="status">{note}</p>}
           </form>
+        </div>
+      )}
+      {next && !gewerk && (
+        <div className="g-pledge-dock">
+          <button
+            type="button"
+            className="g-primary"
+            onClick={() => {
+              setOpenId(next.id);
+              setFormError(null);
+              setNote(null);
+              setAmount("");
+            }}
+          >
+            {t("project.giveNext", { title: seedText(next.copyKey, "title", next.title) })}
+          </button>
         </div>
       )}
     </section>
@@ -292,6 +322,7 @@ function NamingChoice({
 }) {
   return (
     <div className="g-naming">
+      <p className="g-muted g-small">{t("project.nameReward")}</p>
       <label className="g-anon">
         <input type="checkbox" checked={named} onChange={(e) => onNamed(e.target.checked)} />
         {t("donate.nameMe")}

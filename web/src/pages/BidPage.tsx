@@ -471,9 +471,9 @@ export function BidPage() {
 
         {(live.projects?.length ?? 0) > 0 && (
           <Link className="g-project-link" to={`/e/${code}/projects`}>
-            <span className="g-kicker">{t("project.kicker")}</span>
+            <span className="g-kicker">{t("project.fundCta")}</span>
             <strong>{seedText(live.projects![0].copyKey, "title", live.projects![0].title)}</strong>
-            <span>{t("screen.projectProgress", { percent: live.projects![0].percent })}</span>
+            <span>{t("project.remaining", { amount: formatAmount(live.projects![0].remaining, ccy) })}</span>
           </Link>
         )}
 

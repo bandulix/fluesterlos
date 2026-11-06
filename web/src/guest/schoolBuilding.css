@@ -6,6 +6,10 @@
   background: #1c191a;
 }
 .house-iso { width: 100%; height: auto; display: block; }
+.house-iso .is-full polygon[fill]:not([fill="none"]) { filter: drop-shadow(0 0 5px rgba(246, 145, 31, 0.75)); }
+@media (prefers-reduced-motion: reduce) {
+  .house-iso .is-full polygon { filter: none; }
+}
 .school-building.is-room .house-iso { max-height: 150px; width: min(740px, 100%); margin: 0 auto; }
 
 .bldg-legend {

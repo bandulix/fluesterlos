@@ -12,3 +12,18 @@ export function projectProgress(trades: Array<{ target: number; raised: number }
   const raised = trades.reduce((sum, t) => sum + t.raised, 0);
   return tradeProgress(target, raised);
 }
+
+const PLEDGE_ANCHORS = [1_000, 5_000, 10_000, 25_000, 50_000];
+
+/** Set amounts below what is still open. The full remainder stays its own button. */
+export function pledgePresets(remaining: number): number[] {
+  const open = Math.round(remaining);
+  return PLEDGE_ANCHORS.filter((n) => n > 0 && n < open).slice(0, 4);
+}
+
+/** The open trade closest to finished. People complete something they can see. */
+export function nextOpenTrade<T extends { remaining: number; percent: number }>(trades: T[]): T | null {
+  const open = trades.filter((t) => t.remaining > 0);
+  if (!open.length) return null;
+  return [...open].sort((a, b) => b.percent - a.percent || a.remaining - b.remaining)[0];
+}

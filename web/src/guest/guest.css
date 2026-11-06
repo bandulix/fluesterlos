@@ -960,10 +960,29 @@ html[lang="th"] :is(.g-join-title, .g-title, .g-card h2) { line-height: 1.35; le
 }
 .g-gewerk-meta { display: block; margin-top: 6px; color: var(--muted); font-size: 0.9rem; }
 .g-project-link {
-  display: grid; gap: 2px; padding: 12px 14px; border-radius: 16px; text-decoration: none;
-  border: 1px solid var(--accent); color: inherit; background: var(--card);
+  display: grid; gap: 2px; padding: 14px 16px; min-height: 72px; border-radius: 16px; text-decoration: none;
+  border: 1px solid var(--accent); color: inherit;
+  background: color-mix(in srgb, var(--accent) 18%, var(--card));
 }
-.g-project-link strong { font-size: 1.2rem; }
+.g-project-link strong { font-size: 1.25rem; }
+.g-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.g-presets button {
+  min-height: 48px; min-width: 48px; padding: 8px 12px; border-radius: 999px;
+  border: 1px solid var(--accent); background: transparent; color: inherit; font: inherit; font-weight: 700;
+}
+.g-presets button.is-on { background: var(--accent); color: #231f20; }
+.g-sheet-actions {
+  position: sticky; bottom: 0; display: grid; gap: 8px;
+  padding: 10px 0 4px; background: var(--card, #10182a);
+}
+.g-sheet-actions .g-primary, .g-sheet-actions .g-secondary { margin-top: 0; min-height: 56px; }
+.g-page.has-dock { padding-bottom: 96px; }
+.g-pledge-dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, #231f20 92%, transparent);
+}
+.g-pledge-dock .g-primary { margin-top: 0; }
 .g-partial { display: grid; gap: 6px; margin-top: 8px; }
 .g-sheet .g-placeholder { margin-bottom: 8px; }
 

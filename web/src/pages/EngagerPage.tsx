@@ -654,6 +654,7 @@ export function EngagerPage() {
                 <p className="muted"><Line mode={screenLang} k="screen.project" />{projects[0].placeholder ? " · " : ""}{projects[0].placeholder && <Line mode={screenLang} k="project.placeholder" />}</p>
                 <h2><Dual mode={screenLang} text={(lang) => seedText(projects[0].copyKey, "title", projects[0].title, lang)} /></h2>
                 <p className="big-amount">{projects[0].percent}%</p>
+                <p className="spot-label"><Line mode={screenLang} k="project.roomGive" /></p>
                 <p className="muted spot-sub">
                   <Line mode={screenLang} k="screen.projectProgress" vars={{ percent: projects[0].percent }} />
                   {" · "}

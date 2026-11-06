@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { setLanguage } from "../src/i18n";
 import { bigScreenFrame } from "../src/lib/pledgeLogic";
-import { projectProgress, tradeProgress } from "../src/lib/projectLogic";
+import { nextOpenTrade, pledgePresets, projectProgress, tradeProgress } from "../src/lib/projectLogic";
 import { seedText } from "../src/lib/projectCopy";
 import { buildingStage } from "../src/lib/buildingStage";
 
@@ -32,6 +32,20 @@ describe("demo school copy", () => {
     expect(seedText("school", "title", "Schulgebäude")).toBe("อาคารเรียน");
     expect(seedText("electrics", "title", "Elektro")).toBe("ระบบไฟฟ้า");
     expect(seedText(null, "title", "Custom hall")).toBe("Custom hall");
+  });
+});
+
+describe("pledge path", () => {
+  it("offers set amounts under the remainder and points at the trade closest to done", () => {
+    expect(pledgePresets(250_000)).toEqual([1000, 5000, 10000, 25000]);
+    expect(pledgePresets(8_000)).toEqual([1000, 5000]);
+    expect(pledgePresets(500)).toEqual([]);
+    const next = nextOpenTrade([
+      { id: "shell", remaining: 800_000, percent: 0 },
+      { id: "roof", remaining: 250_000, percent: 44.4 },
+      { id: "furniture", remaining: 0, percent: 100 },
+    ]);
+    expect(next?.id).toBe("roof");
   });
 });
 

@@ -142,7 +142,7 @@ function Mesh({ quad, pts, progress, fill, grid = 4 }: { quad?: Quad; pts?: Pt[]
   const shape = quad ?? (pts as Pt[]);
   const solid = quad ? grownQuad(quad, progress) : grownTri(shape, progress);
   return (
-    <g>
+    <g className={progress >= 1 ? "is-full" : undefined}>
       {solid && <polygon points={poly(solid)} fill={fill} />}
       <polygon points={poly(shape)} fill="none" stroke="#f6911f" strokeWidth="1.35" />
       {quad && <Lattice quad={quad} lines={grid} fade={progress} />}
