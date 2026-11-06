@@ -36,13 +36,13 @@
   width: 14px;
   height: 14px;
   flex: none;
-  border-radius: 3px;
-  background: linear-gradient(#efeae2, #d4cdc2);
-  box-shadow: inset 0 0 0 1px rgba(35, 31, 32, 0.3);
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px #f6911f;
 }
-.bldg-legend .is-sketch i { background: linear-gradient(180deg, #f7b04a 45%, #d4cdc2 45%); }
-.bldg-legend .is-material i { background: linear-gradient(#f6911f, #d06a12); }
-.bldg-legend .is-real i { background: linear-gradient(160deg, #f6911f, #b52a2e); }
+.bldg-legend .is-sketch i { background: linear-gradient(180deg, transparent 55%, #f6911f 55%); }
+.bldg-legend .is-material i { background: linear-gradient(180deg, transparent 25%, #f6911f 25%); }
+.bldg-legend .is-real i { background: linear-gradient(160deg, #f6911f, #b52a2e); box-shadow: none; }
 .bldg-legend button span { flex: 1; min-width: 0; }
 .bldg-legend button strong { color: #f6911f; font-variant-numeric: tabular-nums; }
 .school-building.is-room .bldg-legend button { min-height: 32px; padding: 2px 6px; font-size: 0.85rem; }

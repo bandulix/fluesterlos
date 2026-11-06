@@ -300,7 +300,7 @@ function NamingChoice({
         <>
           <label className="g-field-label" htmlFor="project-public-name">{t("donate.publicName")}</label>
           <input id="project-public-name" className="g-big-input" value={publicName} maxLength={80} onChange={(e) => onPublicName(e.target.value)} />
-          <p className="g-muted g-small">{t("donate.publicHint")}</p>
+          <p className="g-muted g-small">{t("project.publicHint")}</p>
           <label className="g-anon">
             <input type="checkbox" checked={showAmount} onChange={(e) => onShowAmount(e.target.checked)} />
             {t("donate.showAmount")}

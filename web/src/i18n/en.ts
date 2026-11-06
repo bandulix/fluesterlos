@@ -432,6 +432,7 @@ export const en = {
   "project.building": "The building",
   "project.visit": "You can visit the school at any time to see the old building — and the new one once it is finished.",
   "project.visitShort": "You are welcome to visit the school now, and again when the new building is finished.",
+  "project.publicHint": "A family or company name is fine. Leave this blank and the room shows an unnamed guest.",
   "project.yours": "You pledged {amount}",
   "project.photoPending": "A photo of the school will appear here once it is uploaded.",
   "project.tradePhotoPending": "A photo of this trade will appear here once it is uploaded.",

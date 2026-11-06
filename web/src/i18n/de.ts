@@ -429,6 +429,7 @@ export const de = {
   "project.building": "Das Gebäude",
   "project.visit": "Sie können die Schule jederzeit besuchen, das alte Gebäude ansehen und das neue, sobald es fertig ist.",
   "project.visitShort": "Besuch ist jederzeit willkommen — und wieder, wenn das neue Gebäude fertig ist.",
+  "project.publicHint": "Ein Familien- oder Firmenname genügt. Lassen Sie das Feld leer, zeigt der Saal einen Gast ohne Namen.",
   "project.yours": "Sie haben {amount} zugesagt",
   "project.photoPending": "Hier erscheint ein Foto des Schulgebäudes, sobald es hochgeladen ist.",
   "project.tradePhotoPending": "Hier erscheint ein Foto dieses Gewerks, sobald es hochgeladen ist.",
