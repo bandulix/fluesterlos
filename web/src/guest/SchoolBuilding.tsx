@@ -1,5 +1,5 @@
-import { useId, type ReactNode } from "react";
-import { buildingStage, type BuildStage } from "../lib/buildingStage";
+import type { CSSProperties, ReactNode } from "react";
+import { buildingStage } from "../lib/buildingStage";
 import { assetUrl } from "../lib/api";
 import "./schoolBuilding.css";
 
@@ -13,6 +13,7 @@ export type BuildingTrade = {
 
 const PARTS = ["roof", "shell", "windows", "furniture", "washrooms", "electrics"] as const;
 type PartKey = (typeof PARTS)[number];
+type Pt = [number, number, number];
 
 const BY_TITLE: Record<string, PartKey> = {
   Dach: "roof",
@@ -23,25 +24,23 @@ const BY_TITLE: Record<string, PartKey> = {
   Elektro: "electrics",
 };
 
-type Box = { x: number; y: number; w: number; h: number };
-
 function tradeFor(trades: BuildingTrade[], key: PartKey) {
   return trades.find((t) => t.copyKey === key || BY_TITLE[t.title] === key);
 }
 
-function Fill({ id, box, percent, children }: { id: string; box: Box; percent: number; children: ReactNode }) {
-  const p = Math.max(0, Math.min(100, percent)) / 100;
-  if (p <= 0) return null;
-  const y = box.y + box.h * (1 - p);
-  const h = Math.max(0.01, box.h * p);
-  return (
-    <>
-      <clipPath id={id}>
-        <rect x={box.x} y={y} width={box.w} height={h} />
-      </clipPath>
-      <g clipPath={`url(#${id})`}>{children}</g>
-    </>
-  );
+function unit(trade: BuildingTrade | undefined) {
+  return Math.max(0, Math.min(100, trade?.percent ?? 0)) / 100;
+}
+
+/** Isometric, y down. Depth runs up-right so the right wall stays visible. */
+function iso(x: number, y: number, z: number) {
+  const X = (x + z) * 0.866 + 48;
+  const Y = y + (x - z) * 0.5 + 4;
+  return `${X.toFixed(1)},${Y.toFixed(1)}`;
+}
+
+function poly(pts: Pt[]) {
+  return pts.map(([x, y, z]) => iso(x, y, z)).join(" ");
 }
 
 export function SchoolBuilding({
@@ -55,154 +54,191 @@ export function SchoolBuilding({
   onOpen?: (id: string) => void;
   variant?: "phone" | "room";
 }) {
-  const uid = useId().replace(/:/g, "");
-  const part = (key: PartKey) => {
-    const trade = tradeFor(trades, key);
-    const percent = trade?.percent ?? 0;
-    return { trade, percent, stage: buildingStage(percent) as BuildStage };
-  };
-  const roof = part("roof");
-  const shell = part("shell");
-  const windows = part("windows");
-  const furniture = part("furniture");
-  const wash = part("washrooms");
-  const power = part("electrics");
+  const roofT = tradeFor(trades, "roof");
+  const shellT = tradeFor(trades, "shell");
+  const winT = tradeFor(trades, "windows");
+  const furnT = tradeFor(trades, "furniture");
+  const washT = tradeFor(trades, "washrooms");
+  const powerT = tradeFor(trades, "electrics");
+  const roof = unit(roofT);
+  const shell = unit(shellT);
+  const windows = unit(winT);
+  const furniture = unit(furnT);
+  const wash = unit(washT);
+  const power = unit(powerT);
+  const style = {
+    "--roof": roof,
+    "--shell": shell,
+    "--windows": windows,
+    "--furniture": furniture,
+    "--wash": wash,
+    "--power": power,
+  } as CSSProperties;
+
+  const front: Pt[] = [[0, 96, 0], [200, 96, 0], [200, 250, 0], [0, 250, 0]];
+  const side: Pt[] = [[200, 96, 0], [200, 96, 120], [200, 250, 120], [200, 250, 0]];
+  const gable: Pt[] = [[200, 96, -6], [200, 36, 60], [200, 96, 126]];
+  const slopeFront: Pt[] = [[-18, 34, 60], [218, 34, 60], [218, 100, -16], [-18, 100, -16]];
+  const slopeBack: Pt[] = [[-18, 34, 60], [218, 34, 60], [218, 100, 136], [-18, 100, 136]];
+  const annexFront: Pt[] = [[-78, 150, 8], [-6, 150, 8], [-6, 250, 8], [-78, 250, 8]];
+  const annexSide: Pt[] = [[-6, 150, 8], [-6, 150, 70], [-6, 250, 70], [-6, 250, 8]];
+  const annexRoof: Pt[] = [[-88, 132, 39], [-2, 132, 39], [-2, 156, 4], [-88, 156, 4]];
 
   return (
-    <figure className={`school-building is-${variant}`}>
-      <svg viewBox="0 0 640 400" role="img" aria-hidden="true">
-        <defs>
-          <pattern id={`${uid}-hatch`} width="8" height="8" patternUnits="userSpaceOnUse">
-            <path d="M0 8 L8 0" stroke="#f6911f" strokeWidth="1.2" />
-          </pattern>
-          <pattern id={`${uid}-tiles`} width="18" height="10" patternUnits="userSpaceOnUse">
-            <path d="M0 10 H18 M9 0 V10" stroke="#231f20" strokeWidth="0.8" opacity="0.35" />
-          </pattern>
-          <linearGradient id={`${uid}-glass`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#fff6e8" />
-            <stop offset="1" stopColor="#f6911f" />
-          </linearGradient>
-          <radialGradient id={`${uid}-glow`} cx="50%" cy="50%" r="50%">
-            <stop offset="0" stopColor="#fff4d2" />
-            <stop offset="0.45" stopColor="#f6911f" />
-            <stop offset="1" stopColor="#f6911f" stopOpacity="0" />
-          </radialGradient>
-        </defs>
+    <figure className={`school-building is-${variant}`} style={style}>
+      <div className="house-card">
+        <svg className="house-iso" viewBox="30 70 430 340" role="img" aria-hidden="true">
+          <defs>
+            <linearGradient id="stucco" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#fffaf3" />
+              <stop offset="0.72" stopColor="#f3e6d2" />
+              <stop offset="0.72" stopColor="#e2b15a" />
+              <stop offset="1" stopColor="#b52a2e" />
+            </linearGradient>
+            <linearGradient id="stucco-side" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#e7d7c2" />
+              <stop offset="0.72" stopColor="#cbb89a" />
+              <stop offset="0.72" stopColor="#a67c3d" />
+              <stop offset="1" stopColor="#8e2228" />
+            </linearGradient>
+            <linearGradient id="tiles" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#ffd27a" />
+              <stop offset="0.45" stopColor="#f6911f" />
+              <stop offset="1" stopColor="#c45c12" />
+            </linearGradient>
+            <linearGradient id="tiles-back" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#e08a22" />
+              <stop offset="1" stopColor="#9a4a10" />
+            </linearGradient>
+            <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#f7fbff" />
+              <stop offset="0.4" stopColor="#b9d4e4" />
+              <stop offset="1" stopColor="#6f93a8" />
+            </linearGradient>
+            <pattern id="tile-lines" width="22" height="12" patternUnits="userSpaceOnUse">
+              <path d="M0 12 H22 M11 0 V12" stroke="#231f20" strokeWidth="0.6" opacity="0.28" />
+            </pattern>
+            <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="#000" floodOpacity="0.35" />
+            </filter>
+          </defs>
+          <rect width="640" height="420" fill="#1c191a" />
+          <ellipse cx="230" cy="330" rx="150" ry="18" fill="#000" opacity="0.4" />
 
-        <rect width="640" height="400" fill="#2a2627" />
-        <ellipse cx="320" cy="362" rx="270" ry="16" fill="#231f20" />
+          <polygon points={poly(slopeBack)} fill="#cfc6ba" />
+          <polygon points={poly(slopeBack)} fill="url(#tiles-back)" opacity={roof} />
 
-        <g className={`bldg-part is-${wash.stage}`}>
-          <rect className="bldg-ghost" x="46" y="214" width="96" height="136" rx="4" />
-          <Fill id={`${uid}-wash`} box={{ x: 46, y: 214, w: 96, h: 136 }} percent={wash.percent}>
-            <rect x="46" y="214" width="96" height="136" rx="4" fill={wash.stage === "sketch" ? `url(#${uid}-hatch)` : "#b52a2e"} />
-            <rect x="78" y="286" width="28" height="64" fill="#231f20" />
-            <circle cx="94" cy="252" r="10" fill="#f6911f" />
-            {wash.trade?.photoUrl && wash.percent >= 100 && (
-              <image href={assetUrl(wash.trade.photoUrl)} x="46" y="214" width="96" height="136" preserveAspectRatio="xMidYMid slice" opacity="0.85" />
-            )}
-          </Fill>
-        </g>
+          <polygon points={poly(side)} fill="#d9d1c4" />
+          <polygon points={poly(side)} fill="url(#stucco-side)" opacity={shell} />
+          <polygon points={poly(gable)} fill="#e4dccf" />
+          <polygon points={poly(gable)} fill="#f1e2cc" opacity={shell} />
 
-        <g className={`bldg-part is-${shell.stage}`}>
-          <rect className="bldg-ghost" x="140" y="168" width="360" height="184" />
-          <Fill id={`${uid}-shell`} box={{ x: 140, y: 168, w: 360, h: 184 }} percent={shell.percent}>
-            <rect x="140" y="168" width="360" height="184" fill={shell.stage === "sketch" ? `url(#${uid}-hatch)` : "#393536"} />
-            <rect x="470" y="168" width="30" height="184" fill="#535051" />
-            <rect x="292" y="270" width="56" height="82" fill="#231f20" />
-            {shell.trade?.photoUrl && (
-              <image href={assetUrl(shell.trade.photoUrl)} x="140" y="168" width="360" height="184" preserveAspectRatio="xMidYMid slice" opacity={shell.percent >= 100 ? 0.8 : 0.35} />
-            )}
-          </Fill>
-        </g>
+          <polygon points={poly(annexSide)} fill="#d4cdc2" />
+          <polygon points={poly(annexSide)} fill="#d5e0e4" opacity={wash} />
+          <polygon points={poly(annexFront)} fill="#e8e2d8" />
+          <polygon points={poly(annexFront)} fill="#f4f7f8" opacity={wash} />
+          <polygon points={poly(annexRoof)} fill="#cfc6ba" />
+          <polygon points={poly(annexRoof)} fill="#b52a2e" opacity={wash} />
 
-        <g className={`bldg-part is-${furniture.stage}`}>
-          <g className="bldg-ghost">
-            <rect x="176" y="286" width="70" height="36" />
-            <rect x="286" y="286" width="70" height="36" />
-            <rect x="396" y="286" width="70" height="36" />
-          </g>
-          <Fill id={`${uid}-furn`} box={{ x: 168, y: 270, w: 310, h: 70 }} percent={furniture.percent}>
-            {furniture.stage === "sketch" ? (
-              <rect x="168" y="270" width="310" height="70" fill={`url(#${uid}-hatch)`} />
-            ) : (
-              <>
-                <rect x="176" y="286" width="70" height="28" rx="2" fill="#f6911f" />
-                <rect x="286" y="286" width="70" height="28" rx="2" fill="#f6911f" />
-                <rect x="396" y="286" width="70" height="28" rx="2" fill="#c2272d" />
-                <rect x="198" y="314" width="8" height="16" fill="#231f20" />
-                <rect x="308" y="314" width="8" height="16" fill="#231f20" />
-                <rect x="418" y="314" width="8" height="16" fill="#231f20" />
-              </>
-            )}
-            {furniture.trade?.photoUrl && furniture.percent >= 100 && (
-              <image href={assetUrl(furniture.trade.photoUrl)} x="168" y="270" width="310" height="70" preserveAspectRatio="xMidYMid slice" opacity="0.75" />
-            )}
-          </Fill>
-        </g>
+          <polygon points={poly(front)} fill="#efeae2" />
+          <polygon points={poly(front)} fill="url(#stucco)" opacity={shell} />
 
-        <g className={`bldg-part is-${windows.stage}`}>
-          {[168, 248, 328, 408].map((x) => (
-            <rect key={x} className="bldg-ghost" x={x} y="196" width="52" height="62" />
+          {[0, 1, 2].map((i) => (
+            <SideWindow key={i} i={i} glass={windows} light={power} />
           ))}
-          <Fill id={`${uid}-win`} box={{ x: 160, y: 190, w: 310, h: 76 }} percent={windows.percent}>
-            {[168, 248, 328, 408].map((x) => (
-              <g key={x}>
-                <rect x={x} y="196" width="52" height="62" fill={windows.stage === "sketch" ? `url(#${uid}-hatch)` : `url(#${uid}-glass)`} />
-                <path d={`M${x + 26} 196 V258 M${x} 227 H${x + 52}`} stroke="#231f20" strokeWidth="2" />
-              </g>
-            ))}
-            {windows.trade?.photoUrl && windows.percent >= 100 &&
-              [168, 248, 328, 408].map((x) => (
-                <image key={x} href={assetUrl(windows.trade?.photoUrl)} x={x} y="196" width="52" height="62" preserveAspectRatio="xMidYMid slice" opacity="0.8" />
-              ))}
-          </Fill>
-        </g>
 
-        <g className={`bldg-part is-${roof.stage}`}>
-          <path className="bldg-ghost" d="M118 176 L320 46 L522 176 Z" />
-          <Fill id={`${uid}-roof`} box={{ x: 110, y: 40, w: 420, h: 140 }} percent={roof.percent}>
-            <path d="M118 176 L320 46 L522 176 Z" fill={roof.stage === "sketch" ? `url(#${uid}-hatch)` : "#f6911f"} />
-            {roof.stage !== "sketch" && <path d="M118 176 L320 46 L522 176 Z" fill={`url(#${uid}-tiles)`} />}
-            {roof.trade?.photoUrl && (
-              <image href={assetUrl(roof.trade.photoUrl)} x="118" y="46" width="404" height="130" preserveAspectRatio="xMidYMid slice" opacity={roof.percent >= 100 ? 0.9 : 0.4} />
-            )}
-          </Fill>
-          <circle cx="320" cy="46" r="6" fill={roof.percent > 0 ? "#f6911f" : "none"} stroke="#c1c1c1" />
-        </g>
+          <polygon points={poly(slopeFront)} fill="#e7e0d4" />
+          <polygon points={poly(slopeFront)} fill="url(#tiles)" opacity={roof} />
+          <polygon points={poly(slopeFront)} fill="url(#tile-lines)" opacity={roof} />
+          {roofT?.photoUrl && roof > 0.85 && (
+            <image href={assetUrl(roofT.photoUrl)} x="150" y="40" width="280" height="90" preserveAspectRatio="xMidYMid slice" opacity="0.35" />
+          )}
 
-        <g className={`bldg-part is-${power.stage}`}>
-          {[180, 250, 320, 390, 460].map((x) => (
-            <circle key={x} className="bldg-ghost" cx={x} cy="168" r="7" />
+          {[0, 1, 2, 3].map((i) => (
+            <FrontWindow key={i} i={i} glass={windows} furniture={furniture} light={power} />
           ))}
-          <Fill id={`${uid}-power`} box={{ x: 160, y: 140, w: 420, h: 50 }} percent={power.percent}>
-            <path d="M170 168 H480" stroke="#f6911f" strokeWidth="2" />
-            {[180, 250, 320, 390, 460].map((x) => (
-              <g key={x}>
-                <circle cx={x} cy="168" r="16" fill={`url(#${uid}-glow)`} />
-                <circle cx={x} cy="168" r="5" fill="#fff6e8" />
-              </g>
-            ))}
-            {power.trade?.photoUrl && power.percent >= 100 && (
-              <image href={assetUrl(power.trade.photoUrl)} x="160" y="148" width="320" height="36" preserveAspectRatio="xMidYMid slice" opacity="0.55" />
-            )}
-          </Fill>
-        </g>
-      </svg>
+          <Door progress={shell} />
+          <Chimney />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Lamp key={i} i={i} on={power} />
+          ))}
+        </svg>
+      </div>
       <ul className="bldg-legend">
-        {trades.map((trade) => {
-          const stage = buildingStage(trade.percent);
-          return (
-            <li key={trade.id}>
-              <button type="button" className={`is-${stage}`} onClick={() => onOpen?.(trade.id)}>
-                <i aria-hidden="true" />
-                <span>{nameOf(trade)}</span>
-                <strong>{trade.percent}%</strong>
-              </button>
-            </li>
-          );
-        })}
+        {trades.map((trade) => (
+          <li key={trade.id}>
+            <button type="button" className={`is-${buildingStage(trade.percent)}`} onClick={() => onOpen?.(trade.id)}>
+              <i aria-hidden="true" />
+              <span>{nameOf(trade)}</span>
+              <strong>{trade.percent}%</strong>
+            </button>
+          </li>
+        ))}
       </ul>
     </figure>
+  );
+}
+
+function FrontWindow({ i, glass, furniture, light }: { i: number; glass: number; furniture: number; light: number }) {
+  const x = 16 + i * 44;
+  const frame: Pt[] = [[x, 118, 1], [x + 34, 118, 1], [x + 34, 168, 1], [x, 168, 1]];
+  const pane: Pt[] = [[x + 4, 124, 2], [x + 30, 124, 2], [x + 30, 164, 2], [x + 4, 164, 2]];
+  const sill: Pt[] = [[x + 6, 154, 3], [x + 28, 154, 3], [x + 28, 160, 3], [x + 6, 160, 3]];
+  return (
+    <g>
+      <polygon points={poly(frame)} fill="#231f20" />
+      <polygon points={poly(pane)} fill="#3c4650" />
+      <polygon points={poly(pane)} fill="url(#glass)" opacity={glass} />
+      <polygon points={poly(sill)} fill="#f6911f" opacity={furniture} />
+      <polygon points={poly(pane)} fill="#ffe1a3" opacity={light * 0.45} />
+    </g>
+  );
+}
+
+function SideWindow({ i, glass, light }: { i: number; glass: number; light: number }) {
+  const z = 18 + i * 32;
+  const frame: Pt[] = [[201, 124, z], [201, 124, z + 24], [201, 164, z + 24], [201, 164, z]];
+  const pane: Pt[] = [[202, 130, z + 3], [202, 130, z + 21], [202, 158, z + 21], [202, 158, z + 3]];
+  return (
+    <g>
+      <polygon points={poly(frame)} fill="#231f20" />
+      <polygon points={poly(pane)} fill="#3c4650" />
+      <polygon points={poly(pane)} fill="url(#glass)" opacity={glass} />
+      <polygon points={poly(pane)} fill="#ffe1a3" opacity={light * 0.35} />
+    </g>
+  );
+}
+
+function Door({ progress }: { progress: number }) {
+  const frame: Pt[] = [[84, 188, 2], [116, 188, 2], [116, 248, 2], [84, 248, 2]];
+  return (
+    <g>
+      <polygon points={poly(frame)} fill="#231f20" />
+      <polygon points={poly(frame)} fill="#b52a2e" opacity={progress} />
+      <polygon points={poly([[108, 214, 3], [112, 214, 3], [112, 220, 3], [108, 220, 3]])} fill="#f6911f" opacity={0.4 + progress * 0.6} />
+    </g>
+  );
+}
+
+function Chimney() {
+  const front: Pt[] = [[150, 8, 48], [172, 8, 48], [172, 40, 48], [150, 40, 48]];
+  const side: Pt[] = [[172, 8, 48], [172, 8, 68], [172, 40, 68], [172, 40, 48]];
+  return (
+    <g opacity={0.35}>
+      <polygon points={poly(side)} fill="#8e2228" />
+      <polygon points={poly(front)} fill="#b52a2e" />
+    </g>
+  );
+}
+
+function Lamp({ i, on }: { i: number; on: number }) {
+  const x = 24 + i * 38;
+  const [X, Y] = iso(x, 104, -8).split(",").map(Number);
+  return (
+    <g>
+      <circle cx={X} cy={Y} r="4" fill="#2a2628" />
+      <circle cx={X} cy={Y} r="10" fill="#f6911f" opacity={on * 0.55} />
+      <circle cx={X} cy={Y} r="3.5" fill="#fff4d2" opacity={on} />
+    </g>
   );
 }
