@@ -7,6 +7,8 @@ export type GewerkInput = {
   targetAmount: number;
   sortOrder?: number;
   placeholder?: boolean;
+  /** Stable key for guest EN/DE/TH copy. Host-typed names leave this empty. */
+  copyKey?: string | null;
 };
 
 export type ProjectInput = {
@@ -14,22 +16,59 @@ export type ProjectInput = {
   description?: string;
   sortOrder?: number;
   placeholder?: boolean;
+  copyKey?: string | null;
+  /** Awarded auction lots count toward this building, not toward a trade. */
+  countsAuction?: boolean;
 };
 
-/** Demo school. Every figure is a placeholder, not a fundraising target. */
+/**
+ * Demo school. Stored titles are the German names the host sees.
+ * Guests translate them through copyKey (project.seed.*). Every figure is a placeholder.
+ * Photos stay empty until a host uploads them.
+ */
 export const SCHOOL_PROJECT = {
   title: "Schulgebäude",
+  copyKey: "school",
   description:
     "A school building funded trade by trade. Every amount on this project is a demo placeholder, not a real target.",
   gewerke: [
-    { title: "Dach", description: "Roof structure and covering.", targetAmount: 450_000 },
-    { title: "Rohbau", description: "The structural shell of the school.", targetAmount: 800_000 },
-    { title: "Fenster", description: "Windows and frames for the classrooms.", targetAmount: 220_000 },
-    { title: "Möbel", description: "Desks, chairs, and shelves.", targetAmount: 180_000 },
-    { title: "Sanitär", description: "Washrooms and plumbing.", targetAmount: 150_000 },
-    { title: "Elektro", description: "Lighting and power for the classrooms.", targetAmount: 160_000 },
+    { title: "Dach", copyKey: "roof", description: "Roof structure and covering.", targetAmount: 450_000 },
+    { title: "Rohbau", copyKey: "shell", description: "The structural shell of the school.", targetAmount: 800_000 },
+    { title: "Fenster", copyKey: "windows", description: "Windows and frames for the classrooms.", targetAmount: 220_000 },
+    { title: "Möbel", copyKey: "furniture", description: "Desks, chairs, and shelves.", targetAmount: 180_000 },
+    { title: "Sanitär", copyKey: "washrooms", description: "Washrooms and plumbing.", targetAmount: 150_000 },
+    { title: "Elektro", copyKey: "electrics", description: "Lighting and power for the classrooms.", targetAmount: 160_000 },
   ],
 };
+
+/**
+ * Final sale prices only: a closed lot, a buy-now sale, or any bid once the auction has ended.
+ * Leading bids on a lot that is still open are not a Zuschlag and do not count.
+ */
+export async function awardedAuctionTotal(eventId: string): Promise<{ amount: number; lotCount: number }> {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(SUM(high), 0) AS amount, COUNT(*)::int AS lots
+     FROM (
+       SELECT MAX(b.amount) AS high
+       FROM items i
+       JOIN events e ON e.id = i.event_id
+       JOIN bids b ON b.item_id = i.id
+       WHERE i.event_id = $1
+         AND (
+           i.closed_at IS NOT NULL
+           OR e.closed_early_at IS NOT NULL
+           OR e.ends_at <= now()
+           OR (
+             i.buy_now IS NOT NULL
+             AND EXISTS (SELECT 1 FROM bids bx WHERE bx.item_id = i.id AND bx.amount >= i.buy_now)
+           )
+         )
+       GROUP BY i.id
+     ) awarded`,
+    [eventId],
+  );
+  return { amount: money(rows[0]?.amount ?? 0), lotCount: Number(rows[0]?.lots ?? 0) };
+}
 
 export function photoUrl(code: string, kind: "projects" | "gewerke", id: string, stored: string | null): string | null {
   if (!stored) return null;
@@ -49,14 +88,17 @@ type GiftRow = { gewerk_id: string; amount: string; guest_name: string; created_
 
 export async function listPublicProjects(eventId: string, code: string) {
   const projects = await pool.query(
-    `SELECT id, title, description, photo_url, sort_order, placeholder
+    `SELECT id, title, description, photo_url, sort_order, placeholder, copy_key, counts_auction
      FROM projects WHERE event_id = $1 ORDER BY sort_order, created_at`,
     [eventId],
   );
   if (!projects.rows.length) return [];
+  const auction = await awardedAuctionTotal(eventId);
+  const flagged = projects.rows.find((p) => p.counts_auction);
+  const auctionProjectId = (flagged?.id ?? (projects.rows.length === 1 ? projects.rows[0].id : null)) as string | null;
   const ids = projects.rows.map((p) => p.id as string);
   const gewerke = await pool.query(
-    `SELECT id, project_id, title, description, photo_url, target_amount, sort_order, placeholder
+    `SELECT id, project_id, title, description, photo_url, target_amount, sort_order, placeholder, copy_key
      FROM gewerke WHERE project_id = ANY($1::uuid[]) ORDER BY sort_order, created_at`,
     [ids],
   );
@@ -84,6 +126,7 @@ export async function listPublicProjects(eventId: string, code: string) {
         id: g.id as string,
         title: g.title as string,
         description: g.description as string,
+        copyKey: (g.copy_key as string | null) ?? null,
         photoUrl: photoUrl(code, "gewerke", g.id as string, g.photo_url as string | null),
         sortOrder: g.sort_order as number,
         placeholder: Boolean(g.placeholder),
@@ -92,33 +135,43 @@ export async function listPublicProjects(eventId: string, code: string) {
         donors: mine.map((gift) => ({ name: gift.guest_name, amount: money(gift.amount) })),
       };
     });
+    const pledged = trades.reduce((sum, t) => sum + t.raised, 0);
     const target = trades.reduce((sum, t) => sum + t.target, 0);
-    const raised = trades.reduce((sum, t) => sum + t.raised, 0);
+    const includeAuction = p.id === auctionProjectId;
+    const auctionRaised = includeAuction ? auction.amount : 0;
     const donors = new Set(trades.flatMap((t) => t.donors.map((d) => d.name)));
     return {
       id: p.id as string,
       title: p.title as string,
       description: p.description as string,
+      copyKey: (p.copy_key as string | null) ?? null,
+      countsAuction: includeAuction,
       photoUrl: photoUrl(code, "projects", p.id as string, p.photo_url as string | null),
       sortOrder: p.sort_order as number,
       placeholder: Boolean(p.placeholder),
-      ...progress(target, raised),
+      pledged: money(pledged),
+      auctionRaised,
+      auctionLots: includeAuction ? auction.lotCount : 0,
+      ...progress(target, pledged + auctionRaised),
       donorCount: donors.size,
       gewerke: trades,
     };
   });
 }
 
-export async function hostProjectBundle(eventId: string) {
+export async function hostProjectBundle(eventId: string, code = "") {
   const projects = await pool.query(
-    `SELECT id, title, description, photo_url, sort_order, placeholder
+    `SELECT id, title, description, photo_url, sort_order, placeholder, copy_key, counts_auction
      FROM projects WHERE event_id = $1 ORDER BY sort_order, created_at`,
     [eventId],
   );
+  const auction = await awardedAuctionTotal(eventId);
+  const flagged = projects.rows.find((p) => p.counts_auction);
+  const auctionProjectId = (flagged?.id ?? (projects.rows.length === 1 ? projects.rows[0]?.id : null)) as string | null;
   const ids = projects.rows.map((p) => p.id as string);
   const gewerke = ids.length
     ? await pool.query(
-        `SELECT id, project_id, title, description, photo_url, target_amount, sort_order, placeholder
+        `SELECT id, project_id, title, description, photo_url, target_amount, sort_order, placeholder, copy_key
          FROM gewerke WHERE project_id = ANY($1::uuid[]) ORDER BY sort_order, created_at`,
         [ids],
       )
@@ -140,9 +193,14 @@ export async function hostProjectBundle(eventId: string) {
       id: p.id as string,
       title: p.title as string,
       description: p.description as string,
+      copyKey: (p.copy_key as string | null) ?? null,
+      countsAuction: p.id === auctionProjectId,
       sortOrder: p.sort_order as number,
       placeholder: Boolean(p.placeholder),
       hasPhoto: Boolean(p.photo_url),
+      photoUrl: code ? photoUrl(code, "projects", p.id as string, p.photo_url as string | null) : null,
+      auctionRaised: p.id === auctionProjectId ? auction.amount : 0,
+      auctionLots: p.id === auctionProjectId ? auction.lotCount : 0,
       gewerke: gewerke.rows
         .filter((g) => g.project_id === p.id)
         .map((g) => {
@@ -152,10 +210,12 @@ export async function hostProjectBundle(eventId: string) {
             id: g.id as string,
             title: g.title as string,
             description: g.description as string,
+            copyKey: (g.copy_key as string | null) ?? null,
             targetAmount: money(g.target_amount),
             sortOrder: g.sort_order as number,
             placeholder: Boolean(g.placeholder),
             hasPhoto: Boolean(g.photo_url),
+            photoUrl: code ? photoUrl(code, "gewerke", g.id as string, g.photo_url as string | null) : null,
             ...progress(money(g.target_amount), raised),
             pledges: gifts.rows
               .filter((gift) => gift.gewerk_id === g.id)
@@ -184,9 +244,17 @@ function httpError(status: number, message: string) {
 export async function createProject(eventId: string, input: ProjectInput) {
   const sort = await pool.query("SELECT COALESCE(MAX(sort_order), -1)::int AS n FROM projects WHERE event_id = $1", [eventId]);
   const { rows } = await pool.query(
-    `INSERT INTO projects (event_id, title, description, sort_order, placeholder)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [eventId, input.title.trim(), input.description?.trim() ?? "", input.sortOrder ?? (sort.rows[0].n as number) + 1, input.placeholder !== false],
+    `INSERT INTO projects (event_id, title, description, sort_order, placeholder, copy_key, counts_auction)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [
+      eventId,
+      input.title.trim(),
+      input.description?.trim() ?? "",
+      input.sortOrder ?? (sort.rows[0].n as number) + 1,
+      input.placeholder !== false,
+      input.copyKey ?? null,
+      input.countsAuction === true,
+    ],
   );
   return rows[0].id as string;
 }
@@ -222,8 +290,8 @@ export async function createGewerk(eventId: string, projectId: string, input: Ge
   if (!(input.targetAmount > 0)) throw httpError(400, "Target amount must be above zero");
   const sort = await pool.query("SELECT COALESCE(MAX(sort_order), -1)::int AS n FROM gewerke WHERE project_id = $1", [projectId]);
   const { rows } = await pool.query(
-    `INSERT INTO gewerke (project_id, title, description, target_amount, sort_order, placeholder)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    `INSERT INTO gewerke (project_id, title, description, target_amount, sort_order, placeholder, copy_key)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
     [
       projectId,
       input.title.trim(),
@@ -231,6 +299,7 @@ export async function createGewerk(eventId: string, projectId: string, input: Ge
       money(input.targetAmount),
       input.sortOrder ?? (sort.rows[0].n as number) + 1,
       input.placeholder !== false,
+      input.copyKey ?? null,
     ],
   );
   return rows[0].id as string;
@@ -271,14 +340,30 @@ export async function deleteGewerk(eventId: string, gewerkId: string) {
 
 export async function seedSchoolProject(eventId: string) {
   const existing = await pool.query(
-    "SELECT id FROM projects WHERE event_id = $1 AND title = $2",
+    `SELECT id FROM projects WHERE event_id = $1 AND (copy_key = 'school' OR title = $2)
+     ORDER BY created_at LIMIT 1`,
     [eventId, SCHOOL_PROJECT.title],
   );
-  if (existing.rows[0]) return { id: existing.rows[0].id as string, created: false };
+  if (existing.rows[0]) {
+    const id = existing.rows[0].id as string;
+    await pool.query(
+      `UPDATE projects SET copy_key = 'school', counts_auction = true WHERE id = $1 AND event_id = $2`,
+      [id, eventId],
+    );
+    for (const g of SCHOOL_PROJECT.gewerke) {
+      await pool.query(
+        `UPDATE gewerke SET copy_key = $3 WHERE project_id = $1 AND title = $2 AND copy_key IS NULL`,
+        [id, g.title, g.copyKey],
+      );
+    }
+    return { id, created: false };
+  }
   const id = await createProject(eventId, {
     title: SCHOOL_PROJECT.title,
     description: SCHOOL_PROJECT.description,
     placeholder: true,
+    copyKey: SCHOOL_PROJECT.copyKey,
+    countsAuction: true,
   });
   for (let i = 0; i < SCHOOL_PROJECT.gewerke.length; i++) {
     const g = SCHOOL_PROJECT.gewerke[i];

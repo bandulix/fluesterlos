@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, getGuestToken, Gewerk, Project } from "../lib/api";
+import { api, assetUrl, getGuestToken, Gewerk, Project } from "../lib/api";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
 import { plural, t } from "../i18n";
+import { seedText } from "../lib/projectCopy";
 import { GuestHeader } from "../guest/GuestHeader";
 import { useNow } from "../guest/useNow";
 import "../guest/guest.css";
@@ -104,11 +105,12 @@ export function ProjectsPage() {
         <div className="g-sheet-back" role="presentation" onClick={() => setOpenId(null)}>
           <form className="g-sheet" onClick={(e) => e.stopPropagation()} onSubmit={onPartial}>
             <div className="g-sheet-bar">
-              <h2>{gewerk.title}</h2>
+              <h2>{seedText(gewerk.copyKey, "title", gewerk.title)}</h2>
               <button type="button" className="g-sheet-x" aria-label={t("install.dismiss")} onClick={() => setOpenId(null)}>×</button>
             </div>
+            <PhotoFrame src={gewerk.photoUrl} alt={seedText(gewerk.copyKey, "title", gewerk.title)} pending={t("project.tradePhotoPending")} />
             {gewerk.placeholder && <p className="g-placeholder">{t("project.placeholderNote")}</p>}
-            <p className="g-muted">{gewerk.description}</p>
+            <p className="g-muted">{seedText(gewerk.copyKey, "description", gewerk.description)}</p>
             <p className="g-price-label">{t("project.target")}</p>
             <p className="g-project-figure">{formatAmount(gewerk.target, ccy)}</p>
             <div className="g-progress" aria-hidden="true"><span style={{ width: `${gewerk.percent}%` }} /></div>
@@ -173,15 +175,31 @@ function ProjectView({
         </p>
       )}
       <p className="g-kicker">{t("project.kicker")}</p>
-      <h2 className="g-project-title">{project.title}</h2>
-      <p className="g-muted">{project.description}</p>
+      <h2 className="g-project-title">{seedText(project.copyKey, "title", project.title)}</h2>
+      <p className="g-muted">{seedText(project.copyKey, "description", project.description)}</p>
+      <PhotoFrame src={project.photoUrl} alt={seedText(project.copyKey, "title", project.title)} pending={t("project.photoPending")} />
+      {project.countsAuction && (
+        <p className="g-auction-share">
+          <strong>{t("project.auction")}</strong>{" "}
+          {(project.auctionRaised ?? 0) > 0 ? (
+            <>
+              {formatAmount(project.auctionRaised ?? 0, ccy)}
+              {" · "}
+              {plural("project.auctionOneLot", "project.auctionLots", project.auctionLots ?? 0)}
+            </>
+          ) : (
+            <span className="g-muted">{t("project.auctionWaiting")}</span>
+          )}
+          {(project.auctionRaised ?? 0) > 0 && <span className="g-muted"> {t("project.auctionNote")}</span>}
+        </p>
+      )}
       <p className="g-price-label">{t("project.building")}</p>
       <div className="g-building" aria-hidden="true">
         <div className="g-roof" />
         {project.gewerke.map((g) => (
           <div key={g.id} className="g-floor">
             <i style={{ width: `${g.percent}%` }} />
-            <span>{g.title}</span>
+            <span>{seedText(g.copyKey, "title", g.title)}</span>
             <strong>{g.percent}%</strong>
           </div>
         ))}
@@ -205,11 +223,20 @@ function ProjectView({
   );
 }
 
+function PhotoFrame({ src, alt, pending }: { src: string | null; alt: string; pending: string }) {
+  if (src) return <img className="g-project-photo" src={assetUrl(src)} alt={alt} />;
+  return (
+    <div className="g-photo-pending" role="img" aria-label={pending}>
+      <span>{pending}</span>
+    </div>
+  );
+}
+
 function GewerkLine({ gewerk, ccy, mine }: { gewerk: Gewerk; ccy: ReturnType<typeof parseCurrency>; mine?: number }) {
   return (
     <>
       <span className="g-gewerk-name">
-        {gewerk.title}
+        {seedText(gewerk.copyKey, "title", gewerk.title)}
         {gewerk.placeholder && <em>{t("project.placeholder")}</em>}
       </span>
       <span className="g-progress" aria-hidden="true"><span style={{ width: `${gewerk.percent}%` }} /></span>

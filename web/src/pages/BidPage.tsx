@@ -20,6 +20,7 @@ import {
 } from "../lib/bidLogic";
 import { formatTimeInZone } from "../lib/time";
 import { plural, t } from "../i18n";
+import { seedText } from "../lib/projectCopy";
 import { Toast, ToastMessage } from "../components/Toast";
 import { GuestHeader } from "../guest/GuestHeader";
 import { ItemCard } from "../guest/ItemCard";
@@ -471,7 +472,7 @@ export function BidPage() {
         {(live.projects?.length ?? 0) > 0 && (
           <Link className="g-project-link" to={`/e/${code}/projects`}>
             <span className="g-kicker">{t("project.kicker")}</span>
-            <strong>{live.projects![0].title}</strong>
+            <strong>{seedText(live.projects![0].copyKey, "title", live.projects![0].title)}</strong>
             <span>{t("screen.projectProgress", { percent: live.projects![0].percent })}</span>
           </Link>
         )}

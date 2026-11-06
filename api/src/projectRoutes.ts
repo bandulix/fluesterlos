@@ -131,7 +131,7 @@ export function registerProjectRoutes(
   app.get("/api/host/events/:code/projects", async (req, reply) => {
     const ctx = await hostEvent(req, reply);
     if (!ctx) return;
-    return hostProjectBundle(ctx.event.id);
+    return hostProjectBundle(ctx.event.id, ctx.event.code);
   });
 
   app.post("/api/host/events/:code/projects/example", async (req, reply) => {

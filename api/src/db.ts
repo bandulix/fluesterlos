@@ -409,6 +409,9 @@ export async function migrate() {
       placeholder BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS copy_key TEXT;
+    -- When set, awarded auction lots (closed lots and buy-now sales) roll into this building.
+    ALTER TABLE projects ADD COLUMN IF NOT EXISTS counts_auction BOOLEAN NOT NULL DEFAULT false;
 
     CREATE TABLE IF NOT EXISTS gewerke (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -421,6 +424,7 @@ export async function migrate() {
       placeholder BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE gewerke ADD COLUMN IF NOT EXISTS copy_key TEXT;
 
     CREATE TABLE IF NOT EXISTS project_pledges (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

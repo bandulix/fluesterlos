@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api, uploadForm } from "../lib/api";
+import { api, API_BASE, uploadForm } from "../lib/api";
 import { Currency, formatAmount } from "../lib/money";
 
 type Pledge = {
@@ -18,6 +18,8 @@ type GewerkRow = {
   targetAmount: number;
   sortOrder: number;
   placeholder: boolean;
+  hasPhoto?: boolean;
+  photoUrl?: string | null;
   raised: number;
   remaining: number;
   percent: number;
@@ -28,6 +30,11 @@ type ProjectRow = {
   title: string;
   description: string;
   placeholder: boolean;
+  countsAuction?: boolean;
+  hasPhoto?: boolean;
+  photoUrl?: string | null;
+  auctionRaised?: number;
+  auctionLots?: number;
   sortOrder: number;
   gewerke: GewerkRow[];
 };
@@ -103,6 +110,11 @@ export function HostProjects({ code, ccy }: { code: string; ccy: Currency }) {
       <p className="muted">
         Crowdfunding beside the auction. Donors use the same join code. Pledges are recorded here;
         online payment is not connected yet. Placeholder amounts are not real targets.
+        The example school name and descriptions follow the guest language (EN / ไทย / DE).
+        A name you type here is shown as entered in every language.
+        Upload a photo for the project and for each Gewerk. Until then guests see a labeled empty frame.
+        Awarded lots (a closed lot, a buy-now sale, or every bid once the auction has ended) are added
+        to the school building total. They are not pledges, and a leading bid on an open lot does not count yet.
       </p>
       {error && <p className="error" role="alert">{error}</p>}
       {note && <p className="saved-note" role="status">{note}</p>}
@@ -121,8 +133,15 @@ export function HostProjects({ code, ccy }: { code: string; ccy: Currency }) {
             {project.placeholder && <span className="pill">Placeholder</span>}
           </h3>
           <p className="muted">{project.description}</p>
+          {project.countsAuction && (
+            <p className="muted">
+              Auction awards on this building: {formatAmount(project.auctionRaised ?? 0, ccy)}
+              {project.auctionLots ? ` · ${project.auctionLots} lots` : ""}. Not counted inside a Gewerk.
+            </p>
+          )}
+          {project.photoUrl && <img src={`${API_BASE}${project.photoUrl}`} alt="" className="thumb" />}
           <label className="file-btn">
-            Project image
+            {project.hasPhoto ? "Replace project image" : "Project image"}
             <input
               type="file"
               accept="image/*"
@@ -161,6 +180,22 @@ export function HostProjects({ code, ccy }: { code: string; ccy: Currency }) {
                   )}
                 </span>
                 <span className="row">
+                  {g.photoUrl && <img src={`${API_BASE}${g.photoUrl}`} alt="" className="thumb" />}
+                  <label className="file-btn">
+                    {g.hasPhoto ? "Replace image" : "Gewerk image"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        const body = new FormData();
+                        body.append("file", file);
+                        void run(() => uploadForm(`/api/host/events/${code}/gewerke/${g.id}/photo`, body), "Gewerk image saved.");
+                      }}
+                    />
+                  </label>
                   <button
                     type="button"
                     className="button secondary"

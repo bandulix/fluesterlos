@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { assetUrl } from "../lib/api";
+import { seedText } from "../lib/projectCopy";
 import type { Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
 import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
@@ -656,14 +657,30 @@ export function EngagerPage() {
         <section className={`panel highlight${flash ? " bid-flash" : ""}${frame === "needs" ? " is-need" : ""}${frame === "donors" ? " is-donors" : ""}${frame === "projects" ? " is-project" : ""}`}>
           {frame === "projects" && projects[0] ? (
             <div className="project-spot">
-              <p className="muted"><Line mode={screenLang} k="screen.project" />{projects[0].placeholder ? " · " : ""}{projects[0].placeholder && <Line mode={screenLang} k="project.placeholder" />}</p>
-              <h2>{projects[0].title}</h2>
-              <p className="big-amount">{projects[0].percent}%</p>
-              <p className="muted spot-sub">
-                <Line mode={screenLang} k="screen.projectProgress" vars={{ percent: projects[0].percent }} />
-                {" · "}
-                {money(projects[0].raised)} / {money(projects[0].target)}
-              </p>
+              {projects[0].photoUrl ? (
+                <img className="project-photo" src={assetUrl(projects[0].photoUrl)} alt="" />
+              ) : (
+                <div className="project-photo-pending" role="img">
+                  <Line mode={screenLang} k="project.photoPending" />
+                </div>
+              )}
+              <div>
+                <p className="muted"><Line mode={screenLang} k="screen.project" />{projects[0].placeholder ? " · " : ""}{projects[0].placeholder && <Line mode={screenLang} k="project.placeholder" />}</p>
+                <h2><Dual mode={screenLang} text={(lang) => seedText(projects[0].copyKey, "title", projects[0].title, lang)} /></h2>
+                <p className="big-amount">{projects[0].percent}%</p>
+                <p className="muted spot-sub">
+                  <Line mode={screenLang} k="screen.projectProgress" vars={{ percent: projects[0].percent }} />
+                  {" · "}
+                  {money(projects[0].raised)} / {money(projects[0].target)}
+                </p>
+                {projects[0].countsAuction && (projects[0].auctionRaised ?? 0) > 0 && (
+                  <p className="muted spot-sub">
+                    <Line mode={screenLang} k="project.auction" />
+                    {" · "}
+                    {money(projects[0].auctionRaised ?? 0)}
+                  </p>
+                )}
+              </div>
             </div>
           ) : frame === "donors" ? (
             <div className="donor-spot">
@@ -773,10 +790,13 @@ export function EngagerPage() {
           </div>
           <div className="board-body" ref={boardRef}>
           {frame === "projects" && projects[0] ? (
-            <ul className="project-board">
+            <ul className={`project-board${projects[0].gewerke.some((g) => g.photoUrl) ? " has-thumbs" : ""}`}>
               {projects[0].gewerke.map((g) => (
                 <li key={g.id}>
-                  <span>{g.title}</span>
+                  <span>
+                    {g.photoUrl ? <img className="project-thumb" src={assetUrl(g.photoUrl)} alt="" /> : null}
+                    <Dual mode={screenLang} text={(lang) => seedText(g.copyKey, "title", g.title, lang)} />
+                  </span>
                   <span className="need-bar" aria-hidden="true"><span style={{ width: `${g.percent}%` }} /></span>
                   <strong>{g.percent}%</strong>
                   <small>{money(g.raised)} / {money(g.target)}</small>

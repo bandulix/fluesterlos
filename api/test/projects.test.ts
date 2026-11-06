@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { freshApp, hostCookie, createOpenEvent, joinGuest, ph } from "./helpers.js";
+import { bid, closeEvent, createOpenEvent, freshApp, hostCookie, joinGuest, multipart, ph, PNG_1PX } from "./helpers.js";
 
 describe("project funding", () => {
   it("seeds a placeholder school, records a partial pledge and a full takeover, and keeps payment unset", async () => {
@@ -12,6 +12,9 @@ describe("project funding", () => {
     const live = seeded.json().live;
     const project = live.projects[0];
     expect(project.title).toBe("Schulgebäude");
+    expect(project.copyKey).toBe("school");
+    expect(project.countsAuction).toBe(true);
+    expect(project.photoUrl).toBeNull();
     expect(project.placeholder).toBe(true);
     expect(project.gewerke.map((g: { title: string }) => g.title)).toEqual(["Dach", "Rohbau", "Fenster", "Möbel", "Sanitär", "Elektro"]);
     expect(project.gewerke.every((g: { placeholder: boolean; target: number }) => g.placeholder && g.target > 0)).toBe(true);
@@ -86,6 +89,70 @@ describe("project funding", () => {
       payload: { email: "other@example.org" },
     });
     expect(again.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it("adds awarded lots to the building total, ignores an open leading bid, and serves uploaded photos", async () => {
+    const app = await freshApp();
+    const cookie = await hostCookie(app);
+    const { code, eventId, items } = await createOpenEvent(app, cookie, [
+      { title: "Jersey", startingBid: 1000, minIncrement: 100 },
+      { title: "Vase", startingBid: 2000, minIncrement: 100, buyNow: 8000 },
+    ]);
+    const seeded = await app.inject({ method: "POST", url: `/api/host/events/${code}/projects/example`, headers: { cookie } });
+    const project = seeded.json().live.projects[0];
+    expect(project.gewerke.map((g: { copyKey: string }) => g.copyKey)).toEqual([
+      "roof", "shell", "windows", "furniture", "washrooms", "electrics",
+    ]);
+
+    const guest = await joinGuest(app, code, ph(4), "Otto");
+    expect((await bid(app, code, guest.token, items[0].id, 1500)).statusCode).toBe(200);
+    const open = await app.inject({ method: "GET", url: `/api/events/${code}` });
+    expect(open.json().projects[0].auctionRaised).toBe(0);
+    expect(open.json().projects[0].raised).toBe(0);
+
+    expect((await bid(app, code, guest.token, items[1].id, 8000)).statusCode).toBe(200);
+    const afterBuy = await app.inject({ method: "GET", url: `/api/events/${code}` });
+    expect(afterBuy.json().projects[0].auctionRaised).toBe(8000);
+    expect(afterBuy.json().projects[0].auctionLots).toBe(1);
+    expect(afterBuy.json().projects[0].pledged).toBe(0);
+    expect(afterBuy.json().projects[0].gewerke.every((g: { raised: number }) => g.raised === 0)).toBe(true);
+
+    await closeEvent(eventId);
+    const closed = await app.inject({ method: "GET", url: `/api/events/${code}` });
+    expect(closed.json().projects[0].auctionRaised).toBe(9500);
+    expect(closed.json().projects[0].auctionLots).toBe(2);
+    expect(closed.json().projects[0].raised).toBe(9500);
+    expect(closed.json().projects[0].pledged).toBe(0);
+
+    const mp = multipart({}, [{ field: "file", filename: "school.png", type: "image/png", content: PNG_1PX }]);
+    const uploaded = await app.inject({
+      method: "POST",
+      url: `/api/host/events/${code}/projects/${project.id}/photo`,
+      headers: { cookie, "content-type": mp.contentType },
+      payload: mp.payload,
+    });
+    expect(uploaded.statusCode).toBe(200);
+    const photoUrl = uploaded.json().live.projects[0].photoUrl as string;
+    expect(photoUrl).toContain(`/projects/${project.id}/photo`);
+    const photo = await app.inject({ method: "GET", url: photoUrl.split("?")[0] });
+    expect(photo.statusCode).toBe(200);
+    expect(String(photo.headers["content-type"])).toContain("image/png");
+
+    const gewerkId = project.gewerke[0].id as string;
+    const trade = multipart({}, [{ field: "file", filename: "roof.png", type: "image/png", content: PNG_1PX }]);
+    const tradeUpload = await app.inject({
+      method: "POST",
+      url: `/api/host/events/${code}/gewerke/${gewerkId}/photo`,
+      headers: { cookie, "content-type": trade.contentType },
+      payload: trade.payload,
+    });
+    expect(tradeUpload.statusCode).toBe(200);
+    expect(tradeUpload.json().live.projects[0].gewerke[0].photoUrl).toContain(`/gewerke/${gewerkId}/photo`);
+
+    const again = await app.inject({ method: "POST", url: `/api/host/events/${code}/projects/example`, headers: { cookie } });
+    expect(again.json().created).toBe(false);
+    expect(again.json().live.projects).toHaveLength(1);
     await app.close();
   });
 });

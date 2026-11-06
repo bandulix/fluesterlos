@@ -878,8 +878,22 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) auto;
   gap: 0.25rem 0.6rem; align-items: center; min-width: 0;
 }
+.project-board.has-thumbs li { grid-template-columns: 10rem minmax(0, 1fr) auto; }
+.project-board li > span { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.project-thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex: none; }
 .project-board .need-bar { margin: 0; }
 .project-board small { display: none; }
+.project-spot {
+  display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 0.8rem; align-items: center;
+}
+.project-photo, .project-photo-pending {
+  width: 11rem; height: 7rem; border-radius: 12px; object-fit: cover;
+}
+.project-photo-pending {
+  display: grid; place-items: center; padding: 0.6rem; text-align: center;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--muted, inherit); font-size: 0.85rem; line-height: 1.25;
+}
 .project-spot h2 { margin: 0.1rem 0; }
 .project-spot .big-amount { margin: 0; }
 .donor-board { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

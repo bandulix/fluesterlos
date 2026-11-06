@@ -888,6 +888,16 @@ html[lang="th"] :is(.g-join-title, .g-title, .g-card h2) { line-height: 1.35; le
 }
 .g-placeholder strong { color: var(--accent); margin-right: 6px; }
 .g-project-title { margin: 0; font-size: 1.6rem; }
+.g-project-photo {
+  width: 100%; max-height: 220px; object-fit: cover; border-radius: 16px; display: block;
+}
+.g-photo-pending {
+  display: grid; place-items: center; min-height: 120px; padding: 16px; text-align: center;
+  border-radius: 16px; border: 1px dashed var(--accent); color: var(--text-strong);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.g-auction-share { margin: 8px 0; }
+.g-sheet .g-project-photo, .g-sheet .g-photo-pending { max-height: 160px; min-height: 96px; margin-bottom: 8px; }
 .g-project-figure { margin: 0; font-family: var(--font-display, inherit); font-size: 1.8rem; color: var(--accent); }
 .g-building { display: grid; gap: 4px; padding: 12px; border-radius: 18px; background: var(--card); }
 .g-roof {

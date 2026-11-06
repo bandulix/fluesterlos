@@ -161,6 +161,7 @@ export type Gewerk = {
   id: string;
   title: string;
   description: string;
+  copyKey?: string | null;
   photoUrl: string | null;
   sortOrder: number;
   placeholder: boolean;
@@ -176,9 +177,16 @@ export type Project = {
   id: string;
   title: string;
   description: string;
+  copyKey?: string | null;
+  countsAuction?: boolean;
   photoUrl: string | null;
   sortOrder: number;
   placeholder: boolean;
+  /** Pledges on trades, before awarded auction lots. */
+  pledged?: number;
+  /** Final sale prices of awarded lots. Not a pledge. */
+  auctionRaised?: number;
+  auctionLots?: number;
   target: number;
   raised: number;
   remaining: number;
