@@ -4,6 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { assetUrl } from "../lib/api";
 import { seedText } from "../lib/projectCopy";
+import { SchoolBuilding } from "../guest/SchoolBuilding";
 import type { Need, Sponsor } from "../lib/api";
 import { useLive } from "../lib/useLive";
 import { bigScreenFrame, raisedSplit, recognitionMoves } from "../lib/pledgeLogic";
@@ -790,19 +791,29 @@ export function EngagerPage() {
           </div>
           <div className="board-body" ref={boardRef}>
           {frame === "projects" && projects[0] ? (
-            <ul className={`project-board${projects[0].gewerke.some((g) => g.photoUrl) ? " has-thumbs" : ""}`}>
-              {projects[0].gewerke.map((g) => (
-                <li key={g.id}>
-                  <span>
-                    {g.photoUrl ? <img className="project-thumb" src={assetUrl(g.photoUrl)} alt="" /> : null}
-                    <Dual mode={screenLang} text={(lang) => seedText(g.copyKey, "title", g.title, lang)} />
-                  </span>
-                  <span className="need-bar" aria-hidden="true"><span style={{ width: `${g.percent}%` }} /></span>
-                  <strong>{g.percent}%</strong>
-                  <small>{money(g.raised)} / {money(g.target)}</small>
-                </li>
-              ))}
-            </ul>
+            <div className="project-scene">
+              <SchoolBuilding
+                variant="room"
+                trades={projects[0].gewerke}
+                nameOf={(g) => <Dual mode={screenLang} text={(lang) => seedText(g.copyKey, "title", g.title, lang)} />}
+              />
+              {(projects[0].publicDonors?.length ?? 0) > 0 && (
+                <p className="project-public">
+                  <Line mode={screenLang} k="donate.supported" />
+                  {" · "}
+                  {projects[0].publicDonors!.map((d) => (d.amount != null ? `${d.name} ${money(d.amount)}` : d.name)).join(" · ")}
+                </p>
+              )}
+              {(projects[0].anonymousGifts ?? 0) > 0 && (
+                <p className="muted project-public">
+                  <Line
+                    mode={screenLang}
+                    k={(projects[0].anonymousGifts ?? 0) === 1 ? "donate.anonGift" : "donate.anonGifts"}
+                    vars={{ n: projects[0].anonymousGifts ?? 0 }}
+                  />
+                </p>
+              )}
+            </div>
           ) : frame === "donors" ? (
             <ol className="donor-board">
               {topDonors.map((d) => (

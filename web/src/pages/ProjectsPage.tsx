@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, assetUrl, getGuestToken, Gewerk, Project } from "../lib/api";
+import { api, assetUrl, getGuestToken, Gewerk, GuestMe, Project } from "../lib/api";
+import { SchoolBuilding } from "../guest/SchoolBuilding";
 import { formatAmount, parseCurrency } from "../lib/money";
 import { useLive } from "../lib/useLive";
 import { plural, t } from "../i18n";
@@ -19,7 +20,27 @@ export function ProjectsPage() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [named, setNamed] = useState(false);
+  const [publicName, setPublicName] = useState("");
+  const [showAmount, setShowAmount] = useState(false);
+  const [guestName, setGuestName] = useState("");
   const token = getGuestToken(code);
+
+  useEffect(() => {
+    if (!token) return;
+    api<GuestMe>(`/api/events/${code}/me`, {}, token)
+      .then((res) => {
+        const guest = res.guest;
+        if (!guest) return;
+        setGuestName(guest.name || "");
+        const rec = guest.recognition;
+        if (!rec) return;
+        setNamed(rec.namedPublicly);
+        setPublicName(rec.publicName || guest.name || "");
+        setShowAmount(rec.showAmount);
+      })
+      .catch(() => undefined);
+  }, [code, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -47,7 +68,16 @@ export function ProjectsPage() {
     try {
       const res = await api<{ pledge: { amount: number; gewerkId?: string } }>(
         `/api/events/${code}/gewerke/${gewerk.id}/pledges`,
-        { method: "POST", body: JSON.stringify({ mode, amount: raw }) },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            mode,
+            amount: raw,
+            namedPublicly: named,
+            publicName: named ? publicName.trim() || guestName : "",
+            showAmount: named && showAmount,
+          }),
+        },
         token,
       );
       setMine((prev) => ({ ...prev, [gewerk.id]: (prev[gewerk.id] ?? 0) + res.pledge.amount }));
@@ -111,6 +141,7 @@ export function ProjectsPage() {
             <PhotoFrame src={gewerk.photoUrl} alt={seedText(gewerk.copyKey, "title", gewerk.title)} pending={t("project.tradePhotoPending")} />
             {gewerk.placeholder && <p className="g-placeholder">{t("project.placeholderNote")}</p>}
             <p className="g-muted">{seedText(gewerk.copyKey, "description", gewerk.description)}</p>
+            <p className="g-visit">{t("project.visitShort")}</p>
             <p className="g-price-label">{t("project.target")}</p>
             <p className="g-project-figure">{formatAmount(gewerk.target, ccy)}</p>
             <div className="g-progress" aria-hidden="true"><span style={{ width: `${gewerk.percent}%` }} /></div>
@@ -120,12 +151,23 @@ export function ProjectsPage() {
               {plural("project.oneDonor", "project.donors", gewerk.donorCount)}
             </p>
             {mine[gewerk.id] ? <p className="g-yours-pledge">{t("project.yours", { amount: formatAmount(mine[gewerk.id], ccy) })}</p> : null}
-            {gewerk.donors.length > 0 && (
-              <ul className="g-supported">
-                {gewerk.donors.map((d, i) => (
-                  <li key={`${d.name}-${i}`}><span>{d.name}</span><strong>{formatAmount(d.amount, ccy)}</strong></li>
-                ))}
-              </ul>
+            {(gewerk.donors.length > 0 || (gewerk.anonymousGifts ?? 0) > 0) && (
+              <div className="g-supported">
+                <p className="g-kicker">{t("donate.supported")}</p>
+                {gewerk.donors.length > 0 && (
+                  <ul>
+                    {gewerk.donors.map((d, i) => (
+                      <li key={`${d.name}-${i}`}>
+                        <span>{d.name}</span>
+                        {d.amount != null && <strong>{formatAmount(d.amount, ccy)}</strong>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {(gewerk.anonymousGifts ?? 0) > 0 && (
+                  <p className="g-muted">{plural("donate.anonGift", "donate.anonGifts", gewerk.anonymousGifts ?? 0)}</p>
+                )}
+              </div>
             )}
             {!token ? (
               <p><Link className="g-primary" to={`/e/${code}`}>{t("project.joinToGive")}</Link></p>
@@ -133,6 +175,17 @@ export function ProjectsPage() {
               <p className="g-funded">{t("project.fundedAlready")}</p>
             ) : (
               <>
+                <NamingChoice
+                  named={named}
+                  publicName={publicName}
+                  showAmount={showAmount}
+                  onNamed={(on) => {
+                    setNamed(on);
+                    if (on && !publicName.trim()) setPublicName(guestName);
+                  }}
+                  onPublicName={setPublicName}
+                  onShowAmount={setShowAmount}
+                />
                 <button type="button" className="g-primary" disabled={busy} onClick={() => void pledge("full")}>
                   {t("project.takeoverCta", { amount: formatAmount(gewerk.remaining, ccy) })}
                 </button>
@@ -177,7 +230,17 @@ function ProjectView({
       <p className="g-kicker">{t("project.kicker")}</p>
       <h2 className="g-project-title">{seedText(project.copyKey, "title", project.title)}</h2>
       <p className="g-muted">{seedText(project.copyKey, "description", project.description)}</p>
-      <PhotoFrame src={project.photoUrl} alt={seedText(project.copyKey, "title", project.title)} pending={t("project.photoPending")} />
+      <p className="g-visit">{t("project.visit")}</p>
+      <SchoolBuilding
+        trades={project.gewerke}
+        onOpen={onOpen}
+        nameOf={(g) => seedText(g.copyKey, "title", g.title)}
+      />
+      {project.photoUrl ? (
+        <PhotoFrame src={project.photoUrl} alt={seedText(project.copyKey, "title", project.title)} pending={t("project.photoPending")} />
+      ) : (
+        <p className="g-muted">{t("project.photoPending")}</p>
+      )}
       {project.countsAuction && (
         <p className="g-auction-share">
           <strong>{t("project.auction")}</strong>{" "}
@@ -193,17 +256,6 @@ function ProjectView({
           {(project.auctionRaised ?? 0) > 0 && <span className="g-muted"> {t("project.auctionNote")}</span>}
         </p>
       )}
-      <p className="g-price-label">{t("project.building")}</p>
-      <div className="g-building" aria-hidden="true">
-        <div className="g-roof" />
-        {project.gewerke.map((g) => (
-          <div key={g.id} className="g-floor">
-            <i style={{ width: `${g.percent}%` }} />
-            <span>{seedText(g.copyKey, "title", g.title)}</span>
-            <strong>{g.percent}%</strong>
-          </div>
-        ))}
-      </div>
       <p>
         <span className="g-price-label">{t("project.progress")}</span>{" "}
         <strong>{project.percent}%</strong>
@@ -220,6 +272,44 @@ function ProjectView({
         ))}
       </ul>
     </>
+  );
+}
+
+function NamingChoice({
+  named,
+  publicName,
+  showAmount,
+  onNamed,
+  onPublicName,
+  onShowAmount,
+}: {
+  named: boolean;
+  publicName: string;
+  showAmount: boolean;
+  onNamed: (on: boolean) => void;
+  onPublicName: (value: string) => void;
+  onShowAmount: (on: boolean) => void;
+}) {
+  return (
+    <div className="g-naming">
+      <label className="g-anon">
+        <input type="checkbox" checked={named} onChange={(e) => onNamed(e.target.checked)} />
+        {t("donate.nameMe")}
+      </label>
+      {named ? (
+        <>
+          <label className="g-field-label" htmlFor="project-public-name">{t("donate.publicName")}</label>
+          <input id="project-public-name" className="g-big-input" value={publicName} maxLength={80} onChange={(e) => onPublicName(e.target.value)} />
+          <p className="g-muted g-small">{t("donate.publicHint")}</p>
+          <label className="g-anon">
+            <input type="checkbox" checked={showAmount} onChange={(e) => onShowAmount(e.target.checked)} />
+            {t("donate.showAmount")}
+          </label>
+        </>
+      ) : (
+        <p className="g-muted g-small">{t("donate.asGuest")}</p>
+      )}
+    </div>
   );
 }
 

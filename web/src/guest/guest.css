@@ -897,6 +897,10 @@ html[lang="th"] :is(.g-join-title, .g-title, .g-card h2) { line-height: 1.35; le
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 .g-auction-share { margin: 8px 0; }
+.g-visit {
+  margin: 8px 0; padding: 10px 12px; border-radius: 12px;
+  border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
 .g-sheet .g-project-photo, .g-sheet .g-photo-pending { max-height: 160px; min-height: 96px; margin-bottom: 8px; }
 .g-project-figure { margin: 0; font-family: var(--font-display, inherit); font-size: 1.8rem; color: var(--accent); }
 .g-building { display: grid; gap: 4px; padding: 12px; border-radius: 18px; background: var(--card); }

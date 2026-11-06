@@ -156,7 +156,7 @@ export function clearGuestToken(code: string) {
   localStorage.removeItem(guestTokenKey(code));
 }
 
-export type GewerkDonor = { name: string; amount: number };
+export type GewerkDonor = { name: string; amount: number | null };
 export type Gewerk = {
   id: string;
   title: string;
@@ -172,6 +172,7 @@ export type Gewerk = {
   funded: boolean;
   donorCount: number;
   donors: GewerkDonor[];
+  anonymousGifts?: number;
 };
 export type Project = {
   id: string;
@@ -193,6 +194,8 @@ export type Project = {
   percent: number;
   funded: boolean;
   donorCount: number;
+  publicDonors?: GewerkDonor[];
+  anonymousGifts?: number;
   gewerke: Gewerk[];
 };
 

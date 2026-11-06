@@ -3,6 +3,7 @@ import { setLanguage } from "../src/i18n";
 import { bigScreenFrame } from "../src/lib/pledgeLogic";
 import { projectProgress, tradeProgress } from "../src/lib/projectLogic";
 import { seedText } from "../src/lib/projectCopy";
+import { buildingStage } from "../src/lib/buildingStage";
 
 describe("project progress", () => {
   it("caps a trade at its placeholder target and sums the building", () => {
@@ -31,6 +32,16 @@ describe("demo school copy", () => {
     expect(seedText("school", "title", "Schulgebäude")).toBe("อาคารเรียน");
     expect(seedText("electrics", "title", "Elektro")).toBe("ระบบไฟฟ้า");
     expect(seedText(null, "title", "Custom hall")).toBe("Custom hall");
+  });
+});
+
+describe("school building stages", () => {
+  it("turns a trade from an outline into a finished part", () => {
+    expect(buildingStage(0)).toBe("ghost");
+    expect(buildingStage(18)).toBe("sketch");
+    expect(buildingStage(44)).toBe("sketch");
+    expect(buildingStage(60)).toBe("material");
+    expect(buildingStage(100)).toBe("real");
   });
 });
 

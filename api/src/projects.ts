@@ -1,5 +1,6 @@
 import { pool } from "./db.js";
 import { money } from "./auction.js";
+import { cleanPublicName } from "./recognition.js";
 
 export type GewerkInput = {
   title: string;
@@ -84,7 +85,58 @@ export function progress(target: number, raised: number) {
   return { target: goal, raised: got, remaining, percent, funded: goal > 0 && remaining <= 0 };
 }
 
-type GiftRow = { gewerk_id: string; amount: string; guest_name: string; created_at: Date };
+type GiftRow = {
+  gewerk_id: string;
+  guest_id: string;
+  amount: string;
+  guest_name: string;
+  anonymous: boolean;
+  public_name: string;
+  show_amount: boolean;
+  recognition_hidden: boolean;
+};
+
+export type PublicDonor = { name: string; amount: number | null };
+
+function isHidden(gift: GiftRow, recognitionOn: boolean) {
+  return !recognitionOn || gift.anonymous || gift.recognition_hidden || !(gift.public_name || "").trim();
+}
+
+/** Names the room may print. A private pledge, or a name the host has hidden, becomes an anonymous gift. */
+export function presentGifts(
+  gifts: GiftRow[],
+  recognitionOn: boolean,
+): { donors: PublicDonor[]; anonymousGifts: number } {
+  const donors: PublicDonor[] = [];
+  let anonymousGifts = 0;
+  for (const gift of gifts) {
+    if (isHidden(gift, recognitionOn)) {
+      anonymousGifts += 1;
+      continue;
+    }
+    donors.push({
+      name: gift.public_name.trim(),
+      amount: gift.show_amount ? money(gift.amount) : null,
+    });
+  }
+  return { donors, anonymousGifts };
+}
+
+/** Public building donors, largest gift total first. A hidden amount stays off the list. */
+export function rankGifts(gifts: GiftRow[], recognitionOn: boolean): PublicDonor[] {
+  const map = new Map<string, { total: number; hide: boolean }>();
+  for (const gift of gifts) {
+    if (isHidden(gift, recognitionOn)) continue;
+    const name = gift.public_name.trim();
+    const cur = map.get(name) ?? { total: 0, hide: false };
+    cur.total = money(cur.total + money(gift.amount));
+    if (!gift.show_amount) cur.hide = true;
+    map.set(name, cur);
+  }
+  return [...map.entries()]
+    .sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0]))
+    .map(([name, row]) => ({ name, amount: row.hide ? null : row.total }));
+}
 
 export async function listPublicProjects(eventId: string, code: string) {
   const projects = await pool.query(
@@ -102,8 +154,11 @@ export async function listPublicProjects(eventId: string, code: string) {
      FROM gewerke WHERE project_id = ANY($1::uuid[]) ORDER BY sort_order, created_at`,
     [ids],
   );
+  const recognition = await pool.query("SELECT donor_recognition FROM events WHERE id = $1", [eventId]);
+  const recognitionOn = recognition.rows[0]?.donor_recognition !== false;
   const gifts = await pool.query(
-    `SELECT pl.gewerk_id, pl.amount, g.name AS guest_name, pl.created_at
+    `SELECT pl.gewerk_id, pl.guest_id, pl.amount, pl.anonymous, pl.public_name, pl.show_amount,
+            g.name AS guest_name, g.recognition_hidden
      FROM project_pledges pl
      JOIN guests g ON g.id = pl.guest_id
      JOIN gewerke w ON w.id = pl.gewerk_id
@@ -122,6 +177,7 @@ export async function listPublicProjects(eventId: string, code: string) {
       const mine = byGewerk.get(g.id as string) ?? [];
       const raised = mine.reduce((sum, gift) => sum + money(gift.amount), 0);
       const bar = progress(money(g.target_amount), raised);
+      const shown = presentGifts(mine, recognitionOn);
       return {
         id: g.id as string,
         title: g.title as string,
@@ -131,8 +187,9 @@ export async function listPublicProjects(eventId: string, code: string) {
         sortOrder: g.sort_order as number,
         placeholder: Boolean(g.placeholder),
         ...bar,
-        donorCount: mine.length,
-        donors: mine.map((gift) => ({ name: gift.guest_name, amount: money(gift.amount) })),
+        donorCount: new Set(mine.map((gift) => gift.guest_id)).size,
+        donors: shown.donors,
+        anonymousGifts: shown.anonymousGifts,
       };
     });
     const pledged = trades.reduce((sum, t) => sum + t.raised, 0);
@@ -140,6 +197,11 @@ export async function listPublicProjects(eventId: string, code: string) {
     const includeAuction = p.id === auctionProjectId;
     const auctionRaised = includeAuction ? auction.amount : 0;
     const donors = new Set(trades.flatMap((t) => t.donors.map((d) => d.name)));
+    const projectGifts = gewerke.rows
+      .filter((g) => g.project_id === p.id)
+      .flatMap((g) => byGewerk.get(g.id as string) ?? []);
+    const shown = presentGifts(projectGifts, recognitionOn);
+    const publicDonors = rankGifts(projectGifts, recognitionOn);
     return {
       id: p.id as string,
       title: p.title as string,
@@ -154,6 +216,8 @@ export async function listPublicProjects(eventId: string, code: string) {
       auctionLots: includeAuction ? auction.lotCount : 0,
       ...progress(target, pledged + auctionRaised),
       donorCount: donors.size,
+      publicDonors,
+      anonymousGifts: shown.anonymousGifts,
       gewerke: trades,
     };
   });
@@ -179,6 +243,7 @@ export async function hostProjectBundle(eventId: string, code = "") {
   const gifts = ids.length
     ? await pool.query(
         `SELECT pl.id, pl.gewerk_id, pl.amount, pl.kind, pl.payment_status, pl.payment_provider, pl.payment_ref,
+                pl.anonymous, pl.public_name, pl.show_amount,
                 pl.created_at, g.id AS guest_id, g.name AS guest_name, g.phone AS guest_phone
          FROM project_pledges pl
          JOIN guests g ON g.id = pl.guest_id
@@ -226,6 +291,9 @@ export async function hostProjectBundle(eventId: string, code = "") {
                 guestPhone: (gift.guest_phone as string | null) ?? null,
                 amount: money(gift.amount),
                 kind: gift.kind as "partial" | "full",
+                anonymous: gift.anonymous !== false,
+                publicName: (gift.public_name as string) ?? "",
+                showAmount: Boolean(gift.show_amount),
                 paymentStatus: gift.payment_status as string,
                 paymentProvider: (gift.payment_provider as string | null) ?? null,
                 paymentRef: (gift.payment_ref as string | null) ?? null,
@@ -376,8 +444,12 @@ export async function placeGewerkPledge(opts: {
   eventId: string;
   gewerkId: string;
   guestId: string;
+  guestName: string;
   mode: "full" | "partial";
   amount?: number;
+  namedPublicly?: boolean;
+  publicName?: string;
+  showAmount?: boolean;
 }) {
   const client = await pool.connect();
   try {
@@ -402,11 +474,16 @@ export async function placeGewerkPledge(opts: {
     if (amount > bar.remaining + 0.001) throw httpError(400, "That is more than the amount still open");
     amount = money(Math.min(amount, bar.remaining));
     const kind = amount + 0.001 >= bar.remaining ? "full" : "partial";
+    const named = opts.namedPublicly === true;
+    const cleaned = cleanPublicName(opts.publicName ?? "");
+    if (!cleaned.ok) throw httpError(400, cleaned.error);
+    const publicName = named ? cleaned.name || opts.guestName.trim().slice(0, 80) : "";
+    const showAmount = named && opts.showAmount === true;
     const inserted = await client.query(
-      `INSERT INTO project_pledges (gewerk_id, guest_id, amount, kind, payment_status)
-       VALUES ($1, $2, $3, $4, 'recorded')
-       RETURNING id, amount, kind, payment_status, payment_provider, payment_ref`,
-      [opts.gewerkId, opts.guestId, amount, kind],
+      `INSERT INTO project_pledges (gewerk_id, guest_id, amount, kind, payment_status, anonymous, public_name, show_amount)
+       VALUES ($1, $2, $3, $4, 'recorded', $5, $6, $7)
+       RETURNING id, amount, kind, payment_status, payment_provider, payment_ref, anonymous, public_name, show_amount`,
+      [opts.gewerkId, opts.guestId, amount, kind, !named, publicName, showAmount],
     );
     await client.query("COMMIT");
     const row = inserted.rows[0];
@@ -417,6 +494,9 @@ export async function placeGewerkPledge(opts: {
       paymentStatus: row.payment_status as string,
       paymentProvider: (row.payment_provider as string | null) ?? null,
       paymentRef: (row.payment_ref as string | null) ?? null,
+      anonymous: row.anonymous !== false,
+      publicName: (row.public_name as string) ?? "",
+      showAmount: Boolean(row.show_amount),
     };
   } catch (e) {
     await client.query("ROLLBACK");

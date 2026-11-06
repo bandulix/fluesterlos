@@ -109,6 +109,9 @@ export function registerProjectRoutes(
       .object({
         mode: z.enum(["full", "partial"]),
         amount: z.number().positive().optional(),
+        namedPublicly: z.boolean().optional(),
+        publicName: z.string().max(80).optional(),
+        showAmount: z.boolean().optional(),
       })
       .safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "Check the amount and try again" });
@@ -117,8 +120,12 @@ export function registerProjectRoutes(
         eventId: event.id,
         gewerkId,
         guestId: guest.id,
+        guestName: guest.name,
         mode: parsed.data.mode,
         amount: parsed.data.amount,
+        namedPublicly: parsed.data.namedPublicly,
+        publicName: parsed.data.publicName,
+        showAmount: parsed.data.showAmount,
       });
       return { ok: true, pledge, live: await live(event) };
     } catch (e) {

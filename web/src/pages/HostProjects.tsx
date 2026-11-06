@@ -8,6 +8,8 @@ type Pledge = {
   guestPhone: string | null;
   amount: number;
   kind: "partial" | "full";
+  anonymous?: boolean;
+  publicName?: string;
   paymentStatus: string;
   paymentProvider: string | null;
 };
@@ -172,7 +174,7 @@ export function HostProjects({ code, ccy }: { code: string; ccy: Currency }) {
                       {g.pledges.map((p) => (
                         <li key={p.id}>
                           {p.guestName}
-                          {p.guestPhone ? ` · ${p.guestPhone}` : ""} · {formatAmount(p.amount, ccy)} · {p.kind} · {p.paymentStatus}
+                          {p.guestPhone ? ` · ${p.guestPhone}` : ""} · {formatAmount(p.amount, ccy)} · {p.kind} · {p.anonymous === false ? `public${p.publicName ? ` (${p.publicName})` : ""}` : "private"} · {p.paymentStatus}
                           {p.paymentProvider ? ` · ${p.paymentProvider}` : ""}
                         </li>
                       ))}

@@ -438,6 +438,10 @@ export async function migrate() {
       payment_ref TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    -- Opt-in, same idea as Fund-a-Need: a pledge stays unnamed until the guest asks to be shown.
+    ALTER TABLE project_pledges ADD COLUMN IF NOT EXISTS anonymous BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE project_pledges ADD COLUMN IF NOT EXISTS public_name TEXT NOT NULL DEFAULT '';
+    ALTER TABLE project_pledges ADD COLUMN IF NOT EXISTS show_amount BOOLEAN NOT NULL DEFAULT false;
 
     CREATE TABLE IF NOT EXISTS admin_invites (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

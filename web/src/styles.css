@@ -894,6 +894,8 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
   color: var(--muted, inherit); font-size: 0.85rem; line-height: 1.25;
 }
+.project-scene { display: grid; gap: 6px; align-content: start; }
+.project-public { margin: 0; }
 .project-spot h2 { margin: 0.1rem 0; }
 .project-spot .big-amount { margin: 0; }
 .donor-board { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

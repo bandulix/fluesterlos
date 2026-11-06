@@ -427,6 +427,8 @@ export const de = {
   "project.joinToGive": "Bitte treten Sie mit Ihrem Code bei, um eine Spende zuzusagen.",
   "project.back": "Zurück zur Auktion",
   "project.building": "Das Gebäude",
+  "project.visit": "Sie können die Schule jederzeit besuchen, das alte Gebäude ansehen und das neue, sobald es fertig ist.",
+  "project.visitShort": "Besuch ist jederzeit willkommen — und wieder, wenn das neue Gebäude fertig ist.",
   "project.yours": "Sie haben {amount} zugesagt",
   "project.photoPending": "Hier erscheint ein Foto des Schulgebäudes, sobald es hochgeladen ist.",
   "project.tradePhotoPending": "Hier erscheint ein Foto dieses Gewerks, sobald es hochgeladen ist.",

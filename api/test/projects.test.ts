@@ -155,4 +155,61 @@ describe("project funding", () => {
     expect(again.json().live.projects).toHaveLength(1);
     await app.close();
   });
+
+  it("hides a private project pledge and ranks a public name without the amount until asked", async () => {
+    const app = await freshApp();
+    const cookie = await hostCookie(app);
+    const { code } = await createOpenEvent(app, cookie, [{ title: "Jersey", startingBid: 1000, minIncrement: 100 }]);
+    const seeded = await app.inject({ method: "POST", url: `/api/host/events/${code}/projects/example`, headers: { cookie } });
+    const project = seeded.json().live.projects[0];
+    const guest = await joinGuest(app, code, ph(5), "Anna");
+    const roof = project.gewerke[0].id as string;
+    const quiet = await app.inject({
+      method: "POST",
+      url: `/api/events/${code}/gewerke/${roof}/pledges`,
+      headers: { "x-guest-token": guest.token },
+      payload: { mode: "partial", amount: 1000 },
+    });
+    expect(quiet.statusCode).toBe(200);
+    expect(quiet.json().pledge.anonymous).toBe(true);
+    const hidden = quiet.json().live;
+    expect(JSON.stringify(hidden.projects)).not.toContain("Anna");
+    expect(hidden.projects[0].gewerke[0].anonymousGifts).toBe(1);
+    expect(hidden.projects[0].gewerke[0].donors).toEqual([]);
+    expect(hidden.topDonors.some((d: { name: string }) => d.name === "Anna")).toBe(false);
+
+    const desks = project.gewerke[3].id as string;
+    const named = await app.inject({
+      method: "POST",
+      url: `/api/events/${code}/gewerke/${desks}/pledges`,
+      headers: { "x-guest-token": guest.token },
+      payload: { mode: "partial", amount: 5000, namedPublicly: true, publicName: "The Müller Family", showAmount: false },
+    });
+    expect(named.statusCode).toBe(200);
+    const listed = named.json().live.projects[0];
+    expect(listed.publicDonors[0]).toEqual({ name: "The Müller Family", amount: null });
+    expect(JSON.stringify(listed)).not.toContain("Anna");
+    const rank = named.json().live.topDonors.find((d: { name: string }) => d.name === "The Müller Family");
+    expect(rank?.amount).toBeNull();
+
+    const lena = await joinGuest(app, code, ph(6), "Lena");
+    const wash = project.gewerke[4].id as string;
+    const shown = await app.inject({
+      method: "POST",
+      url: `/api/events/${code}/gewerke/${wash}/pledges`,
+      headers: { "x-guest-token": lena.token },
+      payload: { mode: "partial", amount: 2000, namedPublicly: true, publicName: "Lena Berger", showAmount: true },
+    });
+    const ranked = shown.json().live.projects[0].publicDonors;
+    expect(ranked).toEqual([
+      { name: "The Müller Family", amount: null },
+      { name: "Lena Berger", amount: 2000 },
+    ]);
+    expect(shown.json().live.topDonors.find((d: { name: string }) => d.name === "Lena Berger")?.amount).toBe(2000);
+    const hostView = await app.inject({ method: "GET", url: `/api/host/events/${code}/projects`, headers: { cookie } });
+    const pledges = hostView.json().projects[0].gewerke[0].pledges;
+    expect(pledges[0].guestName).toBe("Anna");
+    expect(pledges[0].anonymous).toBe(true);
+    await app.close();
+  });
 });
