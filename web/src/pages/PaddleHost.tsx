@@ -1,9 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, LivePayload, PaddleRaise } from "../lib/api";
-import { t } from "../i18n";
+import { translate } from "../i18n";
 import { formatAmount, type Currency } from "../lib/money";
 import { paddleProgress } from "../lib/paddleLogic";
 import type { RunAction } from "./HostEventCard";
+
+/** The host desk stays English even when this browser is bidding in another language. */
+function hostCopy(key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) {
+  return translate("en", key, vars);
+}
 
 type NeedOpt = { id: string; title: string; targetAmount: number };
 
@@ -79,7 +84,7 @@ export function PaddleHost(props: {
         levels: nums,
         goal: Number(goal),
       },
-      t("paddle.liveNote"),
+      hostCopy("paddle.liveNote"),
     );
   }
 
@@ -94,7 +99,7 @@ export function PaddleHost(props: {
       });
       setPaddle(res.live.paddle ?? null);
       return res.live;
-    }, t("paddle.added", { name }));
+    }, hostCopy("paddle.added", { name }));
     if (ok) setWho("");
   }
 
@@ -102,18 +107,18 @@ export function PaddleHost(props: {
   const endedWithMoney = paddle?.status === "ended" && paddle.raised > 0;
   return (
     <section className="stack paddle-host">
-      <h3>{t("paddle.hostTitle")}</h3>
-      {!live && !endedWithMoney && <p className="host-quiet">{t("paddle.notStarted")}</p>}
+      <h3>{hostCopy("paddle.hostTitle")}</h3>
+      {!live && !endedWithMoney && <p className="host-quiet">{hostCopy("paddle.notStarted")}</p>}
       {endedWithMoney && paddle && (
         <p className="muted">
-          {t("paddle.lastRaise", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
-          {paddle.hitGoal ? ` · ${t("paddle.hit")}` : ""}
+          {hostCopy("paddle.lastRaise", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
+          {paddle.hitGoal ? ` · ${hostCopy("paddle.hit")}` : ""}
         </p>
       )}
       {!live && (
         <form id="paddle-setup" className="stack" onSubmit={onStart}>
           <label>
-            {t("paddle.need")}
+            {hostCopy("paddle.need")}
             <select
               value={needId}
               onChange={(e) => {
@@ -126,31 +131,31 @@ export function PaddleHost(props: {
                 }
               }}
             >
-              <option value="">{t("paddle.general")}</option>
+              <option value="">{hostCopy("paddle.general")}</option>
               {needs.map((n) => (
                 <option key={n.id} value={n.id}>{n.title}</option>
               ))}
             </select>
           </label>
           <label>
-            {t("paddle.appeal")}
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("paddle.appealPh")} maxLength={200} />
+            {hostCopy("paddle.appeal")}
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={hostCopy("paddle.appealPh")} maxLength={200} />
           </label>
           <label>
-            {t("paddle.goalLabel", { currency: ccy })}
+            {hostCopy("paddle.goalLabel", { currency: ccy })}
             <input inputMode="decimal" value={goal} onChange={(e) => setGoal(e.target.value.replace(/[^0-9.]/g, ""))} />
           </label>
           <label>
-            {t("paddle.levels")}
+            {hostCopy("paddle.levels")}
             <input value={levels} onChange={(e) => setLevels(e.target.value)} />
           </label>
-          {!props.startFromRoom && <button className="button" type="submit">{t("paddle.start")}</button>}
+          {!props.startFromRoom && <button className="button" type="submit">{hostCopy("paddle.start")}</button>}
         </form>
       )}
       {live && paddle && (
         <div className="paddle-hero">
           <p className="paddle-hero-kicker">
-            {paddle.status === "paused" ? t("paddle.pausedShort") : t("paddle.calling", { amount: formatAmount(paddle.level ?? paddle.raised, ccy) })}
+            {paddle.status === "paused" ? hostCopy("paddle.pausedShort") : hostCopy("paddle.calling", { amount: formatAmount(paddle.level ?? paddle.raised, ccy) })}
           </p>
           <p className="paddle-hero-level">{formatAmount(paddle.level ?? paddle.raised, ccy)}</p>
           <div
@@ -159,27 +164,27 @@ export function PaddleHost(props: {
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(paddleProgress(paddle.raised, paddle.goal))}
-            aria-label={t("paddle.goal", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
+            aria-label={hostCopy("paddle.goal", { raised: formatAmount(paddle.raised, ccy), goal: formatAmount(paddle.goal, ccy) })}
           >
             <span style={{ width: `${paddleProgress(paddle.raised, paddle.goal)}%` }} />
           </div>
           <p className="paddle-hero-meta">
             {paddle.hitGoal
-              ? t("paddle.hit")
-              : t("paddle.toGo", { amount: formatAmount(Math.max(0, paddle.goal - paddle.raised), ccy) })}
+              ? hostCopy("paddle.hit")
+              : hostCopy("paddle.toGo", { amount: formatAmount(Math.max(0, paddle.goal - paddle.raised), ccy) })}
             {" · "}
-            {t(paddle.pledgeCount === 1 ? "paddle.pledge" : "paddle.pledges", { count: paddle.pledgeCount })}
+            {hostCopy(paddle.pledgeCount === 1 ? "paddle.pledge" : "paddle.pledges", { count: paddle.pledgeCount })}
           </p>
           <div className="row">
             {!props.nextFromRoom && (
-              <button type="button" className="button" onClick={() => send({ action: "next" }, t("paddle.nextNote"))}>{t("paddle.next")}</button>
+              <button type="button" className="button" onClick={() => send({ action: "next" }, hostCopy("paddle.nextNote"))}>{hostCopy("paddle.next")}</button>
             )}
             {paddle.status === "live" ? (
-              <button type="button" className="button secondary" onClick={() => send({ action: "pause" }, t("paddle.pauseNote"))}>{t("paddle.pause")}</button>
+              <button type="button" className="button secondary" onClick={() => send({ action: "pause" }, hostCopy("paddle.pauseNote"))}>{hostCopy("paddle.pause")}</button>
             ) : (
-              <button type="button" className="button secondary" onClick={() => send({ action: "resume" }, t("paddle.resumeNote"))}>{t("paddle.resume")}</button>
+              <button type="button" className="button secondary" onClick={() => send({ action: "resume" }, hostCopy("paddle.resumeNote"))}>{hostCopy("paddle.resume")}</button>
             )}
-            <button type="button" className="button secondary" onClick={() => send({ action: "end" }, t("paddle.endNote"))}>{t("paddle.end")}</button>
+            <button type="button" className="button secondary" onClick={() => send({ action: "end" }, hostCopy("paddle.endNote"))}>{hostCopy("paddle.end")}</button>
           </div>
         </div>
       )}
@@ -188,11 +193,11 @@ export function PaddleHost(props: {
           <input
             value={who}
             onChange={(e) => setWho(e.target.value)}
-            placeholder={t("paddle.who")}
-            aria-label={t("paddle.who")}
+            placeholder={hostCopy("paddle.who")}
+            aria-label={hostCopy("paddle.who")}
             maxLength={80}
           />
-          <button className="button secondary" type="submit">{t("paddle.add")}</button>
+          <button className="button secondary" type="submit">{hostCopy("paddle.add")}</button>
         </form>
       )}
     </section>

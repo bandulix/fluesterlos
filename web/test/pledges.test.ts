@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anonymousGiftLabel, bigScreenFrame, pledgeTotal, pledgedNeedIds, raisedSplit, recognitionMoves, stepUnits, unitsCost } from "../src/lib/pledgeLogic";
+import { anonymousGiftLabel, bigScreenFrame, orderDonors, pledgeTotal, pledgedNeedIds, raisedSplit, recognitionMoves, stepUnits, unitsCost } from "../src/lib/pledgeLogic";
 
 describe("raised split", () => {
   it("adds auction high bids and donations, and trusts a server total", () => {
@@ -83,5 +83,10 @@ describe("donor recognition display", () => {
       { name: "D", rank: 3 },
     ])).toEqual(["C", "D"]);
     expect(recognitionMoves(before, before)).toEqual([]);
+    expect(orderDonors([
+      { rank: 2, name: "The Müller Family" },
+      { rank: 1, name: "Siam Hotels" },
+      { rank: 3, name: "Lena Berger" },
+    ]).map((d) => d.name)).toEqual(["Siam Hotels", "The Müller Family", "Lena Berger"]);
   });
 });

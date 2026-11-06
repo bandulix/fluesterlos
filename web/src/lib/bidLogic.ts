@@ -9,6 +9,13 @@ export function filtersFor(closed: boolean): FilterKey[] {
   return closed ? CLOSED_FILTERS : FILTERS;
 }
 
+/** Which edges of a horizontal chip row still have chips out of view. */
+export function chipScrollEdges(scrollLeft: number, scrollWidth: number, clientWidth: number): { left: boolean; right: boolean } {
+  const hidden = scrollWidth - clientWidth;
+  if (hidden <= 2) return { left: false, right: false };
+  return { left: scrollLeft > 2, right: scrollLeft < hidden - 2 };
+}
+
 /** The next valid bid: starting bid when nobody bid yet, else high + increment. */
 export function minNextBid(it: Pick<LiveItem, "bidCount" | "startingBid" | "highBid" | "minIncrement">): number {
   return it.bidCount === 0 ? it.startingBid : it.highBid + it.minIncrement;
@@ -128,6 +135,54 @@ export function statusAt(ev: { status: EventStatus; startsAt: string; endsAt: st
   if (Number.isFinite(end) && now >= end) return "closed";
   if (ev.status === "scheduled" && Number.isFinite(start) && now < start) return "scheduled";
   return "open";
+}
+
+export type LotTone = "winning" | "outbid" | "sold" | "lost" | null;
+
+/**
+ * What a lot card should say once a lot can take no more bids.
+ * A lot closed on its own is settled the same way as a closed auction:
+ * the leader has the hammer, everyone else did not win, and the live ring comes off.
+ */
+export function lotFace(input: {
+  auctionClosed: boolean;
+  lotClosed: boolean;
+  sold: boolean;
+  bidCount: number;
+  status: ItemStatus;
+}): {
+  tone: LotTone;
+  badge: "bid.yours" | "bid.soldShort" | "bid.won" | "bid.winning" | "bid.lost" | "bid.outbid" | null;
+  icon: "" | "✓ " | "↑ ";
+  price: "bid.winningBid" | "bid.current" | "bid.starting";
+  leader: "bid.wonBy" | "bid.leading" | null;
+  ring: boolean;
+  showTopBid: boolean;
+} {
+  const settled = input.auctionClosed || input.lotClosed;
+  const over = settled || input.sold;
+  const tone: LotTone = input.sold
+    ? input.status === "winning" ? "winning" : "sold"
+    : settled && input.status === "outbid" ? "lost" : input.status;
+  const badge = input.sold
+    ? input.status === "winning" ? "bid.yours" as const : "bid.soldShort" as const
+    : input.status === "winning"
+      ? (settled ? "bid.won" as const : "bid.winning" as const)
+      : input.status === "outbid"
+        ? (settled ? "bid.lost" as const : "bid.outbid" as const)
+        : null;
+  const icon = input.sold ? "" : tone === "winning" ? "✓ " : tone === "outbid" ? "↑ " : "";
+  const price = input.bidCount === 0 ? "bid.starting" as const : over ? "bid.winningBid" as const : "bid.current" as const;
+  const leader = input.bidCount > 0 && !input.sold ? (over ? "bid.wonBy" as const : "bid.leading" as const) : null;
+  return {
+    tone,
+    badge,
+    icon,
+    price,
+    leader,
+    ring: !over,
+    showTopBid: !over && input.bidCount > 0,
+  };
 }
 
 /** "1:05:09", "05:09" — hours only when needed. */

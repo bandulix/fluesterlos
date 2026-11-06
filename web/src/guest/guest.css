@@ -262,6 +262,33 @@
 .g-install-icon { font-size: 1.5rem; }
 
 /* —— Filter chips —— */
+.g-chips-wrap { position: relative; min-width: 0; }
+.g-chips-wrap::before,
+.g-chips-wrap::after {
+  content: "";
+  position: absolute; top: 0; bottom: 0; width: 28px;
+  pointer-events: none; opacity: 0; z-index: 1;
+}
+.g-chips-wrap.is-left::before {
+  left: 0; opacity: 1;
+  background: linear-gradient(to right, var(--bg, #231f20), transparent);
+}
+.g-chips-wrap.is-right::after {
+  right: 0; opacity: 1;
+  background: linear-gradient(to left, var(--bg, #231f20) 10%, transparent);
+}
+.g-chips-wrap.is-right .g-chips {
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 36px), transparent);
+}
+.g-chips-wrap.is-left .g-chips {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 36px);
+  mask-image: linear-gradient(to right, transparent, #000 36px);
+}
+.g-chips-wrap.is-left.is-right .g-chips {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+}
 .g-chips {
   display: flex; gap: 8px; overflow-x: auto; padding: 2px 0;
   scrollbar-width: none; -webkit-overflow-scrolling: touch;
@@ -693,11 +720,13 @@
   border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .g-switch button {
-  flex: 1;
-  min-height: 44px; border: 0; border-radius: 999px;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px; padding: 0 4px; border: 0; border-radius: 999px;
   background: transparent; color: var(--muted, var(--muted));
   font-family: var(--font-display, inherit);
-  font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: 0.92rem; font-weight: 600; letter-spacing: 0.04em; line-height: 1.1;
+  text-transform: uppercase; white-space: nowrap;
 }
 .g-switch button.is-active {
   background: var(--button-bg, var(--accent));

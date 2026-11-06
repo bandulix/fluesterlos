@@ -120,7 +120,8 @@ Open **`/host`**. The host desk uses the same navy and gold gala skin as the pho
   - a highlighted item showing its real state (current bid and leader, starting bid, fixed price, sold); it rotates every 6 s, prefers items with recent bids and jumps to an item the moment it gets a bid; and a **scannable join QR**;
   - the **item board, paged**: as many cards as fit (8–12 per page), advancing every 8 s with a page indicator ("13–24 of 48"); the top three lots by amount wear a rank badge, a new bid washes that row gold for a few seconds, and the 3 **Hot** items (most bids in the last 5 minutes, then most bids) are outlined in gold;
   - the latest bids;
-  - a **single compact sponsor row** (≤ ~12 % of the height): it scrolls as a slow marquee when the sponsors don't fit, or — with `prefers-reduced-motion` — shows them page by page.
+  - a **single compact sponsor row** (≤ ~12 % of the height): the thank-you sits on one line beside the sponsor chips. The row scrolls as a slow marquee when the sponsors don't fit, or — with `prefers-reduced-motion` — shows them page by page.
+  The join line in the corner is `Join:` plus the host and event code from `PUBLIC_URL` (see Configuration). It is not the address of the computer plugged into the projector.
   Amounts look like the guest app (`฿7,100`). It is live and animated in the active event theme.
 
 <p align="center"><img src="docs/screenshots/bigscreen.png" width="640" alt="Big screen: total, featured item, join QR, item board, latest bids, sponsors"></p>
@@ -139,7 +140,7 @@ docker compose up --build
 - API: http://localhost:3000 (`/api/health`). The web container proxies `/api/` to it.
 - Data: Postgres in volume `pgdata`; uploads (photos, logos, voucher PDFs, payslips, host QR) in volume `appdata` (`/data`).
 
-For production, put it behind HTTPS and set `PUBLIC_URL` to the public origin. `PUBLIC_URL` is used in join links and QR codes, and https makes cookies `Secure`.
+For production, put it behind HTTPS and set `PUBLIC_URL` to the public origin guests will open (for example `https://gala.example.org`). That value is what the phones, the join QR, and the projector line `Join: host/code` all use. https makes cookies `Secure`.
 
 ### B) Prebuilt images (GHCR)
 
@@ -161,7 +162,7 @@ API environment variables (see [`.env.example`](./.env.example)):
 | `DATABASE_URL` | — (compose sets it) | Postgres connection string. |
 | `BOOTSTRAP_TOKEN` | `change-me-once` (compose) | One-time secret for registering the first owner. **Change it before first boot.** |
 | `PORT` | `3000` | API port. |
-| `PUBLIC_URL` | `http://localhost:8080` | Public web origin: join URLs/QR, CORS default, `Secure` cookies when https. |
+| `PUBLIC_URL` | `http://localhost:8080` | Public web origin. Join links, the big-screen join line (`Join: host/code`) and its QR, CORS, and `Secure` cookies when https. Set this to the origin guests can open. A localhost value is only right on the machine that is serving the app. |
 | `CORS_ORIGINS` | origin of `PUBLIC_URL` | Comma-separated browser origins allowed for credentialed CORS (e.g. `http://localhost:5173` for Vite dev). |
 | `TRUST_PROXY` | `loopback,linklocal,uniquelocal` | Proxy hops trusted for `X-Forwarded-For` (client IP for rate limits). |
 | `DEFAULT_PHONE_COUNTRY` | `TH` | Country for numbers typed without `+` (ISO 3166 alpha-2). |

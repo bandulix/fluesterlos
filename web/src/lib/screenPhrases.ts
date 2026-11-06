@@ -10,9 +10,14 @@ export function fundedPhrase(lang: Lang, n: Pick<Need, "percent" | "fullyFunded"
   return pct;
 }
 
+function settled(it: { closed?: boolean }, auctionClosed: boolean): boolean {
+  return auctionClosed || Boolean(it.closed);
+}
+
 export function spotLabel(lang: Lang, it: LiveItem, closed: boolean): string {
+  const over = settled(it, closed);
   if (it.soldViaBuyNow) return translate(lang, isFixedPrice(it) ? "screen.soldFixed" : "screen.soldBuyNow");
-  if (it.bidCount > 0) return translate(lang, closed ? "screen.soldFor" : "screen.current");
+  if (it.bidCount > 0) return translate(lang, over ? "screen.soldFor" : "screen.current");
   if (isFixedPrice(it)) return translate(lang, "screen.fixed");
   return translate(lang, "screen.starting");
 }
@@ -24,27 +29,30 @@ export function spotAmount(it: LiveItem): number {
 }
 
 export function spotSub(lang: Lang, it: LiveItem, closed: boolean): string {
+  const over = settled(it, closed);
   const bids = countLabel(lang, "bid.oneBid", "bid.bids", it.bidCount);
   if (it.soldViaBuyNow) {
     return it.highBidder ? translate(lang, "screen.boughtBy", { name: it.highBidder }) : translate(lang, "screen.sold");
   }
   if (it.bidCount > 0) {
-    const who = closed
+    const who = over
       ? translate(lang, "screen.wonBy", { name: it.highBidder ?? "—" })
       : translate(lang, "screen.leading", { name: it.highBidder ?? "—" });
     return `${who} · ${bids}`;
   }
-  if (isFixedPrice(it)) return translate(lang, closed ? "screen.notSold" : "screen.buyNowHint");
-  return translate(lang, closed ? "screen.noBidsClosed" : "screen.beFirst");
+  if (isFixedPrice(it)) return translate(lang, over ? "screen.notSold" : "screen.buyNowHint");
+  return translate(lang, over ? "screen.noBidsClosed" : "screen.beFirst");
 }
 
 export function cardMeta(lang: Lang, it: LiveItem, closed = false): string {
+  const over = settled(it, closed);
   if (it.soldViaBuyNow) {
     return it.highBidder ? `${translate(lang, "screen.sold")} · ${it.highBidder}` : translate(lang, "screen.sold");
   }
-  if (!closed && isFixedPrice(it)) return translate(lang, "screen.fixed");
+  if (!over && isFixedPrice(it)) return translate(lang, "screen.fixed");
+  if (it.bidCount && over) return translate(lang, "screen.wonBy", { name: it.highBidder ?? "—" });
   if (it.bidCount) return `${it.highBidder ?? "—"} · ${countLabel(lang, "bid.oneBid", "bid.bids", it.bidCount)}`;
-  return translate(lang, closed ? "screen.noBidsClosed" : "screen.starting");
+  return translate(lang, over ? "screen.noBidsClosed" : "screen.starting");
 }
 
 export function pledgeLine(lang: Lang, p: RecentPledge, money: (n: number) => string): string {

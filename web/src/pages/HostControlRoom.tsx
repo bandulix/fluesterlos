@@ -5,7 +5,7 @@ import { formatAmount, type Currency } from "../lib/money";
 import { hostNextActions } from "../lib/p2";
 import { Countdown } from "../components/Countdown";
 import { BrandMark } from "../components/BrandMark";
-import { t } from "../i18n";
+import { translate } from "../i18n";
 
 /**
  * Host view of the night. It reads the live payload the host page already holds,
@@ -51,7 +51,7 @@ export function HostControlRoom({
   const statusLabel = ev.status === "open" ? "Live" : ev.status === "scheduled" ? "Not started" : "Closed";
   const primary =
     actions.paddle === "start"
-      ? t("paddle.start")
+      ? translate("en", "paddle.start")
       : actions.paddle === "next"
         ? "Next paddle level"
         : null;

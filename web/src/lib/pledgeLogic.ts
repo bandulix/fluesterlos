@@ -59,6 +59,11 @@ export function bigScreenFrame(
   return frames[step % frames.length];
 }
 
+/** Public ranking. A guest's own gift stays on its rank; the row is badged instead of lifted. */
+export function orderDonors<T extends { rank: number }>(donors: T[]): T[] {
+  return [...donors].sort((a, b) => a.rank - b.rank);
+}
+
 /** Names that just entered the top 3, or moved up inside it. */
 export function recognitionMoves(
   prev: Array<{ name: string; rank: number }>,
