@@ -67,6 +67,7 @@ export const th = {
   "bid.filter.emptyClosed.mine": "คุณไม่ได้ร่วมประมูลในครั้งนี้",
   "bid.current": "ราคาปัจจุบัน",
   "bid.leading": "นำโดย {name}",
+  "bid.wonBy": "ผู้ชนะ {name}",
   "bid.topBid": "ราคาสูงสุด",
   "bid.raised": "ยอดที่ระดมได้",
   "bid.sectionLots": "ล็อตที่เปิดอยู่",

@@ -992,17 +992,26 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .board-amount { font-size: 1.3rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.2; }
 .board-meta { color: var(--muted); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .engager .feed { overflow: visible; display: flex; flex-direction: column; min-height: 0; }
-.engager .feed ul { flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; overflow: visible; }
-.engager .feed li { display: flex; align-items: baseline; gap: 0.75rem; font-size: 1.15rem; padding: 0.45rem 0; }
+.engager .feed ul { flex: 1 1 auto; min-height: 0; margin: 0; padding: 0; overflow: hidden; }
+.engager .feed li { display: flex; align-items: baseline; gap: 0.75rem; font-size: 1.15rem; padding: 0.28rem 0; }
 .engager .feed li strong { flex: none; min-width: 6.5ch; font-variant-numeric: tabular-nums; }
 .engager .feed li span { display: grid; min-width: 0; }
 .engager .feed li small { color: var(--muted); font-size: 0.85em; }
 .pledge-ticker { font-size: clamp(1.35rem, 2.4vh, 1.85rem); }
 .engager .feed li.is-latest { font-size: 1.35rem; }
 /* Sponsors: one compact row, at most ~12 % of the screen height. */
-.sponsor-strip { flex: none; display: flex; align-items: center; gap: 1rem; max-height: none; min-height: 0; overflow: visible; }
-.sponsor-strip h3 { flex: none; margin: 0; font-size: 0.95rem; color: var(--muted); max-width: 9rem; line-height: 1.2; }
-.sponsor-viewport { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+.sponsor-strip {
+  flex: none; display: flex; align-items: center; gap: 1.25rem;
+  max-height: none; min-height: 0; overflow: hidden;
+  padding: 0.15rem 0;
+}
+.sponsor-strip h3 {
+  flex: none; margin: 0; font-size: 1.05rem; color: var(--muted);
+  max-width: none; line-height: 1.15; white-space: nowrap;
+}
+.sponsor-strip h3 .bi { flex-direction: row; align-items: baseline; gap: 0.55rem; }
+.sponsor-strip h3 .bi > small { font-size: 0.82em; line-height: 1.15; }
+.sponsor-viewport { position: relative; flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .sponsor-measure { position: absolute; visibility: hidden; display: flex; gap: 16px; white-space: nowrap; pointer-events: none; }
 .sponsor-row { display: flex; gap: 16px; width: max-content; }
 .sponsor-strip.is-static .sponsor-row, .sponsor-strip.is-paged .sponsor-row { width: auto; justify-content: center; }
@@ -1010,7 +1019,7 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .sponsor-dup { display: contents; }
 @keyframes sponsor-marquee { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 8px)); } }
 .sponsor-tile {
-  flex: none; height: clamp(40px, 7vh, 64px); padding: 0.3rem 0.8rem; box-sizing: border-box;
+  flex: none; height: 48px; padding: 0.25rem 0.75rem; box-sizing: border-box;
   display: flex; flex-direction: row; align-items: center; gap: 0.55rem;
   border-radius: 12px; background: #fff; color: #0f172a; white-space: nowrap;
 }
@@ -1316,12 +1325,13 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .host-studio-paddle .button, .host-studio-paddle input, .host-studio-paddle select { min-height: 44px; font-size: 16px; }
 .host-room-preview {
   display: grid; gap: 12px; align-content: start;
-  min-height: 180px; padding: 12px;
-  border-radius: 16px;
+  min-width: 0; min-height: 180px; padding: 12px;
+  border-radius: 16px; overflow: hidden;
   background: #231f20; color: #fff;
 }
 .host-mini-band {
   display: flex; align-items: center; gap: 0;
+  min-width: 0; max-width: 100%; overflow: hidden;
   padding: 8px 10px;
   background: #fff; color: #231f20;
   border-radius: 10px;
@@ -1336,15 +1346,17 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
 .host-mini-slash::before {
   content: ""; width: 4px; height: 72%; background: #b52a2e; transform: skewX(-12deg);
 }
-.host-mini-lockup { min-width: 0; }
+.host-mini-lockup { min-width: 0; flex: 1 1 auto; overflow: hidden; }
 .host-mini-title {
-  display: flex; align-items: baseline; gap: 0.2em;
+  display: block;
   margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-family: "Barlow Condensed", sans-serif;
-  font-weight: 800; font-style: italic; font-size: 22px;
+  font-weight: 800; font-style: italic; font-size: 16px;
   letter-spacing: 0.01em; line-height: 0.9; text-transform: uppercase;
-  color: #231f20; white-space: nowrap;
+  color: #231f20;
 }
+.host-mini-title span + span { margin-left: 0.2em; }
 .host-mini-title .is-last { color: #b52a2e; }
 .host-mini-status {
   margin: 4px 0 0;
@@ -1353,9 +1365,12 @@ a.button { display: inline-flex; align-items: center; justify-content: center; t
   color: #231f20;
 }
 .host-mini-status.is-on { color: #b52a2e; }
-.host-room-lot { margin: 0; display: flex; justify-content: space-between; gap: 0.75rem; font-size: 15px; }
+.host-room-lot {
+  margin: 0; display: flex; justify-content: space-between; align-items: baseline;
+  gap: 0.75rem; min-width: 0; max-width: 100%; font-size: 15px;
+}
 .host-room-lot span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.host-room-lot strong { font-variant-numeric: tabular-nums; }
+.host-room-lot strong { flex: none; font-variant-numeric: tabular-nums; }
 .host-room-preview a { color: #fff; font-weight: 700; font-size: 15px; min-height: 44px; display: inline-flex; align-items: center; }
 @media (max-width: 900px) {
   .host-control { grid-template-columns: 1fr; }
@@ -1566,7 +1581,7 @@ label.file-btn input[type="file"] {
   .engager.lang-both .join-qr-title { margin-bottom: 0.2rem; }
   .engager.lang-both .join-qr-url { margin-top: 0.25rem; }
   .engager.lang-both .sponsor-strip { max-height: none; overflow: visible; }
-  .engager.lang-both .sponsor-strip h3 { max-width: 18rem; }
+  .engager.lang-both .sponsor-strip h3 { max-width: none; font-size: 1.2rem; white-space: nowrap; }
   .engager.lang-th .join-qr { justify-content: flex-start; }
   .engager.lang-th .join-qr-code svg { width: clamp(96px, 13vh, 156px); }
   .engager.lang-th .big-amount { font-size: clamp(1.8rem, 4.4vh, 2.7rem); line-height: 1.05; }
@@ -1609,6 +1624,29 @@ label.file-btn input[type="file"] {
   .engager.lang-th .big-amount { font-size: 1.7rem; }
   .engager.lang-th .huge { font-size: 2.4rem; }
 }
+/* 1080p with a second language: the top tiles and the clock were eating the list row,
+   so the item board and latest bids measured as zero and drew nothing. */
+@media (min-width: 900px) and (min-height: 900px) {
+  .engager.lang-both .auction-clock-digits,
+  .engager.lang-th .auction-clock-digits { font-size: clamp(2.7rem, 4.8vh, 3.5rem); }
+  .engager.lang-both .huge,
+  .engager.lang-th .huge { font-size: clamp(2rem, 4.2vh, 3.1rem); line-height: 1.08; }
+  .engager.lang-both .big-amount,
+  .engager.lang-th .big-amount { font-size: clamp(1.55rem, 3vh, 2.2rem); line-height: 1.08; }
+  .engager.lang-both .highlight-row .highlight-photo,
+  .engager.lang-th .highlight-row .highlight-photo { max-height: 12vh; }
+  .engager.lang-both .pledge-ticker,
+  .engager.lang-th .pledge-ticker { font-size: 1.2rem; }
+  .engager.lang-both .engager-bottom,
+  .engager.lang-th .engager-bottom { flex: 1 1 auto; min-height: 280px; }
+  .engager.lang-both .feed h3,
+  .engager.lang-th .feed h3 { font-size: 1.15rem; line-height: 1.15; margin: 0 0 0.2rem; }
+  .engager.lang-both .feed li,
+  .engager.lang-th .feed li { font-size: 1.05rem; padding: 0.16rem 0; line-height: 1.15; }
+  .engager.lang-both .feed li.is-latest,
+  .engager.lang-th .feed li.is-latest { font-size: 1.15rem; }
+}
+
 /* Leave a band under the tiles for whole list rows. Closed keeps that band for results. */
 @media (min-width: 900px) and (min-height: 500px) {
   .engager.is-closed .pledge-ticker-wrap { display: none; }

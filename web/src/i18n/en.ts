@@ -67,6 +67,7 @@ export const en = {
   "bid.filter.emptyClosed.mine": "You didn't bid this time.",
   "bid.current": "Current bid",
   "bid.leading": "Leading: {name}",
+  "bid.wonBy": "Won by {name}",
   "bid.topBid": "Top bid",
   "bid.raised": "Raised so far",
   "bid.sectionLots": "Live lots",

@@ -16,7 +16,7 @@ import { roomMain } from "../lib/paddleLogic";
 import { BrandMark } from "../components/BrandMark";
 import { SponsorBadge } from "../components/SponsorBadge";
 import { isFixedPrice } from "../lib/bidLogic";
-import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, spotlightAt, topLot } from "../lib/bigScreen";
+import { BOARD_PAGE_MS, chunk, gridFit, hotItemIds, pageCount, pageSlice, shortJoin, spotlightAt, topLot } from "../lib/bigScreen";
 import { asScreenLang, countLabel, translate, type ScreenLang } from "../i18n";
 import { Dual, Line } from "../components/ScreenLine";
 import { cardMeta, fundedPhrase, pledgeLine, spotAmount, spotLabel, spotSub } from "../lib/screenPhrases";
@@ -152,22 +152,6 @@ function NeedSpotlight({ need, money, spotlight, screenLang }: { need: Need; mon
   );
 }
 
-function shortUrl(url: string): string {
-  return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
-}
-
-/** Host plus event code, short enough to read from the room. */
-function shortJoin(url: string): string {
-  try {
-    const u = new URL(url);
-    const code = u.pathname.split("/").filter(Boolean).pop() ?? "";
-    const host = u.host.replace(/^www\./, "");
-    return code ? `${host}/${code}` : host;
-  } catch {
-    return shortUrl(url).replace(/\/e\//, "/");
-  }
-}
-
 function joinLine(lang: "en" | "th" | "de", where: string) {
   const text = translate(lang, "screen.joinAt", { where });
   const slash = where.lastIndexOf("/");
@@ -268,13 +252,14 @@ function useFitCount(itemCount: number, dep: unknown) {
       const available = el.clientHeight;
       const kids = [...el.children] as HTMLElement[];
       if (kids[0] && kids[0].offsetHeight > 0) rowH.current = kids[0].offsetHeight;
-      // A slot shorter than one measured row shows nothing, and stays there.
-      if (available < 8 || (rowH.current > 0 && available + 1 < rowH.current)) {
-        if (count !== 0) setCount(0);
+      // An empty list cannot be measured. If the slot has room, draw one row and fit again.
+      if (kids.length === 0) {
+        if (itemCount > 0 && count === 0 && available >= 8) setCount(1);
         return;
       }
-      if (kids.length === 0) {
-        if (itemCount > 0 && count === 0) setCount(Math.min(itemCount, 1));
+      // Shorter than one row: show nothing rather than a clipped price.
+      if (available < 8 || (rowH.current > 0 && available + 1 < rowH.current)) {
+        if (count !== 0) setCount(0);
         return;
       }
       const gap = kids.length >= 2 ? Math.max(0, kids[1].offsetTop - kids[0].offsetTop - kids[0].offsetHeight) : 0;

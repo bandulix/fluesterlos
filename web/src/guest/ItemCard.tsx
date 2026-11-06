@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { assetUrl, LiveItem } from "../lib/api";
 import { Currency, formatAmount } from "../lib/money";
-import { canStepDown, canStepUp, effectiveAmount, formatRemaining, isFixedPrice, ItemStatus, onlyBuyNow } from "../lib/bidLogic";
+import { canStepDown, canStepUp, effectiveAmount, formatRemaining, isFixedPrice, ItemStatus, lotFace, onlyBuyNow } from "../lib/bidLogic";
 import { ringState } from "../lib/p2";
 import { dedupeDescription } from "../lib/text";
 import { plural, t } from "../i18n";
@@ -59,21 +59,11 @@ function ItemCardImpl({
   const buyNowOnly = onlyBuyNow(it);
   const isBuyNow = it.buyNow != null && amount >= it.buyNow;
   const fmt = (n: number) => formatAmount(n, ccy);
-  // After the close an outbid item is simply "Not won" — neutral grey, no red alarm, no arrow.
   const fixed = isFixedPrice(it);
-  // Bought outright (buy-now / fixed price): the buyer owns it ("Yours ✓"), everyone else sees "Sold" —
-  // never "You're winning" / "Outbid", the item is over.
-  const shownStatus = sold ? (status === "winning" ? "winning" : "sold") : closed && status === "outbid" ? "lost" : status;
-  const statusLabel = sold
-    ? status === "winning"
-      ? t("bid.yours")
-      : t("bid.soldShort")
-    : status === "winning"
-      ? t(closed ? "bid.won" : "bid.winning")
-      : status === "outbid"
-        ? t(closed ? "bid.lost" : "bid.outbid")
-        : null;
-  const statusIcon = sold ? "" : shownStatus === "winning" ? "✓ " : shownStatus === "outbid" ? "↑ " : "";
+  // Bought outright (buy-now / fixed price): the buyer owns it ("Yours ✓"), everyone else sees "Sold".
+  // A lot the host closed early is settled the same way as the end of the night.
+  const face = lotFace({ auctionClosed, lotClosed, sold, bidCount: it.bidCount, status });
+  const shownStatus = face.tone;
   const description = dedupeDescription(it.title, it.description);
   const titleId = `item-${it.id}-title`;
 
@@ -89,14 +79,14 @@ function ItemCardImpl({
         ) : (
           <div className="g-item-placeholder" aria-hidden="true">🎁</div>
         )}
-        {statusLabel && (
+        {face.badge && (
           <span className={`g-status g-status-${shownStatus}`} role="status">
-            {statusIcon}
-            {statusLabel}
+            {face.icon}
+            {t(face.badge)}
           </span>
         )}
         <span className="g-kind">{it.kind === "physical" ? t("bid.physical") : t("bid.voucher")}</span>
-        {eventStatus === "open" && remainingMs != null && totalMs != null && remainingMs > 0 && (
+        {eventStatus === "open" && face.ring && remainingMs != null && totalMs != null && remainingMs > 0 && (
           <TimerRing remainingMs={remainingMs} totalMs={totalMs} />
         )}
         {onWatch && !auctionClosed && (
@@ -128,9 +118,9 @@ function ItemCardImpl({
         ) : (
           <div className="g-price">
             <div>
-              <span className="g-price-label">{it.bidCount ? t(closed || sold ? "bid.winningBid" : "bid.current") : t("bid.starting")}</span>
+              <span className="g-price-label">{t(face.price)}</span>
               <strong className="g-price-value">{fmt(it.bidCount ? it.highBid : it.startingBid)}</strong>
-              {it.bidCount && it.highBidder && !sold ? <span className="g-leading">{t("bid.leading", { name: it.highBidder })}</span> : null}
+              {face.leader && it.highBidder ? <span className="g-leading">{t(face.leader, { name: it.highBidder })}</span> : null}
             </div>
             {it.bidCount > 0 && onOpenHistory ? (
               <button type="button" className="g-price-meta g-linkish" onClick={onOpenHistory}>
@@ -141,7 +131,7 @@ function ItemCardImpl({
             )}
           </div>
         )}
-        {!fixed && it.bidCount > 0 && it.highBidder && !sold && !closed && (
+        {!fixed && face.showTopBid && it.highBidder && (
           <div className="g-topbid">
             <span>
               <span className="g-price-label">{t("bid.topBid")}</span>

@@ -144,7 +144,6 @@ export function HostEventCard(props: {
         <h2>{ev.title}</h2>
         <span className={`pill status-${ev.status}`}>{ev.status}</span>
       </div>
-      <p>Code: <code>{code}</code></p>
       <HostControlRoom
           live={live}
           ccy={ccy}

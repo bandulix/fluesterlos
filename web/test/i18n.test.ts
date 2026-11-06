@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { en, type StringKey } from "../src/i18n/en";
 import { th } from "../src/i18n/th";
@@ -32,6 +33,32 @@ describe("guest languages", () => {
     expect(detectLanguage("fr-FR")).toBe("en");
     expect(detectLanguage("")).toBe("en");
     expect(detectLanguage(null)).toBe("en");
+  });
+
+  it("keeps German formal, and the donor tab is one short word", () => {
+    expect(de["cat.donors"]).toBe("Rangliste");
+    expect(de["cat.donors"]).not.toMatch(/[\s-]/);
+    expect(de["cat.donors"].length).toBeLessThanOrEqual(9);
+    expect(de["donate.topTitle"]).toBe("Großspender");
+    expect(de["paddle.who"]).toContain("Bieternummer");
+    expect(de["bid.topBid"]).toBe("Höchstgebot");
+    expect(de["max.title"]).toBe("Maximalgebot");
+    expect(de["bid.winningBid"]).toBe("Zuschlag");
+    expect(de["bid.yours"]).toBe("Ihr Los ✓");
+    for (const [key, value] of Object.entries(de)) {
+      expect(value, key).not.toMatch(/\b(du|dein|deine|deinen|deinem|deiner|dir|dich|euch|euer|eure)\b/);
+    }
+  });
+
+  it("does not print the event code twice on the host card", () => {
+    const card = readFileSync(new URL("../src/pages/HostEventCard.tsx", import.meta.url), "utf8");
+    const room = readFileSync(new URL("../src/pages/HostControlRoom.tsx", import.meta.url), "utf8");
+    const paddle = readFileSync(new URL("../src/pages/PaddleHost.tsx", import.meta.url), "utf8");
+    expect(card).not.toMatch(/Code:\s*<code>/);
+    expect(room).toContain("Event code");
+    expect(room).not.toMatch(/\bt\(/);
+    expect(paddle).not.toMatch(/\bt\(/);
+    expect(paddle).toContain('translate("en"');
   });
 
   it("switches the active table", () => {
